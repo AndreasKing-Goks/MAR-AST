@@ -6,7 +6,7 @@ class JONSWAPWave:
     This class defines a wave model based on JONSWAP wave spectrum
     with wave spreading function.
     '''
-    def __init__(self, g=9.81, s=1, w_min=0.4, w_max=2.5, N_omega=50, ship_length=80, ship_breadth=10, ship_draft=8,
+    def __init__(self, s=1, w_min=0.4, w_max=2.5, N_omega=50, ship_length=80, ship_breadth=10, ship_draft=8,
                  psi_min=-np.pi/2, psi_max=np.pi/2, N_psi=10, seed=None, dt=30.0):
         '''
         Parameters:
@@ -42,7 +42,7 @@ class JONSWAPWave:
         '''
         
         # Self parameters
-        self.g = g
+        self.g = 9.81
         self.s = s
         self.w_min = w_min
         self.w_max = w_max

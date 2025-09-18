@@ -12,6 +12,9 @@ from typing import NamedTuple, List
 
 from simulator.ship_in_transit.utils.utils import EulerInt, ShipDraw
 from simulator.ship_in_transit.sub_systems.ship_engine import ShipMachineryModel, MachinerySystemConfiguration
+from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWave
+from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent
+from simulator.ship_in_transit.sub_systems.wind_model import WindModel
 
 ###################################################################################################################
 ####################################### CONFIGURATION FOR SHIP MODEL ##############################################
@@ -41,6 +44,42 @@ class EnvironmentConfiguration(NamedTuple):
     wind_speed: float
     wind_direction: float
 
+    
+class WaveModelConfiguration(NamedTuple):
+    minimum_wave_frequency: float
+    maximum_wave_frequency: float
+    wave_frequency_discrete_unit_count: int
+    minimum_spreading_angle: float
+    maximum_spreading_angle: float
+    spreading_angle_discrete_unit_count: int
+    spreading_coefficient: int
+    
+class CurrentModelConfiguration(NamedTuple):
+    initial_current_velocity: float
+    current_velocity_standard_deviation: float
+    current_velocity_decay_rate: float
+    initial_current_direction: float
+    current_direction_standard_deviation: float
+    current_direction_decay_rate: float
+
+class WindModelConfiguration(NamedTuple):
+    initial_mean_wind_velocity: float
+    mean_wind_velocity_decay_rate: float
+    mean_wind_velocity_standard_deviation: float
+    initial_wind_direction: float
+    wind_direction_decay_rate: float
+    wind_direaction_standard_deviation: float
+    minimum_mean_wind_velocity: float
+    maximum_mean_wind_velocity: float
+    minimum_wind_gust_frequency: float
+    maximum_wind_gust_frequency: float
+    wind_gust_frequency_discrete_unit_count: int
+    clip_speed_nonnegative: bool
+    wind_spectrum: str  # "norsok" or "harris"
+    L_parameter: float
+    kappa_parameter: float
+    
+    
 
 class SimulationConfiguration(NamedTuple):
     initial_north_position_m: float
@@ -72,8 +111,11 @@ class BaseShipModel:
               - self.ship_config.dead_weight_tonnage
         self.mass = lsw + payload + self.ship_config.bunkers + self.ship_config.ballast
 
+        self.rho = 1025    # Sea water density
+        
         self.l_ship = self.ship_config.length_of_ship  # 80
         self.w_ship = self.ship_config.width_of_ship  # 16.0
+        self.t_ship = self.mass / (self.rho * self.l_ship * self.w_ship)    # Ship draft assuming ΣFz=0
         self.x_g = 0
         self.i_z = self.mass * (self.l_ship ** 2 + self.w_ship ** 2) / 12
 
@@ -479,7 +521,7 @@ class ShipModelComplex(BaseShipModel):
     '''
     def __init__(self, ship_config: ShipConfiguration, 
                  simulation_config: SimulationConfiguration,
-                 environment_config: EnvironmentConfiguration, 
+                 environment_config: ComplexEnvironmentConfiguration, 
                  machinery_config: MachinerySystemConfiguration,
                  initial_propeller_shaft_speed_rad_per_s):
         super().__init__(ship_config, simulation_config, environment_config)
@@ -488,6 +530,9 @@ class ShipModelComplex(BaseShipModel):
             initial_propeller_shaft_speed_rad_per_sec=initial_propeller_shaft_speed_rad_per_s,
             time_step=self.int.dt
         )
+        self.wave_model = JONSWAPWave
+        self.current_model =SurfaceCurrent
+        self.wind_model=WindModel
         self.simulation_results = defaultdict(list)
 
     def three_dof_kinetics(self, thrust_force=None, rudder_angle=None, load_percentage=None, *args, **kwargs):
