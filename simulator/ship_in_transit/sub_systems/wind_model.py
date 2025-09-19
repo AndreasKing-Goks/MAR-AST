@@ -1,78 +1,87 @@
 import numpy as np
+import copy
+from typing import NamedTuple
 
-class WindModel:
+class WindModelConfiguration(NamedTuple):
+    initial_mean_wind_velocity: float
+    mean_wind_velocity_decay_rate: float
+    mean_wind_velocity_standard_deviation: float
+    initial_wind_direction: float
+    wind_direction_decay_rate: float
+    wind_direction_standard_deviation: float
+    minimum_mean_wind_velocity: float
+    maximum_mean_wind_velocity: float
+    minimum_wind_gust_frequency: float
+    maximum_wind_gust_frequency: float
+    wind_gust_frequency_discrete_unit_count: int
+    clip_speed_nonnegative: bool
+    kappa_parameter: float  
+    U10: int                                        # 1 hour mean wind speed at 10 m elevation
+    wind_evaluation_height: float
+    timestep_size: float
+
+class NORSOKWindModel:
     """
     Mean wind:  Ȗ + μ Ȗ = w     (Gauss–Markov, Euler discretized)
     Gust:       U_g(t) = sum_i sqrt(2 S(f_i) Δf) cos(2π f_i t + φ_i)
     Direction:  ψ̇ + μψ ψ = wψ   (Gauss–Markov)
     """
-    def __init__(self,
-                 mu_Ubar, init_dir, mu_dir,
-                 model="norsok",                 # "norsok" or "harris"
-                 f_min=0.06, f_max=0.4, N_f=100,
-                 init_Ubar=None, U10=2.5, z=5.0,
-                 L=1800.0, kappa=0.0026,         # Harris params
-                 sigma_Ubar=0.2, sigma_dir=0.05,
-                 U_min=0.0, U_max=100.0,
-                 dt=30.0, seed=None, clip_speed_nonnegative=True):
-
-        # Random seed
-        if seed is not None:
-            np.random.seed(seed)
+    def __init__(self, config:WindModelConfiguration, seed=None):
 
         # stochastic/mean params
-        self.mu_Ubar, self.mu_dir = mu_Ubar, mu_dir
-        self.sigma_Ubar, self.sigma_dir = sigma_Ubar, sigma_dir
-        self.U_min, self.U_max = U_min, U_max
-        self.dt = dt
+        self.mu_Ubar = config.mean_wind_velocity_decay_rate
+        self.mu_dir = config.wind_direction_decay_rate
+        self.sigma_Ubar = config.mean_wind_velocity_standard_deviation
+        self.sigma_dir = config.wind_direction_standard_deviation
+        self.U_min = config.minimum_mean_wind_velocity
+        self.U_max = config.maximum_mean_wind_velocity
+        self.dt = config.timestep_size
 
         # environment / spectrum params
-        self.model = model.lower()
-        self.U10, self.z = U10, z      # common
-        self.L, self.kappa = L, kappa  # Harris
+        self.U10 = config.U10
+        self.z = config.wind_evaluation_height
+        self.kappa = config.kappa_parameter
 
         # frequency grid
-        self.f = np.linspace(f_min, f_max, N_f)   # Hz
+        f_min = config.minimum_wind_gust_frequency
+        f_max = config.maximum_wind_gust_frequency
+        self.N_f = config.wind_gust_frequency_discrete_unit_count
+        self.f = np.linspace(f_min, f_max, self.N_f)   # Hz
         self.df = self.f[1] - self.f[0]
 
         # mean wind at height z (log law used in Fossen around Harris example)
-        if init_Ubar is None:
+        if config.initial_mean_wind_velocity is None:
             z0 = 10.0 * np.exp(-2.0/(5.0*np.sqrt(self.kappa)))
             self.Ubar = self.U10 * (2.5*np.sqrt(self.kappa)) * np.log(self.z / z0)
         else:
-            self.Ubar = float(init_Ubar)
+            self.Ubar = float(config.initial_mean_wind_velocity)
 
         # direction state
-        self.dir = float(init_dir)
+        self.dir = float(config.initial_wind_direction)
 
         # ---- precompute gust amplitudes & phases (fixed), keep running angles ----
-        S = self._spectrum(self.f)
+        S = self._norsok(self.f)
         self.a = np.sqrt(2.0 * S * self.df)                  # (N_f,)
-        self.phi0 = 2*np.pi*np.random.rand(N_f)              # fixed phases
+        self.phi0 = 2*np.pi*np.random.rand(self.N_f)              # fixed phases
         self.theta = self.phi0.copy()                        # running angles
 
-        self.clip_speed_nonnegative = clip_speed_nonnegative
+        self.clip_speed_nonnegative =  config.clip_speed_nonnegative
+        
+        # Random seed
+        self.seed = seed
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            
+        # Record of the initial parameters
+        self.record_initial_parameters()
 
     # ----- spectra -----
-    def _harris(self, f):
-        # S(f) = 4 κ L U10 / (2 + (L f / U10)^2)^(5/6)
-        ft = self.L * f / self.U10
-        return 4.0 * self.kappa * self.L * self.U10 / (2.0 + ft**2)**(5.0/6.0)
-
     def _norsok(self, f):
         # S(f) = 320 (U10/10)^2 (z/10)^0.45 / (1 + x^n)^(5/(3n))
         # x = 172 f (z/10)^(2/3) (U10/10)^(-3/4), n = 0.468
         n = 0.468
         x = 172.0 * f * (self.z/10.0)**(2.0/3.0) * (self.U10/10.0)**(-3.0/4.0)
         return 320.0 * (self.U10/10.0)**2 * (self.z/10.0)**0.45 / (1.0 + x**n)**(5.0/(3.0*n))
-
-    def _spectrum(self, f):
-        if self.model == "harris":
-            return self._harris(f)
-        elif self.model == "norsok":
-            return self._norsok(f)
-        else:
-            raise ValueError("model must be 'harris' or 'norsok'")
 
     def compute_wind_mean_velocity(self):
         # Ȗ_{k+1} = Ȗ_k + dt(-μ Ȗ_k + w), w ~ N(0, σ^2/dt)
@@ -102,3 +111,24 @@ class WindModel:
             U_w = max(0.0, U_w)
         psi_w  = self.compute_wind_direction()
         return U_w, psi_w
+    
+    def record_initial_parameters(self):
+        '''
+        Internal method to take a record of internal attributes after __init__().
+        This record will be used to reset the model later without re-instantiation.
+        '''
+        self._initial_parameters = {
+            key: copy.deepcopy(self.__dict__[key])
+            for key in ['U_bar', 'mu_bar', 'mu_dir', 'sigma_Ubar', 
+                        'sigma_dir', 'U_min', 'U_max', 'dt', 'U10', 'z', 
+                        'kappa', 'f_min', 'f_max', 'N_f', 'f', 'df', 'a',
+                        'seed']
+            }
+
+    def reset(self):
+        for key, value in self._initial_parameters.items():
+            setattr(self, key, copy.deepcopy(value))
+        self.phi0 = 2*np.pi*np.random.rand(self.N_f)         # fixed phases
+        self.theta = self.phi0.copy()                        # running angles
+        
+        

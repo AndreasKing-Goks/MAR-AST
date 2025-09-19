@@ -1,13 +1,24 @@
 import numpy as np
+import copy
 from scipy.special import factorial
+from typing import NamedTuple
 
-class JONSWAPWave:
+class WaveModelConfiguration(NamedTuple):
+    minimum_wave_frequency: float
+    maximum_wave_frequency: float
+    wave_frequency_discrete_unit_count: int
+    minimum_spreading_angle: float
+    maximum_spreading_angle: float
+    spreading_angle_discrete_unit_count: int
+    spreading_coefficient: int
+    timestep_size: float
+
+class JONSWAPWaveModel:
     '''
     This class defines a wave model based on JONSWAP wave spectrum
     with wave spreading function.
     '''
-    def __init__(self, s=1, w_min=0.4, w_max=2.5, N_omega=50, ship_length=80, ship_breadth=10, ship_draft=8,
-                 psi_min=-np.pi/2, psi_max=np.pi/2, N_psi=10, seed=None, dt=30.0):
+    def __init__(self, config: WaveModelConfiguration, ship_length, ship_breadth, ship_draft, rho, seed=None):
         '''
         Parameters:
         -----------
@@ -43,17 +54,18 @@ class JONSWAPWave:
         
         # Self parameters
         self.g = 9.81
-        self.s = s
-        self.w_min = w_min
-        self.w_max = w_max
-        self.N_omega = N_omega
-        self.psi_min = psi_min
-        self.psi_max = psi_max
-        self.N_psi = N_psi
-        self.dt = dt
+        self.s = config.spreading_coefficient
+        self.w_min = config.minimum_wave_frequency
+        self.w_max = config.maximum_wave_frequency
+        self.N_omega = config.wave_frequency_discrete_unit_count
+        self.psi_min = config.minimum_spreading_angle
+        self.psi_max = config.maximum_spreading_angle
+        self.N_psi = config.spreading_angle_discrete_unit_count
+        self.dt = config.timestep_size
         self.ship_length = ship_length
         self.ship_breadth = ship_breadth
         self.ship_draft = ship_draft
+        self.rho = rho
         
         # Vector for each wave across all frequencies
         self.omega_vec = np.linspace(self.w_min, self.w_max, self.N_omega)
@@ -67,8 +79,12 @@ class JONSWAPWave:
         self.dpsi = self.psi_vec[1] - self.psi_vec[0]
         
         # Random seed
-        if seed is not None:
-            np.random.seed(seed)
+        self.seed = seed
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            
+        # Record of the initial parameters
+        self.record_initial_parameters()
         
     def jonswap_spectrum(self, Hs, Tp, omega_vec):
         '''
@@ -123,7 +139,7 @@ class JONSWAPWave:
         )
         return D
 
-    def get_wave_load(self, ship_speed, psi_ship, 
+    def get_wave_force(self, ship_speed, psi_ship, 
                           Hs, Tp, psi_0, 
                           omega_vec=None, psi_vec=None, s=None):
         '''
@@ -167,8 +183,7 @@ class JONSWAPWave:
         A_proj = (self.ship_breadth * np.cos(beta_0) + self.ship_length * np.sin(beta_0)) * self.ship_draft
         
         # Froude-Krylov flat-plate force amplitude
-        rho = 1025.0
-        F0 = rho * self.g * a_eta * A_proj
+        F0 = self.rho * self.g * a_eta * A_proj
         
         # Direction unit vectors
         cx = np.cos(beta)  # (1, Nd)
@@ -178,10 +193,48 @@ class JONSWAPWave:
         phases = 2.0 * np.pi * np.random.rand(self.N_omega, self.N_psi)    # (Nw, Nd)
         
         # Fx(t) = sum_{i,j} F0[i,j] * cos(omega_e[i,j]*t + phi[i,j]) * cos(theta_j)
-        arg = omega_e * self.dt + phases
-        cosarg = np.cos(arg)                            # (Nw, Nd)
-        
-        Fx_t = np.sum(F0 * cosarg * cx, axis=(0,1))     # (Sum across Nw and Nd)
-        Fy_t = np.sum(F0 * cosarg * cy, axis=(0,1))     # (Sum across Nw and Nd)
-        
-        return Fx_t, Fy_t
+        arg    = omega_e * self.dt + phases
+        cosarg = np.cos(arg)                                                      # (Nw, Nd)
+
+        # Component forces along x,y per (i,j)
+        Fx_ij = F0 * cosarg * cx   # (Nw, Nd)
+        Fy_ij = F0 * cosarg * cy   # (Nw, Nd)
+
+        # ---- Lever arms for yaw moment (about CG) ----
+        # Smoothly blend bow/stern (±L/2) and port/stbd (±B/2) with heading weight
+        def r_cp_from_beta(beta, L, B):
+            wx = np.abs(np.cos(beta))
+            wy = np.abs(np.sin(beta))
+            wsum = wx + wy + 1e-12  # avoid zero
+            rx = 0.5 * L * np.sign(np.cos(beta)) * (wx / wsum)
+            ry = 0.5 * B * np.sign(np.sin(beta)) * (wy / wsum)
+            return rx, ry
+
+        rx, ry = r_cp_from_beta(beta, self.ship_length, self.ship_breadth)  # (1, Nd)
+
+        # Yaw moment sum Mz = r_x*Fy - r_y*Fx (sum over freq & dir)
+        Mz_t = np.sum(rx * Fy_ij - ry * Fx_ij, axis=(0, 1))                 # scalar
+
+        # Total forces (sum over freq & dir)
+        Fx_t = np.sum(Fx_ij, axis=(0, 1))
+        Fy_t = np.sum(Fy_ij, axis=(0, 1))
+
+        return np.array([Fx_t, Fy_t, Mz_t])
+    
+    def record_initial_parameters(self):
+        '''
+        Internal method to take a record of internal attributes after __init__().
+        This record will be used to reset the model later without re-instantiation.
+        '''
+        self._initial_parameters = {
+            key: copy.deepcopy(self.__dict__[key])
+            for key in ['g', 's', 'w_min', 'w_max', 'N_omega',
+                        'psi_min', 'psi_max', 'N_psi', 'dt', 
+                        'ship_length', 'ship_breadth', 'ship_draft',
+                        'omega_vec', 'domega', 'k_vec', 'psi_vec', 'dpsi',
+                        'seed']
+            }
+
+    def reset(self):
+        for key, value in self._initial_parameters.items():
+            setattr(self, key, copy.deepcopy(value))
