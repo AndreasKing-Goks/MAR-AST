@@ -5,7 +5,6 @@ It requires the construction of the ship machinery system to construct the ship 
 
 
 import numpy as np
-import matplotlib.pyplot as plt
 import copy
 from collections import defaultdict
 from typing import NamedTuple, List
@@ -341,7 +340,7 @@ class BaseShipModel:
 ########################## DESCENDANT CLASS BASED ON PARENT CLASS "BaseShipModel" #################################
 ###################################################################################################################
 
-class ShipModelComplex(BaseShipModel):
+class ShipModel(BaseShipModel):
     ''' Creates a ship model object that can be used to simulate a ship in transit, used 
         particularly for stress testing purposes. Wave, wind and current environment load 
         is also included.
@@ -375,7 +374,15 @@ class ShipModelComplex(BaseShipModel):
         )
         self.simulation_results = defaultdict(list)
 
-    def three_dof_kinetics(self, thrust_force=None, rudder_angle=None, load_percentage=None, *args, **kwargs):
+    def three_dof_kinetics(self, 
+                           thrust_force=None, 
+                           rudder_angle=None, 
+                           load_percentage=None, 
+                           Hs=0.3,
+                           Tp=7.5,
+                           psi_0 =np.deg2rad(45),
+                           *args, 
+                           **kwargs):
         ''' Calculates accelerations of the ship, as a function
             of thrust-force, rudder angle, wind forces and the
             states in the previous time-step.
@@ -386,7 +393,13 @@ class ShipModelComplex(BaseShipModel):
         
         # Environmental conditions
         wind_force = self.get_wind_force()
-        wave_force = self.wave_model.get_wave_force()
+        wave_force = self.wave_model.get_wave_force(
+            ship_speed=self.forward_speed,
+            psi_ship=self.yaw_angle,
+            Hs=Hs,
+            Tp=Tp,
+            psi_0=psi_0
+        )
         self.current_speed, self.current_dir = self.current_model.get_current_vel_and_dir()
         self.vel_c = np.array([
             self.current_speed * np.sin(self.current_dir),
@@ -429,13 +442,24 @@ class ShipModelComplex(BaseShipModel):
         r_force = -self.ship_machinery_model.c_rudder_r * delta * (self.forward_speed - u_c)
         return v_force, r_force
 
-    def update_differentials(self, engine_throttle=None, rudder_angle=None, *args, **kwargs):
+    def update_differentials(self, 
+                             engine_throttle=None, 
+                             rudder_angle=None, 
+                             Hs=0.3,
+                             Tp=7.5,
+                             psi_0 =np.deg2rad(45),
+                             *args, 
+                             **kwargs):
         ''' This method should be called in the simulation loop. It will
             update the full differential equation of the ship.
         '''
         self.three_dof_kinematics()
         self.ship_machinery_model.update_shaft_equation(engine_throttle)
-        self.three_dof_kinetics(thrust_force=self.ship_machinery_model.thrust(), rudder_angle=rudder_angle)
+        self.three_dof_kinetics(thrust_force=self.ship_machinery_model.thrust(), 
+                                rudder_angle=rudder_angle,
+                                Hs=Hs,
+                                Tp=Tp,
+                                psi_0=psi_0)
 
     def integrate_differentials(self):
         ''' Integrates the differential equation one time step ahead using

@@ -348,7 +348,6 @@ class HeadingBySampledRouteController:
             los_parameters: LosParameters,
             time_step: float,
             max_rudder_angle: float,
-            num_of_samplings: int,
     ):
         
         self.heading_controller = HeadingByReferenceController(
@@ -368,8 +367,6 @@ class HeadingBySampledRouteController:
         
         self.heading_ref = 0
         self.heading_mea = 0
-        
-        self.num_of_samplings = num_of_samplings
         
         # Record initial parameters for reset purposes
         self.record_initial_parameters()
