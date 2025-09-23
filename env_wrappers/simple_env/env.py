@@ -130,7 +130,7 @@ class SingleShipEnv:
             measured_shaft_speed = ship.ship_model.ship_machinery_model.omega
             forward_speed = ship.ship_model.forward_speed
             sideways_speed =ship.ship_model.sideways_speed
-            speed_set_point = np.sqrt(forward_speed**2 + sideways_speed**2)
+            measured_speed = np.sqrt(forward_speed**2 + sideways_speed**2)
         
             # Find appropriate rudder angle and engine throttle
             rudder_angle = ship.auto_pilot.rudder_angle_from_sampled_route(
@@ -141,7 +141,7 @@ class SingleShipEnv:
         
             throttle = ship.throttle_controller.throttle(
                 speed_set_point = ship.desired_speed,
-                measured_speed = speed_set_point,
+                measured_speed = measured_speed,
                 measured_shaft_speed = measured_shaft_speed
             )
             
@@ -167,7 +167,10 @@ class SingleShipEnv:
         north_position = self.own_ship.ship_model.north
         east_position = self.own_ship.ship_model.east
         heading = self.own_ship.ship_model.yaw_angle
+        measured_shaft_speed = self.own_ship.ship_model.ship_machinery_model.omega
         forward_speed = self.own_ship.ship_model.forward_speed
+        sideways_speed =self.own_ship.ship_model.sideways_speed
+        measured_speed = np.sqrt(forward_speed**2 + sideways_speed**2)
         
         # Find appropriate rudder angle and engine throttle
         rudder_angle = self.own_ship.auto_pilot.rudder_angle_from_sampled_route(
@@ -178,8 +181,8 @@ class SingleShipEnv:
 
         throttle = self.own_ship.throttle_controller.throttle(
             speed_set_point = self.own_ship.desired_speed,
-            measured_speed = forward_speed,
-            measured_shaft_speed = forward_speed,
+            measured_speed = measured_speed,
+            measured_shaft_speed = measured_shaft_speed,
         )
         
         # Update and integrate differential equations for current time step

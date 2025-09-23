@@ -531,7 +531,7 @@ class ShipModel(BaseShipModel):
             if key != 'time [s]':
                 last_value = self.simulation_results[key][-1]
                 self.simulation_results[key].append(last_value)
-        
+    
     def reset(self):
         # Call the reset method from the parent class
         super().reset()
