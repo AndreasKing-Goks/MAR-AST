@@ -24,12 +24,6 @@ class HeadingControllerGains(NamedTuple):
     kp: float
     kd: float
     ki: float
-    
-    
-class HeadingControllerGains(NamedTuple):
-    kp: float
-    kd: float
-    ki: float
 
 class LosParameters(NamedTuple):
     radius_of_acceptance: float

@@ -163,29 +163,6 @@ machinery_config = MachinerySystemConfiguration(
     specific_fuel_consumption_coefficients_dg=fuel_spec_dg.fuel_consumption_coefficients()
 )
 
-## CONFIGURE THE SHIP SIMULATION MODELS
-# Ship in Test
-own_ship_config = SimulationConfiguration(
-    initial_north_position_m=100,
-    initial_east_position_m=100,
-    initial_yaw_angle_rad=60 * np.pi / 180,
-    initial_forward_speed_m_per_s=4.25,
-    initial_sideways_speed_m_per_s=0,
-    initial_yaw_rate_rad_per_s=0,
-    integration_step=args.time_step,
-    simulation_time=10000,
-)
-own_ship_initial_propeller_shaft_speed = 420
-own_ship = ShipModel(
-    ship_config=ship_config,
-    simulation_config=own_ship_config,
-    wave_model_config=wave_model_config,
-    current_model_config=current_model_config,
-    wind_model_config=wind_model_config,
-    machinery_config=machinery_config,                       
-    initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi / 30
-)
-
 ## Configure the map data
 map_data = [
     [(0,10000), (10000,10000), (9200,9000) , (7600,8500), (6700,7300), (4900,6500), (4300, 5400), (4700, 4500), (6000,4000), (5800,3600), (4200, 3200), (3200,4100), (2000,4500), (1000,4000), (900,3500), (500,2600), (0,2350)],   # Island 1 
@@ -198,17 +175,22 @@ map_data = [
 
 map = PolygonObstacle(map_data)
 
-## Set the throttle and autopilot controllers for the own ship
+### CONFIGURE THE SHIP SIMULATION MODELS
+## Own ship
+own_ship_config = SimulationConfiguration(
+    initial_north_position_m=100,
+    initial_east_position_m=100,
+    initial_yaw_angle_rad=60 * np.pi / 180,
+    initial_forward_speed_m_per_s=4.25,
+    initial_sideways_speed_m_per_s=0,
+    initial_yaw_rate_rad_per_s=0,
+    integration_step=args.time_step,
+    simulation_time=10000,
+)
+# Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
     kp_ship_speed=200, ki_ship_speed=0.0525, kp_shaft_speed=50, ki_shaft_speed=0.00025
 )
-own_ship_throttle_controller = EngineThrottleFromSpeedSetPoint(
-    gains=own_ship_throttle_controller_gains,
-    max_shaft_speed=own_ship.ship_machinery_model.shaft_speed_max,
-    time_step=args.time_step,
-    initial_shaft_speed_integral_error=114
-)
-
 own_ship_route_filename = 'own_ship_route.txt'
 own_ship_route_name = get_data_path(own_ship_route_filename)
 own_ship_heading_controller_gains = HeadingControllerGains(kp=1, kd=0.0001, ki=0.0001)
@@ -218,24 +200,27 @@ own_ship_los_guidance_parameters = LosParameters(
     integral_gain=0.002,
     integrator_windup_limit=4000
 )
-own_ship_auto_pilot = HeadingBySampledRouteController(
-    own_ship_route_name,
-    heading_controller_gains=own_ship_heading_controller_gains,
-    los_parameters=own_ship_los_guidance_parameters,
-    time_step=args.time_step,
-    max_rudder_angle=np.deg2rad(machinery_config.max_rudder_angle_degrees),
-)
 own_ship_desired_speed =8.0
-
+own_ship_initial_propeller_shaft_speed = 420
+own_ship = ShipModel(
+    ship_config=ship_config,
+    simulation_config=own_ship_config,
+    wave_model_config=wave_model_config,
+    current_model_config=current_model_config,
+    wind_model_config=wind_model_config,
+    machinery_config=machinery_config,                       
+    throttle_controller_gain=own_ship_throttle_controller_gains,
+    heading_controller_gain=own_ship_heading_controller_gains,
+    los_parameters=own_ship_los_guidance_parameters,
+    route_name=own_ship_route_name,
+    desired_speed=own_ship_desired_speed,
+    initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi / 30,
+)
 own_ship_integrator_term = []
 own_ship_times = []
-
 # Wraps simulation objects based on the ship type using a dictionary
 own_ship = ShipAssets(
     ship_model=own_ship,
-    throttle_controller=own_ship_throttle_controller,
-    auto_pilot=own_ship_auto_pilot,
-    desired_speed=own_ship_desired_speed,
     integrator_term=own_ship_integrator_term,
     time_list=own_ship_times,
     stop_flag=False,
@@ -262,9 +247,6 @@ test1 = True
 # test1 = False
 
 if test1:
-    
-    # Do the init_step
-    env.init_step()
     
     ## THIS IS WHERE THE LOOPING HAPPENS
     while own_ship.ship_model.int.time < own_ship.ship_model.int.sim_time:
@@ -352,8 +334,8 @@ if test1:
         # Plot 1.1: Ship trajectory with sampled route
         # Test ship
         plt.plot(own_ship_results_df['east position [m]'].to_numpy(), own_ship_results_df['north position [m]'].to_numpy())
-        plt.scatter(own_ship.auto_pilot.navigate.east, own_ship.auto_pilot.navigate.north, marker='x', color='blue')  # Waypoints
-        plt.plot(own_ship.auto_pilot.navigate.east, own_ship.auto_pilot.navigate.north, linestyle='--', color='blue')  # Line
+        plt.scatter(own_ship.ship_model.auto_pilot.navigate.east, own_ship.ship_model.auto_pilot.navigate.north, marker='x', color='blue')  # Waypoints
+        plt.plot(own_ship.ship_model.auto_pilot.navigate.east, own_ship.ship_model.auto_pilot.navigate.north, linestyle='--', color='blue')  # Line
         for x, y in zip(own_ship.ship_model.ship_drawings[1], own_ship.ship_model.ship_drawings[0]):
             plt.plot(x, y, color='blue')
         map.plot_obstacle(plt.gca())  # get current Axes to pass into map function

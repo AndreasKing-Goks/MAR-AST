@@ -14,6 +14,12 @@ from simulator.ship_in_transit.sub_systems.ship_engine import ShipMachineryModel
 from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWaveModel, WaveModelConfiguration
 from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, CurrentModelConfiguration
 from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, WindModelConfiguration
+from simulator.ship_in_transit.sub_systems.controllers import (EngineThrottleFromSpeedSetPoint, 
+                                                               ThrottleControllerGains, 
+                                                               HeadingBySampledRouteController,
+                                                               HeadingControllerGains,
+                                                               LosParameters)
+
 
 ###################################################################################################################
 ####################################### CONFIGURATION FOR SHIP MODEL ##############################################
@@ -364,6 +370,11 @@ class ShipModel(BaseShipModel):
                  current_model_config: CurrentModelConfiguration,
                  wind_model_config: WindModelConfiguration,
                  machinery_config: MachinerySystemConfiguration,
+                 throttle_controller_gain: ThrottleControllerGains,
+                 heading_controller_gain: HeadingControllerGains,
+                 los_parameters: LosParameters,
+                 route_name,
+                 desired_speed,
                  initial_propeller_shaft_speed_rad_per_s):
         super().__init__(ship_config, simulation_config, wave_model_config, current_model_config, wind_model_config)
         self.ship_machinery_model = ShipMachineryModel(
@@ -371,6 +382,20 @@ class ShipModel(BaseShipModel):
             initial_propeller_shaft_speed_rad_per_sec=initial_propeller_shaft_speed_rad_per_s,
             time_step=self.int.dt
         )
+        self.throttle_controller = EngineThrottleFromSpeedSetPoint(
+            gains=throttle_controller_gain,
+            max_shaft_speed=self.ship_machinery_model.shaft_speed_max,
+            time_step=self.int.dt,
+            initial_shaft_speed_integral_error=114
+        )
+        self.auto_pilot = HeadingBySampledRouteController(
+            route_name=route_name,
+            heading_controller_gains=heading_controller_gain,
+            los_parameters=los_parameters,
+            time_step=self.int.dt,
+            max_rudder_angle=np.rad2deg(machinery_config.max_rudder_angle_degrees)
+        )
+        self.desired_speed = desired_speed
         self.simulation_results = defaultdict(list)
 
     def three_dof_kinetics(self, 
@@ -532,12 +557,49 @@ class ShipModel(BaseShipModel):
                 last_value = self.simulation_results[key][-1]
                 self.simulation_results[key].append(last_value)
     
+    def step(self):
+        ''' 
+            The method is used for stepping up the simulator for the ship asset
+        '''          
+        # Measure ship position and speed
+        north_position = self.north
+        east_position = self.east
+        heading = self.yaw_angle
+        measured_shaft_speed = self.ship_machinery_model.omega
+        measured_speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
+        
+        # Find appropriate rudder angle and engine throttle
+        rudder_angle = self.auto_pilot.rudder_angle_from_sampled_route(
+            north_position=north_position,
+            east_position=east_position,
+            heading=heading,
+        )
+
+        throttle = self.throttle_controller.throttle(
+            speed_set_point = self.desired_speed,
+            measured_speed = measured_speed,
+            measured_shaft_speed = measured_shaft_speed,
+        )
+        
+        # Update and integrate differential equations for current time step
+        self.store_simulation_data(throttle, 
+                                   rudder_angle,
+                                   self.auto_pilot.get_cross_track_error(),
+                                   self.auto_pilot.get_heading_error())
+        self.update_differentials(engine_throttle=throttle, rudder_angle=rudder_angle)
+        self.integrate_differentials()
+        
+        # Step up the simulator
+        self.int.next_time()
+    
     def reset(self):
         # Call the reset method from the parent class
         super().reset()
         
-        # Reset the machinery 
+        # Reset the subsystem
         self.ship_machinery_model.reset()
+        self.throttle_controller.reset()
+        self.auto_pilot.reset()
         
         #  Also reset the results and draws container
         self.simulation_results = defaultdict(list)
