@@ -1,14 +1,29 @@
+from pathlib import Path
+import sys
+
+## PATH HELPER
+# project root = two levels up from this file
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+def get_project_root():
+    return str(ROOT)
+
+def get_data_path(filename):
+    return str(ROOT / "env_wrappers" / "simple_env" / "data" / filename)
+
+
 ### IMPORT SIMULATOR ENVIRONMENTS
 from env_wrappers.simple_env.env import ShipAssets, SingleShipEnv
 
-from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, EnvironmentConfiguration, SimulationConfiguration, ShipModel
+from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, SimulationConfiguration, ShipModel
 from simulator.ship_in_transit.sub_systems.ship_engine import MachinerySystemConfiguration, MachineryMode, MachineryModeParams, MachineryModes, SpecificFuelConsumptionBaudouin6M26Dot3, SpecificFuelConsumptionWartila6L26, RudderConfiguration
 from simulator.ship_in_transit.sub_systems.LOS_guidance import LosParameters
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
 from simulator.ship_in_transit.sub_systems.controllers import ThrottleControllerGains, EngineThrottleFromSpeedSetPoint, HeadingControllerGains, HeadingBySampledRouteController
-from simulator.ship_in_transit.sub_systems.wave_model import WaveModelConfiguration, JONSWAPWaveModel
-from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConfiguration, SurfaceCurrent
-from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration, NORSOKWindModel
+from simulator.ship_in_transit.sub_systems.wave_model import WaveModelConfiguration
+from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConfiguration
+from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
 
 ## IMPORT FUNCTIONS
 from utils.animate import ShipTrajectoryAnimator, RLShipTrajectoryAnimator
@@ -24,18 +39,11 @@ from matplotlib.patches import Circle
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
-# Path helper
-def get_project_root():
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-def get_data_path(filename):
-    return os.path.join(get_project_root(), "env_wrappers/simple_env/data", filename)
-
 # Argument Parser
-parser = argparse.ArgumentParser(description='Ship Transit Soft Actor-Critic Args')
+parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 
 ## Add arguments for environments
-parser.add_argument('--time_step', type=int, default=30, metavar='TIMESTEP',
+parser.add_argument('--time_step', type=int, default=0.5, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 30)')
 parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
                     help='ENV: radius of acceptance for LOS algorithm (default: 300)')
@@ -192,7 +200,7 @@ map = PolygonObstacle(map_data)
 
 ## Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=205.25, ki_ship_speed=0.0525, kp_shaft_speed=50, ki_shaft_speed=0.00025
+    kp_ship_speed=200, ki_ship_speed=0.0525, kp_shaft_speed=50, ki_shaft_speed=0.00025
 )
 own_ship_throttle_controller = EngineThrottleFromSpeedSetPoint(
     gains=own_ship_throttle_controller_gains,
@@ -203,7 +211,7 @@ own_ship_throttle_controller = EngineThrottleFromSpeedSetPoint(
 
 own_ship_route_filename = 'own_ship_route.txt'
 own_ship_route_name = get_data_path(own_ship_route_filename)
-own_ship_heading_controller_gains = HeadingControllerGains(kp=1.65, kd=75, ki=0.001)
+own_ship_heading_controller_gains = HeadingControllerGains(kp=1, kd=0.0001, ki=0.0001)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -217,7 +225,7 @@ own_ship_auto_pilot = HeadingBySampledRouteController(
     time_step=args.time_step,
     max_rudder_angle=np.deg2rad(machinery_config.max_rudder_angle_degrees),
 )
-own_ship_desired_forward_speed =8.0
+own_ship_desired_speed =8.0
 
 own_ship_integrator_term = []
 own_ship_times = []
@@ -227,7 +235,7 @@ own_ship = ShipAssets(
     ship_model=own_ship,
     throttle_controller=own_ship_throttle_controller,
     auto_pilot=own_ship_auto_pilot,
-    desired_forward_speed=own_ship_desired_forward_speed,
+    desired_speed=own_ship_desired_speed,
     integrator_term=own_ship_integrator_term,
     time_list=own_ship_times,
     stop_flag=False,
@@ -249,9 +257,6 @@ env = SingleShipEnv(
     map=map,
     args=args)
 
-
-print('-------------------------------------------------')
-
 # Test the simulation step up using policy's action sampling or direct action manipulation
 test1 = True
 # test1 = False
@@ -263,7 +268,7 @@ if test1:
     
     ## THIS IS WHERE THE LOOPING HAPPENS
     while own_ship.ship_model.int.time < own_ship.ship_model.int.sim_time:
-        env._step()
+        env.step()
 
     # Get the simulation results for all assets
     own_ship_results_df = pd.DataFrame().from_dict(env.own_ship.ship_model.simulation_results)
@@ -285,57 +290,58 @@ if test1:
         # Center plotting
         center_plot_window()
 
-        # Plot 2.1: Forward Speed
-        axes[0].plot(own_ship_results_df['time [s]'], own_ship_results_df['forward speed [m/s]'])
-        axes[0].axhline(y=own_ship_desired_forward_speed, color='red', linestyle='--', linewidth=1.5, label='Desired Forward Speed')
-        axes[0].set_title('Own Ship Forward Speed [m/s]')
+        # Plot 2.1:Speed
+        own_ship_speed = np.sqrt(own_ship_results_df['forward speed [m/s]']**2 + own_ship_results_df['sideways speed [m/s]']**2)
+        axes[0].plot(own_ship_results_df['time [s]'], own_ship_speed)
+        axes[0].axhline(y=own_ship_desired_speed, color='red', linestyle='--', linewidth=1.5, label='Desired Forward Speed')
+        axes[0].set_title('Own Ship Speed [m/s]')
         axes[0].set_xlabel('Time (s)')
         axes[0].set_ylabel('Forward Speed (m/s)')
         axes[0].grid(color='0.8', linestyle='-', linewidth=0.5)
         axes[0].set_xlim(left=0)
 
         # Plot 2.2: Rudder Angle
-        axes[2].plot(own_ship_results_df['time [s]'], own_ship_results_df['rudder angle [deg]'])
-        axes[2].set_title('Test Ship Rudder angle [deg]')
-        axes[2].set_xlabel('Time (s)')
-        axes[2].set_ylabel('Rudder angle [deg]')
-        axes[2].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[2].set_xlim(left=0)
-        axes[2].set_ylim(-31,31)
+        axes[1].plot(own_ship_results_df['time [s]'], own_ship_results_df['rudder angle [deg]'])
+        axes[1].set_title('Test Ship Rudder angle [deg]')
+        axes[1].set_xlabel('Time (s)')
+        axes[1].set_ylabel('Rudder angle [deg]')
+        axes[1].grid(color='0.8', linestyle='-', linewidth=0.5)
+        axes[1].set_xlim(left=0)
+        axes[1].set_ylim(-31,31)
 
         # Plot 2.3: Cross Track error
-        axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['cross track error [m]'])
-        axes[4].set_title('Own Ship Cross Track Error [m]')
+        axes[2].plot(own_ship_results_df['time [s]'], own_ship_results_df['cross track error [m]'])
+        axes[2].set_title('Own Ship Cross Track Error [m]')
+        axes[2].set_xlabel('Time (s)')
+        axes[2].set_ylabel('Cross track error (m)')
+        axes[2].grid(color='0.8', linestyle='-', linewidth=0.5)
+        axes[2].set_xlim(left=0)
+
+        # Plot 2.4: Propeller Shaft Speed
+        axes[3].plot(own_ship_results_df['time [s]'], own_ship_results_df['propeller shaft speed [rpm]'])
+        axes[3].set_title('Own Ship Propeller Shaft Speed [rpm]')
+        axes[3].set_xlabel('Time (s)')
+        axes[3].set_ylabel('Propeller Shaft Speed (rpm)')
+        axes[3].grid(color='0.8', linestyle='-', linewidth=0.5)
+        axes[3].set_xlim(left=0)
+
+        # Plot 2.5: Power vs Available Power
+        axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power me [kw]'], label="Power")
+        axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power me [kw]'], label="Available Power")
+        axes[4].set_title("Own Ship's Power vs Available Power [kw]")
         axes[4].set_xlabel('Time (s)')
-        axes[4].set_ylabel('Cross track error (m)')
+        axes[4].set_ylabel('Power (kw)')
+        axes[4].legend()
         axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
         axes[4].set_xlim(left=0)
 
-        # Plot 2.4: Propeller Shaft Speed
-        axes[6].plot(own_ship_results_df['time [s]'], own_ship_results_df['propeller shaft speed [rpm]'])
-        axes[6].set_title('Own Ship Propeller Shaft Speed [rpm]')
-        axes[6].set_xlabel('Time (s)')
-        axes[6].set_ylabel('Propeller Shaft Speed (rpm)')
-        axes[6].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[6].set_xlim(left=0)
-
-        # Plot 2.5: Power vs Available Power
-        axes[8].plot(own_ship_results_df['time [s]'], own_ship_results_df['power electrical [kw]'], label="Power")
-        axes[8].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power electrical [kw]'], label="Available Power")
-        axes[8].set_title('Own Ship's Power vs Available Power [kw]')
-        axes[8].set_xlabel('Time (s)')
-        axes[8].set_ylabel('Power (kw)')
-        axes[8].legend()
-        axes[8].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[8].set_xlim(left=0)
-
         # Plot 2.6: Fuel Consumption
-        axes[10].plot(own_ship_results_df['time [s]'], own_ship_results_df['fuel consumption [kg]'])
-        axes[10].set_title('Own Ship Fuel Consumption [kg]')
-        axes[10].set_xlabel('Time (s)')
-        axes[10].set_ylabel('Fuel Consumption (kg)')
-        axes[10].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[10].set_xlim(left=0)
+        axes[5].plot(own_ship_results_df['time [s]'], own_ship_results_df['fuel consumption [kg]'])
+        axes[5].set_title('Own Ship Fuel Consumption [kg]')
+        axes[5].set_xlabel('Time (s)')
+        axes[5].set_ylabel('Fuel Consumption (kg)')
+        axes[5].grid(color='0.8', linestyle='-', linewidth=0.5)
+        axes[5].set_xlim(left=0)
 
         # Adjust layout for better spacing
         plt.tight_layout()
@@ -365,5 +371,3 @@ if test1:
     
     # Show Plot
     plt.show()
-
-    print('-------------------------------------------------')

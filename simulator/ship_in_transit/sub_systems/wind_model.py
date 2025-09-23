@@ -43,10 +43,10 @@ class NORSOKWindModel:
         self.kappa = config.kappa_parameter
 
         # frequency grid
-        f_min = config.minimum_wind_gust_frequency
-        f_max = config.maximum_wind_gust_frequency
+        self.f_min = config.minimum_wind_gust_frequency
+        self.f_max = config.maximum_wind_gust_frequency
         self.N_f = config.wind_gust_frequency_discrete_unit_count
-        self.f = np.linspace(f_min, f_max, self.N_f)   # Hz
+        self.f = np.linspace(self.f_min, self.f_max, self.N_f)   # Hz
         self.df = self.f[1] - self.f[0]
 
         # mean wind at height z (log law used in Fossen around Harris example)
@@ -119,7 +119,7 @@ class NORSOKWindModel:
         '''
         self._initial_parameters = {
             key: copy.deepcopy(self.__dict__[key])
-            for key in ['U_bar', 'mu_bar', 'mu_dir', 'sigma_Ubar', 
+            for key in ['Ubar', 'mu_Ubar', 'mu_dir', 'sigma_Ubar', 
                         'sigma_dir', 'U_min', 'U_max', 'dt', 'U10', 'z', 
                         'kappa', 'f_min', 'f_max', 'N_f', 'f', 'df', 'a',
                         'seed']

@@ -20,7 +20,7 @@ class ShipAssets:
     ship_model: ShipModel
     throttle_controller: EngineThrottleFromSpeedSetPoint
     auto_pilot: HeadingBySampledRouteController
-    desired_forward_speed: float
+    desired_speed: float
     integrator_term: List[float]
     time_list: List[float]
     type_tag: str
@@ -55,9 +55,6 @@ class SingleShipEnv:
         # Store args as attribute
         self.args = args
         
-        # Set collision avoidance handle
-        self.collav = args.collav_mode
-        
         ## Unpack assets
         self.assets = assets
         self.own_ship = self.assets[0]
@@ -84,12 +81,6 @@ class SingleShipEnv:
             Reset all of the ship environment inside the assets container.
             
             Immediately call upon init_step() and init_get_intermediate_waypoint() method
-            
-            Return the initial state
-            
-            Note:
-            When the action is not None, it means we immediately sample
-            an intermediate waypoints for the obstacle ship to use
         '''
         # Reset the assets
         for i, ship in enumerate(self.assets):
@@ -104,6 +95,11 @@ class SingleShipEnv:
             
             # Reset the autopilot controlller
             ship.auto_pilot.reset()
+            
+            # Reset the environmental load
+            ship.ship_model.wave_model.reset()
+            ship.ship_model.current_model.reset()
+            ship.ship_model.wind_model.reset()
             
             # Reset parameters and lists
             ship.desired_forward_speed = init.desired_forward_speed
@@ -131,7 +127,10 @@ class SingleShipEnv:
             north_position = ship.ship_model.north
             east_position = ship.ship_model.east
             heading = ship.ship_model.yaw_angle
+            measured_shaft_speed = ship.ship_model.ship_machinery_model.omega
             forward_speed = ship.ship_model.forward_speed
+            sideways_speed =ship.ship_model.sideways_speed
+            speed_set_point = np.sqrt(forward_speed**2 + sideways_speed**2)
         
             # Find appropriate rudder angle and engine throttle
             rudder_angle = ship.auto_pilot.rudder_angle_from_sampled_route(
@@ -141,9 +140,9 @@ class SingleShipEnv:
             )
         
             throttle = ship.throttle_controller.throttle(
-                speed_set_point = ship.desired_forward_speed,
-                measured_speed = forward_speed,
-                measured_shaft_speed = forward_speed
+                speed_set_point = ship.desired_speed,
+                measured_speed = speed_set_point,
+                measured_shaft_speed = measured_shaft_speed
             )
             
             # Store simulation data after init step
@@ -165,44 +164,43 @@ class SingleShipEnv:
             The method is used for stepping up the simulator for the ship assets
         '''          
         # Measure ship position and speed
-        north_position = self.test.ship_model.north
-        east_position = self.test.ship_model.east
-        heading = self.test.ship_model.yaw_angle
-        forward_speed = self.test.ship_model.forward_speed
+        north_position = self.own_ship.ship_model.north
+        east_position = self.own_ship.ship_model.east
+        heading = self.own_ship.ship_model.yaw_angle
+        forward_speed = self.own_ship.ship_model.forward_speed
         
         # Find appropriate rudder angle and engine throttle
-        rudder_angle = self.test.auto_pilot.rudder_angle_from_sampled_route(
+        rudder_angle = self.own_ship.auto_pilot.rudder_angle_from_sampled_route(
             north_position=north_position,
             east_position=east_position,
             heading=heading,
         )
 
-        throttle = self.test.throttle_controller.throttle(
-            speed_set_point = self.test.desired_forward_speed,
+        throttle = self.own_ship.throttle_controller.throttle(
+            speed_set_point = self.own_ship.desired_speed,
             measured_speed = forward_speed,
             measured_shaft_speed = forward_speed,
         )
         
         # Update and integrate differential equations for current time step
-        self.test.ship_model.store_simulation_data(throttle, 
-                                                   rudder_angle,
-                                                   self.test.auto_pilot.get_cross_track_error(),
-                                                   self.test.auto_pilot.get_heading_error())
-        self.test.ship_model.update_differentials(engine_throttle=throttle, rudder_angle=rudder_angle)
-        self.test.ship_model.integrate_differentials()
+        self.own_ship.ship_model.store_simulation_data(throttle, 
+                                                       rudder_angle,
+                                                       self.own_ship.auto_pilot.get_cross_track_error(),
+                                                       self.own_ship.auto_pilot.get_heading_error())
+        self.own_ship.ship_model.update_differentials(engine_throttle=throttle, rudder_angle=rudder_angle)
+        self.own_ship.ship_model.integrate_differentials()
         
-        self.test.integrator_term.append(self.test.auto_pilot.navigate.e_ct_int)
-        self.test.time_list.append(self.test.ship_model.int.time)
+        self.own_ship.integrator_term.append(self.own_ship.auto_pilot.navigate.e_ct_int)
+        self.own_ship.time_list.append(self.own_ship.ship_model.int.time)
         
         # Step up the simulator
-        self.test.ship_model.int.next_time()
+        self.own_ship.ship_model.int.next_time()
         
         # Apply ship drawing (set as optional function) after stepping
         if self.ship_draw:
             if self.time_since_last_ship_drawing > 30:
-                self.test.ship_model.ship_snap_shot()
-                self.obs.ship_model.ship_snap_shot()
+                self.own_ship.ship_model.ship_snap_shot()
                 self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
-            self.time_since_last_ship_drawing += self.test.ship_model.int.dt
+            self.time_since_last_ship_drawing += self.own_ship.ship_model.int.dt
         
         return
