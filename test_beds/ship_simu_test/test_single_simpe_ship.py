@@ -89,24 +89,25 @@ wave_model_config = WaveModelConfiguration(
     maximum_spreading_angle=np.pi/2,
     spreading_angle_discrete_unit_count=10,
     spreading_coefficient=1,
+    rho=1025.0,
     timestep_size=args.time_step
 )
 current_model_config = CurrentModelConfiguration(
     initial_current_velocity=5,
-    current_velocity_standard_deviation=0.1,
-    current_velocity_decay_rate=0.05,
+    current_velocity_standard_deviation=0.05,
+    current_velocity_decay_rate=0.0025,
     initial_current_direction=np.deg2rad(-45),
     current_direction_standard_deviation=0.05,
-    current_direction_decay_rate=0.05,
+    current_direction_decay_rate=0.005,
     timestep_size=args.time_step
 )
 wind_model_config = WindModelConfiguration(
     initial_mean_wind_velocity=None,                    # Set to None to use a mean wind component
-    mean_wind_velocity_decay_rate=0.02,
-    mean_wind_velocity_standard_deviation=0.2,
-    initial_wind_direction=np.deg2rad(0.0),
-    wind_direction_decay_rate=0.01,
-    wind_direction_standard_deviation=0.05,
+    mean_wind_velocity_decay_rate=0.001,
+    mean_wind_velocity_standard_deviation=0.5,
+    initial_wind_direction=np.deg2rad(45.0),
+    wind_direction_decay_rate=0.001,
+    wind_direction_standard_deviation=0.03,
     minimum_mean_wind_velocity=0.0,
     maximum_mean_wind_velocity=100.0,
     minimum_wind_gust_frequency=0.06,
@@ -240,6 +241,9 @@ time_since_last_ship_drawing = 30
 env = SingleShipEnv(
     assets=assets,
     map=map,
+    wave_model_config=wave_model_config,
+    current_model_config=current_model_config,
+    wind_model_config=wind_model_config,
     args=args)
 
 # Test the simulation step up using policy's action sampling or direct action manipulation

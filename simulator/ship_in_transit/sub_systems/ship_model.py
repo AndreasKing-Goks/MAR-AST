@@ -11,9 +11,9 @@ from typing import NamedTuple, List
 
 from simulator.ship_in_transit.utils.utils import EulerInt, ShipDraw
 from simulator.ship_in_transit.sub_systems.ship_engine import ShipMachineryModel, MachinerySystemConfiguration
-from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWaveModel, WaveModelConfiguration
-from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, CurrentModelConfiguration
-from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, WindModelConfiguration
+from simulator.ship_in_transit.sub_systems.wave_model import WaveModelConfiguration
+from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConfiguration
+from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
 from simulator.ship_in_transit.sub_systems.controllers import (EngineThrottleFromSpeedSetPoint, 
                                                                ThrottleControllerGains, 
                                                                HeadingBySampledRouteController,
@@ -84,7 +84,7 @@ class BaseShipModel:
               - self.ship_config.dead_weight_tonnage
         self.mass = lsw + payload + self.ship_config.bunkers + self.ship_config.ballast
 
-        self.rho = 1025.0    # Sea water density
+        self.rho = wave_model_config.rho    # Sea water density
         
         self.l_ship = self.ship_config.length_of_ship  # 80
         self.w_ship = self.ship_config.width_of_ship  # 16.0
@@ -92,10 +92,28 @@ class BaseShipModel:
         self.x_g = 0
         self.i_z = self.mass * (self.l_ship ** 2 + self.w_ship ** 2) / 12
         
-        # Environment model
-        self.wave_model = JONSWAPWaveModel(self.wave_model_config, self.l_ship, self.w_ship, self.t_ship, self.rho)
-        self.current_model = SurfaceCurrent(self.current_model_config)
-        self.wind_model = NORSOKWindModel(self.wind_model_config)
+        ## Environment model
+        w_min = wave_model_config.minimum_wave_frequency
+        w_max = wave_model_config.maximum_wave_frequency
+        N_omega = wave_model_config.wave_frequency_discrete_unit_count
+        psi_min = wave_model_config.minimum_spreading_angle
+        psi_max = wave_model_config.maximum_spreading_angle
+        N_psi = wave_model_config.spreading_angle_discrete_unit_count
+        
+        # Vector for each wave across all frequencies
+        self.omega_vec = np.linspace(w_min, w_max, N_omega)
+        self.domega = self.omega_vec[1] - self.omega_vec[0]
+        
+        # Vector for wave numbers
+        self.g = 9.81
+        self.k_vec = self.omega_vec**2 / self.g
+        
+        # Vector for each wave across discretized spreading direction
+        self.psi_vec = np.linspace(-np.pi, np.pi, N_psi)
+        self.dpsi = self.psi_vec[1] - self.psi_vec[0]
+        
+        # Vector for randp, phases for each wave across all frequencies
+        self.theta = 2.0 * np.pi * np.random.rand(N_omega, N_psi)    # (Nw, Nd)
 
         # zero-frequency added mass
         self.x_du, self.y_dv, self.n_dr = self.set_added_mass(self.ship_config.added_mass_coefficient_in_surge,
@@ -165,18 +183,18 @@ class BaseShipModel:
         n_dr = self.i_z * yaw_coeff
         return x_du, y_dv, n_dr
 
-    def get_wind_force(self):
+    def get_wind_force(self, wind_args):
         ''' This method calculates the forces due to the relative
             wind speed, acting on the ship in surge, sway and yaw
             direction.
 
             :return: Wind force acting in surge, sway and yaw
         '''
-        # Sample the wind speed and direction
-        self.wind_speed, self.wind_dir = self.wind_model.get_wind_vel_and_dir()
+        # Unpack wind_args
+        wind_speed, wind_dir = wind_args
         
-        uw = self.wind_speed * np.cos(self.wind_dir - self.yaw_angle)
-        vw = self.wind_speed * np.sin(self.wind_dir - self.yaw_angle)
+        uw = wind_speed * np.cos(wind_dir - self.yaw_angle)
+        vw = wind_speed * np.sin(wind_dir - self.yaw_angle)
         u_rw = uw - self.forward_speed
         v_rw = vw - self.sideways_speed
         gamma_rw = -np.arctan2(v_rw, u_rw)
@@ -189,6 +207,69 @@ class BaseShipModel:
         tau_v = tau_coeff * c_y * self.proj_area_l
         tau_n = tau_coeff * c_n * self.proj_area_l * self.l_ship
         return np.array([tau_u, tau_v, tau_n])
+    
+    def get_wave_force(self, wave_args):
+        # Unpack wave_args
+        S_w, D_psi, psi_0 = wave_args
+        
+        # Component elevation amplitudes
+        a_eta = np.sqrt(2.0 * np.outer(S_w, D_psi) * self.domega * self.dpsi)   # (Nw, Nd)
+        
+        # Get ship speed and heading
+        ship_speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
+        psi_ship = self.yaw_angle
+        
+        # Encounter correction [Forward speed effect in Faltinsen (1993)]
+        beta = self.psi_vec[None, :] - psi_ship                                                 # (1, Nd)
+        omega_e = self.omega_vec[:, None] - self.k_vec[:, None] * ship_speed * np.cos(beta)     # (Nw, 1) - (Nw, 1)*(1, Nd) = (Nw, Nd)
+        
+        # Approximation of oblique wave
+        beta_0 = psi_0 - psi_ship
+        A_proj = (self.w_ship * np.cos(beta_0) + self.l_ship * np.sin(beta_0)) * self.t_ship
+        
+        # Froude-Krylov flat-plate force amplitude
+        F0 = self.rho * self.g * a_eta * A_proj
+        
+        # Direction unit vectors
+        cx = np.cos(beta)  # (1, Nd)
+        cy = np.sin(beta)  # (1, Nd)
+        
+        # Fx(t) = sum_{i,j} F0[i,j] * cos(omega_e[i,j]*t + phi[i,j]) * cos(theta_j)
+        arg    = omega_e * self.int.dt + self.theta
+        cosarg = np.cos(arg)                                                      # (Nw, Nd)
+        
+        # advance phases by Δt
+        self.theta = (self.theta + omega_e * self.int.dt) % (2*np.pi)
+        # eta = A cos(omega_e*dt + psi0) = A cos(theta)
+        # Discrete step t_k = k * dt
+        # Instead of tracking the k, we can advances the theta by:
+        # Adding the theta with another omega_e*dt, divide by a full sinusoidal cycle of 2*pi,
+        # then get the remain. This remain is the advances of theta within the [0, 2*pi)
+
+        # Component forces along x,y per (i,j)
+        Fx_ij = F0 * cosarg * cx   # (Nw, Nd)
+        Fy_ij = F0 * cosarg * cy   # (Nw, Nd)
+
+        # ---- Lever arms for yaw moment (about CG) ----
+        # Smoothly blend bow/stern (±L/2) and port/stbd (±B/2) with heading weight
+        def r_cp_from_beta(beta, L, B):
+            wx = np.abs(np.cos(beta))
+            wy = np.abs(np.sin(beta))
+            wsum = wx + wy + 1e-12  # avoid zero
+            rx = 0.5 * L * np.sign(np.cos(beta)) * (wx / wsum)
+            ry = 0.5 * B * np.sign(np.sin(beta)) * (wy / wsum)
+            return rx, ry
+
+        rx, ry = r_cp_from_beta(beta, self.l_ship, self.w_ship)  # (1, Nd)
+
+        # Yaw moment sum Mz = r_x*Fy - r_y*Fx (sum over freq & dir)
+        Mz_t = np.sum(rx * Fy_ij - ry * Fx_ij, axis=(0, 1))                 # scalar
+
+        # Total forces (sum over freq & dir)
+        Fx_t = np.sum(Fx_ij, axis=(0, 1))
+        Fy_t = np.sum(Fy_ij, axis=(0, 1))
+
+        return np.array([Fx_t, Fy_t, Mz_t])
 
     def three_dof_kinematics(self):
         ''' Updates the time differientials of the north position, east
@@ -235,25 +316,36 @@ class BaseShipModel:
                        [0, self.kv * self.sideways_speed, 0],
                        [0, 0, self.kr * self.yaw_rate]])
 
-    def three_dof_kinetics(self, *args, **kwargs):
+    def three_dof_kinetics(self, env_args=None, *args, **kwargs):
         ''' Calculates accelerations of the ship, as a funciton
             of thrust-force, rudder angle, wind forces and the
             states in the previous time-step.
         '''
         # Environmental conditions
-        wind_force = self.get_wind_force()
-        wave_force = self.wave_model.get_wave_force()
-        self.current_speed, self.current_dir = self.current_model.get_current_vel_and_dir()
-        self.vel_c = np.array([
-            self.current_speed * np.sin(self.current_dir),
-            self.current_speed * np.cos(self.current_dir),
-            0.0])
+        if env_args is None:
+            wind_force = np.array([0.0, 0.0, 0.0])
+            wave_force = np.array([0.0, 0.0, 0.0])
+            vel_c = np.array([0.0, 0.0, 0.0])
+        else:
+            wave_args, current_args, wind_args = env_args
+            
+            wave_force = wave_args
+            
+            current_speed, current_dir = current_args
+            vel_c = np.array([
+                current_speed * np.sin(current_dir),
+                current_speed * np.cos(current_dir),
+                0.0])
+            
+            wind_dir, wind_speed = wind_args
+            wind_force = self.get_wind_force(wind_dir, 
+                                            wind_speed)
 
-        # assembling state vector
+        # Assembling state vector
         vel = np.array([self.forward_speed, self.sideways_speed, self.yaw_rate])
 
         # Transforming current velocity to ship frame
-        v_c = np.dot(np.linalg.inv(self.rotation()), self.vel_c)
+        v_c = np.dot(np.linalg.inv(self.rotation()), vel_c)
         u_r = self.forward_speed - v_c[0]
         v_r = self.sideways_speed - v_c[1]
 
@@ -270,12 +362,12 @@ class BaseShipModel:
         self.d_sideways_speed = dx[1]
         self.d_yaw_rate = dx[2]
 
-    def update_differentials(self, *args, **kwargs):
+    def update_differentials(self, env_args=None, *args, **kwargs):
         ''' This method should be called in the simulation loop. It will
             update the full differential equation of the ship.
         '''
         self.three_dof_kinematics()
-        self.three_dof_kinetics()
+        self.three_dof_kinetics(env_args)
 
     def integrate_differentials(self):
         ''' Integrates the differential equation one time step ahead using
@@ -318,6 +410,7 @@ class BaseShipModel:
                         'd_north', 'd_east', 'd_yaw',
                         'd_forward_speed', 'd_sideways_speed', 'd_yaw_rate',
                         'proj_area_f', 'proj_area_l',
+                        'omega_vec', 'domega', 'k_vec', 'psi_vec', 'dpsi', 'theta',
                         'ship_drawings']
             }
 
@@ -396,15 +489,13 @@ class ShipModel(BaseShipModel):
             max_rudder_angle=np.rad2deg(machinery_config.max_rudder_angle_degrees)
         )
         self.desired_speed = desired_speed
+        self.init_desired_speed = self.desired_speed
         self.simulation_results = defaultdict(list)
 
     def three_dof_kinetics(self, 
                            thrust_force=None, 
                            rudder_angle=None, 
-                           load_percentage=None, 
-                           Hs=0.3,
-                           Tp=7.5,
-                           psi_0 =np.deg2rad(45),
+                           env_args=None,
                            *args, 
                            **kwargs):
         ''' Calculates accelerations of the ship, as a function
@@ -412,23 +503,21 @@ class ShipModel(BaseShipModel):
             states in the previous time-step.
         '''
         # Environmental conditions
-        wind_force = self.get_wind_force()
-        wave_force = self.wave_model.get_wave_force(
-            ship_speed=self.forward_speed,
-            psi_ship=self.yaw_angle,
-            Hs=Hs,
-            Tp=Tp,
-            psi_0=psi_0
-        )
-        current_speed, current_dir = self.current_model.get_current_vel_and_dir()
-        vel_c = np.array([
-            current_speed * np.sin(current_dir),
-            current_speed * np.cos(current_dir),
-            0.0])
-        
-        # wind_force = np.array([0.0, 0.0, 0.0])
-        # wave_force = np.array([0.0, 0.0, 0.0])
-        # vel_c = np.array([1.0, 1.0, 0.0])
+        if env_args is None:
+            wind_force = np.array([0.0, 0.0, 0.0])
+            wave_force = np.array([0.0, 0.0, 0.0])
+            vel_c      = np.array([0.0, 0.0, 0.0])
+        else:
+            wave_args, current_args, wind_args = env_args
+            
+            wave_force = self.get_wave_force(wave_args)
+            wind_force = self.get_wind_force(wind_args)
+            
+            current_speed, current_dir = current_args
+            vel_c = np.array([
+                current_speed * np.sin(current_dir),
+                current_speed * np.cos(current_dir),
+                0.0])
 
         # Forces acting (replace zero vectors with suitable functions)
         f_rudder_v, f_rudder_r = self.rudder(rudder_angle, vel_c)
@@ -473,9 +562,7 @@ class ShipModel(BaseShipModel):
     def update_differentials(self, 
                              engine_throttle=None, 
                              rudder_angle=None, 
-                             Hs=0.3,
-                             Tp=7.5,
-                             psi_0 =np.deg2rad(45),
+                             env_args=None,
                              *args, 
                              **kwargs):
         ''' This method should be called in the simulation loop. It will
@@ -485,9 +572,7 @@ class ShipModel(BaseShipModel):
         self.ship_machinery_model.update_shaft_equation(engine_throttle)
         self.three_dof_kinetics(thrust_force=self.ship_machinery_model.thrust(), 
                                 rudder_angle=rudder_angle,
-                                Hs=Hs,
-                                Tp=Tp,
-                                psi_0=psi_0)
+                                env_args=env_args)
 
     def integrate_differentials(self):
         ''' Integrates the differential equation one time step ahead using
@@ -557,9 +642,16 @@ class ShipModel(BaseShipModel):
                 last_value = self.simulation_results[key][-1]
                 self.simulation_results[key].append(last_value)
     
-    def step(self):
+    def step(self, env_args):
         ''' 
             The method is used for stepping up the simulator for the ship asset
+            
+            env_args: [wave_args, current_args, wind_args]
+            Arguments needed to compute the environmental loads, where:
+            - wave_args     : [S_w, D_psi]  # Spectrum value and Spreading factor
+            - current_args  : [current_speed, current_dir]
+            - wind_args     : [wind_speed, wind_dir]
+            
         '''          
         # Measure ship position and speed
         north_position = self.north
@@ -586,7 +678,9 @@ class ShipModel(BaseShipModel):
                                    rudder_angle,
                                    self.auto_pilot.get_cross_track_error(),
                                    self.auto_pilot.get_heading_error())
-        self.update_differentials(engine_throttle=throttle, rudder_angle=rudder_angle)
+        self.update_differentials(engine_throttle=throttle, 
+                                  rudder_angle=rudder_angle, 
+                                  env_args=env_args)
         self.integrate_differentials()
         
         # Step up the simulator
@@ -600,6 +694,9 @@ class ShipModel(BaseShipModel):
         self.ship_machinery_model.reset()
         self.throttle_controller.reset()
         self.auto_pilot.reset()
+        
+        # Reset the desired speed
+        self.desired_speed = self.init_desired_speed
         
         #  Also reset the results and draws container
         self.simulation_results = defaultdict(list)

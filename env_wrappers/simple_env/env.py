@@ -4,8 +4,12 @@ This modules provide classes for simple simulation running for one ship
 import numpy as np
 
 from simulator.ship_in_transit.sub_systems.ship_model import ShipModel
+from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWaveModel, WaveModelConfiguration
+from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, CurrentModelConfiguration
+from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, WindModelConfiguration
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
 from simulator.ship_in_transit.sub_systems.sbmpc import SBMPC
+
 
 from simulator.ship_in_transit.utils import check_condition
 
@@ -36,6 +40,9 @@ class SingleShipEnv:
     def __init__(self, 
                  assets:List[ShipAssets],
                  map: PolygonObstacle,
+                 wave_model_config: WaveModelConfiguration,
+                 current_model_config: CurrentModelConfiguration,
+                 wind_model_config: WindModelConfiguration,
                  args):
         '''
         Arguments:
@@ -62,6 +69,30 @@ class SingleShipEnv:
         # Store the map class as attribute
         self.map = map 
         
+        # Set configuration as an attribute
+        self.wave_model_config = wave_model_config
+        self.current_model_config = current_model_config
+        self.wind_model_config = wind_model_config
+        
+        # Get the environment model based on the config
+        self.wave_model = JONSWAPWaveModel(self.wave_model_config)
+        self.current_model = SurfaceCurrent(self.current_model_config)
+        self.wind_model = NORSOKWindModel(self.wind_model_config)  
+        
+        ## Fixed environment parameter
+        # Wave
+        self.Hs = 0.3
+        self.Tp = 7.5
+        self.psi_0 = np.deg2rad(45)
+        
+        # Current
+        self.vel_mean = 0.0
+        self.current_dir_mean = 0.0
+        
+        # Wind
+        self.Ubar_mean = 0.0
+        self.wind_dir_mean = 0.0
+        
         # Ship drawing configuration
         self.ship_draw = args.ship_draw
         self.time_since_last_ship_drawing = args.time_since_last_ship_drawing
@@ -74,12 +105,24 @@ class SingleShipEnv:
     def step(self):
         ''' 
             The method is used for stepping up the simulator for the ship asset
-        '''          
+        '''
+        ## GLOBAL ARGS FOR ALL SHIP ASSETS
+        # Compile wave_args
+        wave_args = self.wave_model.get_wave_force_params(self.Hs, self.Tp, self.psi_0)
         
-        # Step up all available digital assets
-        self.own_ship.ship_model.step()
+        # Compile current_args
+        current_args = self.current_model.get_current_vel_and_dir(self.vel_mean, self.current_dir_mean)
         
-        # Apply ship drawing (set as optional function) after stepping
+        # Compile wind_args
+        wind_args = self.wind_model.get_wind_vel_and_dir(self.Ubar_mean, self.wind_dir_mean)
+        
+        # Compile env_args
+        env_args = (wave_args, current_args, wind_args)
+        
+        ## Step up all available digital assets
+        self.own_ship.ship_model.step(env_args)
+        
+        ## Apply ship drawing (set as optional function) after stepping
         if self.ship_draw:
             if self.time_since_last_ship_drawing > 30:
                 self.own_ship.ship_model.ship_snap_shot()

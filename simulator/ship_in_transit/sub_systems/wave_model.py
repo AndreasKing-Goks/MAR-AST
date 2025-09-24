@@ -11,6 +11,7 @@ class WaveModelConfiguration(NamedTuple):
     maximum_spreading_angle: float
     spreading_angle_discrete_unit_count: int
     spreading_coefficient: int
+    rho:float
     timestep_size: float
 
 class JONSWAPWaveModel:
@@ -18,7 +19,7 @@ class JONSWAPWaveModel:
     This class defines a wave model based on JONSWAP wave spectrum
     with wave spreading function.
     '''
-    def __init__(self, config: WaveModelConfiguration, ship_length, ship_breadth, ship_draft, rho, seed=None):
+    def __init__(self, config: WaveModelConfiguration, seed=None):
         '''
         Parameters:
         -----------
@@ -62,10 +63,7 @@ class JONSWAPWaveModel:
         self.psi_max = config.maximum_spreading_angle
         self.N_psi = config.spreading_angle_discrete_unit_count
         self.dt = config.timestep_size
-        self.ship_length = ship_length
-        self.ship_breadth = ship_breadth
-        self.ship_draft = ship_draft
-        self.rho = rho
+        self.rho = config.rho
         
         # Vector for each wave across all frequencies
         self.omega_vec = np.linspace(self.w_min, self.w_max, self.N_omega)
@@ -141,8 +139,9 @@ class JONSWAPWaveModel:
             0.0
         )
         return D
-
-    def get_wave_force(self, ship_speed, psi_ship, 
+    
+    def get_direct_wave_force(self, ship_speed, psi_ship,
+                          ship_length, ship_breadth, ship_draft,
                           Hs, Tp, psi_0, 
                           omega_vec=None, psi_vec=None, s=None):
         '''
@@ -183,7 +182,7 @@ class JONSWAPWaveModel:
         
         # Approximation of oblique wave
         beta_0 = psi_0 - psi_ship
-        A_proj = (self.ship_breadth * np.cos(beta_0) + self.ship_length * np.sin(beta_0)) * self.ship_draft
+        A_proj = (ship_breadth * np.cos(beta_0) + ship_length * np.sin(beta_0)) * ship_draft
         
         # Froude-Krylov flat-plate force amplitude
         F0 = self.rho * self.g * a_eta * A_proj
@@ -191,9 +190,6 @@ class JONSWAPWaveModel:
         # Direction unit vectors
         cx = np.cos(beta)  # (1, Nd)
         cy = np.sin(beta)  # (1, Nd)
-        
-        # # Vector for randp, phases for each wave across all frequencies
-        # theta = 2.0 * np.pi * np.random.rand(self.N_omega, self.N_psi)    # (Nw, Nd)
         
         # Fx(t) = sum_{i,j} F0[i,j] * cos(omega_e[i,j]*t + phi[i,j]) * cos(theta_j)
         arg    = omega_e * self.dt + self.theta
@@ -221,7 +217,7 @@ class JONSWAPWaveModel:
             ry = 0.5 * B * np.sign(np.sin(beta)) * (wy / wsum)
             return rx, ry
 
-        rx, ry = r_cp_from_beta(beta, self.ship_length, self.ship_breadth)  # (1, Nd)
+        rx, ry = r_cp_from_beta(beta, ship_length, ship_breadth)  # (1, Nd)
 
         # Yaw moment sum Mz = r_x*Fy - r_y*Fx (sum over freq & dir)
         Mz_t = np.sum(rx * Fy_ij - ry * Fx_ij, axis=(0, 1))                 # scalar
@@ -232,6 +228,21 @@ class JONSWAPWaveModel:
 
         return np.array([Fx_t, Fy_t, Mz_t])
     
+    def get_wave_force_params(self, Hs, Tp, psi_0,
+                              omega_vec=None, psi_vec=None, s=None):
+        if omega_vec is None: omega_vec = self.omega_vec      # (Nw,)
+        if psi_vec is None: psi_vec = self.psi_vec          # (Nd,)
+        if s is None: s = self.s
+        
+        # Compute wave spectrum and the spreading function
+        S_w = self.jonswap_spectrum(Hs, Tp, omega_vec)      # (Nw,)
+        D_psi = self.spreading_function(psi_0, s, psi_vec)  # (Nd,)
+        # Normalize the D to integrate to 1 over psi
+        # So that the sum over D(psi) dpsi = 1
+        D_psi = D_psi / (D_psi.sum() * self.dpsi)           # (Nd,)
+        
+        return S_w, D_psi, psi_0
+    
     def record_initial_parameters(self):
         '''
         Internal method to take a record of internal attributes after __init__().
@@ -241,7 +252,6 @@ class JONSWAPWaveModel:
             key: copy.deepcopy(self.__dict__[key])
             for key in ['g', 's', 'w_min', 'w_max', 'N_omega',
                         'psi_min', 'psi_max', 'N_psi', 'dt', 
-                        'ship_length', 'ship_breadth', 'ship_draft',
                         'omega_vec', 'domega', 'k_vec', 'psi_vec', 'dpsi',
                         'seed']
             }
