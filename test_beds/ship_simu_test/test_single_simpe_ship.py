@@ -96,7 +96,7 @@ current_model_config = CurrentModelConfiguration(
     current_velocity_standard_deviation=0.1,
     current_velocity_decay_rate=0.05,
     initial_current_direction=np.deg2rad(-45),
-    current_direction_standard_deviation=0.1,
+    current_direction_standard_deviation=0.05,
     current_direction_decay_rate=0.05,
     timestep_size=args.time_step
 )

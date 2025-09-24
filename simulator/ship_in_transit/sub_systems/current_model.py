@@ -12,9 +12,12 @@ class CurrentModelConfiguration(NamedTuple):
     timestep_size: float
 
 class SurfaceCurrent:
-    def __init__(self, config:CurrentModelConfiguration, seed=None):
+    def __init__(self, config:CurrentModelConfiguration, seed=None, clip_speed_nonnegative=True):
+        '''
+        Small mu value means a slow varying process. While large mu_value meas a fast-decaying fluctuations.
+        '''
         # Initialize state variables (velocity magnitude and direction)
-        self.vel = config.initial_current_velocity                    # initial current velocity magnitude [m/s]
+        self.vel = config.initial_current_velocity                    # mean current velocity magnitude [m/s]
         self.mu_vel = config.current_velocity_decay_rate              # decay rate for velocity (Gauss–Markov)
 
         self.dir = config.initial_current_direction                   # initial current direction [rad]
@@ -31,35 +34,49 @@ class SurfaceCurrent:
         if self.seed is not None:
             np.random.seed(self.seed)
         
+        # Clip negative speed
+        self.clip_speed_nonnegative= clip_speed_nonnegative
+        
         # Record of the initial parameters
         self.record_initial_parameters()
         
-    def compute_current_velocity(self):
+    def compute_current_velocity(self, vel_mean):
         # Generate Gaussian white noise for velocity.
         # Scale by 1/sqrt(dt) so variance is consistent with continuous-time noise
         w = np.random.normal(0, self.sigma_vel / np.sqrt(self.dt))  
         
         # Update velocity using Euler discretization of: Vdot + mu*V = w
-        self.vel = self.vel + self.dt * (-self.mu_vel * self.vel + w)
+        self.vel = self.vel + self.dt * (-self.mu_vel * (self.vel - np.abs(vel_mean)) + w)
         
         return self.vel
     
-    def compute_current_direction(self):
+    def compute_current_direction(self, dir_mean):
         # Generate Gaussian white noise for direction
         w = np.random.normal(0, self.sigma_dir / np.sqrt(self.dt))  
         
         # Update direction using Euler discretization of: ψdot + mu*ψ = w
-        self.dir = self.dir + self.dt * (-self.mu_dir * self.dir + w)
+        self.dir = self.dir + self.dt * (-self.mu_dir * (self.dir - dir_mean) + w)
         
         # Wrap the direction angle back into [-pi, pi]
         self.dir = (self.dir + np.pi) % (2*np.pi) - np.pi
         
         return self.dir
     
-    def get_current_vel_and_dir(self):
+    def get_current_vel_and_dir(self, vel_mean=None, dir_mean=None):
+        '''
+        vel_mean = action outputed by RL agent. 
+        [vel_mean > 0], negative value will automatically reversed to positive
+        
+        dir_mean = action outputed by RL agent.
+        '''
+        if vel_mean is None: vel_mean = 0
+        if dir_mean is None: dir_mean = 0
+        
         # Update both velocity and direction and return them
-        U_c = self.compute_current_velocity()
-        psi_c = self.compute_current_direction()
+        U_c = self.compute_current_velocity(vel_mean)
+        if self.clip_speed_nonnegative:
+            U_c = max(0.0, U_c)
+        psi_c = self.compute_current_direction(dir_mean)
         
         return U_c, psi_c
     

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class SurfaceCurrent:
-    def __init__(self, init_vel, mu_vel, init_dir, mu_dir, sigma_vel=0.1, sigma_dir=0.1, seed=None, dt=30):
+    def __init__(self, init_vel, mu_vel, init_dir, mu_dir, sigma_vel=0.1, sigma_dir=0.05, seed=None, dt=30, clip_speed_nonnegative=True):
         # Initialize state variables (velocity magnitude and direction)
         self.vel = init_vel         # initial current velocity magnitude [m/s]
         self.mu_vel = mu_vel        # decay rate for velocity (Gauss–Markov)
@@ -15,6 +15,8 @@ class SurfaceCurrent:
         self.sigma_dir = sigma_dir  # noise strength for direction
 
         self.dt = dt                # timestep size [s]
+        
+        self.clip_speed_nonnegative = True
         
         # Random seed
         if seed is not None:
@@ -45,6 +47,8 @@ class SurfaceCurrent:
     def get_current_vel_and_dir(self):
         # Update both velocity and direction and return them
         U_c = self.compute_current_velocity()
+        if self.clip_speed_nonnegative:
+            U_c = max(0.0, U_c)
         psi_c = self.compute_current_direction()
         
         return U_c, psi_c
@@ -53,7 +57,7 @@ class SurfaceCurrent:
 # -------------------------------
 # Example simulation setup
 # -------------------------------
-init_vel = 5            # initial current velocity [m/s]
+init_vel = 0            # initial current velocity [m/s]
 mu_vel = 0.05           # decay rate for velocity
 
 init_dir = np.deg2rad(-90)  # initial direction: -90 deg = South

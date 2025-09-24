@@ -83,10 +83,10 @@ class NORSOKWindModel:
         x = 172.0 * f * (self.z/10.0)**(2.0/3.0) * (self.U10/10.0)**(-3.0/4.0)
         return 320.0 * (self.U10/10.0)**2 * (self.z/10.0)**0.45 / (1.0 + x**n)**(5.0/(3.0*n))
 
-    def compute_wind_mean_velocity(self):
+    def compute_wind_mean_velocity(self, Ubar_mean):
         # Ȗ_{k+1} = Ȗ_k + dt(-μ Ȗ_k + w), w ~ N(0, σ^2/dt)
         w = np.random.normal(0.0, self.sigma_Ubar/np.sqrt(self.dt))
-        self.Ubar += self.dt * (-self.mu_Ubar * self.Ubar + w)
+        self.Ubar += self.dt * (-self.mu_Ubar * (self.Ubar - Ubar_mean) + w)
         self.Ubar = np.clip(self.Ubar, self.U_min, self.U_max)
         return self.Ubar
 
@@ -95,21 +95,24 @@ class NORSOKWindModel:
         self.theta += 2*np.pi*self.f*self.dt
         return np.sum(self.a * np.cos(self.theta))
 
-    def compute_wind_direction(self):
+    def compute_wind_direction(self, mean_dir):
         w = np.random.normal(0.0, self.sigma_dir/np.sqrt(self.dt))
-        self.dir += self.dt * (-self.mu_dir * self.dir + w)
+        self.dir += self.dt * (-self.mu_dir * (self.dir - mean_dir) + w)
         # wrap to [-pi, pi]
         self.dir = (self.dir + np.pi) % (2*np.pi) - np.pi
         return self.dir
 
-    def get_wind_vel_and_dir(self):
+    def get_wind_vel_and_dir(self, Ubar_mean=None, dir_mean=None):
         """Advance model by one dt. Returns (U_speed, direction)."""
-        Ubar = self.compute_wind_mean_velocity()
+        if Ubar_mean is None: Ubar_mean = 0
+        if dir_mean is None: dir_mean = 0
+        
+        Ubar = self.compute_wind_mean_velocity(Ubar_mean)
         Ug   = self.compute_wind_gust()
         U_w    = Ubar + Ug
         if self.clip_speed_nonnegative:
             U_w = max(0.0, U_w)
-        psi_w  = self.compute_wind_direction()
+        psi_w  = self.compute_wind_direction(dir_mean)
         return U_w, psi_w
     
     def record_initial_parameters(self):

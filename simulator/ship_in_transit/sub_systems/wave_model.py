@@ -78,6 +78,9 @@ class JONSWAPWaveModel:
         self.psi_vec = np.linspace(-np.pi, np.pi, self.N_psi)
         self.dpsi = self.psi_vec[1] - self.psi_vec[0]
         
+        # Vector for randp, phases for each wave across all frequencies
+        self.theta = 2.0 * np.pi * np.random.rand(self.N_omega, self.N_psi)    # (Nw, Nd)
+        
         # Random seed
         self.seed = seed
         if self.seed is not None:
@@ -189,12 +192,20 @@ class JONSWAPWaveModel:
         cx = np.cos(beta)  # (1, Nd)
         cy = np.sin(beta)  # (1, Nd)
         
-        # Vector for randp, phases for each wave across all frequencies
-        phases = 2.0 * np.pi * np.random.rand(self.N_omega, self.N_psi)    # (Nw, Nd)
+        # # Vector for randp, phases for each wave across all frequencies
+        # theta = 2.0 * np.pi * np.random.rand(self.N_omega, self.N_psi)    # (Nw, Nd)
         
         # Fx(t) = sum_{i,j} F0[i,j] * cos(omega_e[i,j]*t + phi[i,j]) * cos(theta_j)
-        arg    = omega_e * self.dt + phases
+        arg    = omega_e * self.dt + self.theta
         cosarg = np.cos(arg)                                                      # (Nw, Nd)
+        
+        # advance phases by Δt
+        self.theta = (self.theta + omega_e * self.dt) % (2*np.pi)
+        # eta = A cos(omega_e*dt + psi0) = A cos(theta)
+        # Discrete step t_k = k * dt
+        # Instead of tracking the k, we can advances the theta by:
+        # Adding the theta with another omega_e*dt, divide by a full sinusoidal cycle of 2*pi,
+        # then get the remain. This remain is the advances of theta within the [0, 2*pi)
 
         # Component forces along x,y per (i,j)
         Fx_ij = F0 * cosarg * cx   # (Nw, Nd)
