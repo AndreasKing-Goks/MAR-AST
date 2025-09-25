@@ -43,7 +43,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 
 ## Add arguments for environments
-parser.add_argument('--time_step', type=int, default=4clear, metavar='TIMESTEP',
+parser.add_argument('--time_step', type=int, default=4, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 30)')
 parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
                     help='ENV: radius of acceptance for LOS algorithm (default: 300)')
