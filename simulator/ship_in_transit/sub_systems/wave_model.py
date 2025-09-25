@@ -73,7 +73,7 @@ class JONSWAPWaveModel:
         self.k_vec = self.omega_vec**2 / self.g
         
         # Vector for each wave across discretized spreading direction
-        self.psi_vec = np.linspace(-np.pi, np.pi, self.N_psi)
+        self.psi_vec = np.linspace(self.psi_min, self.psi_max, self.N_psi)
         self.dpsi = self.psi_vec[1] - self.psi_vec[0]
         
         # Vector for randp, phases for each wave across all frequencies
