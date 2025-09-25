@@ -85,8 +85,8 @@ wave_model_config = WaveModelConfiguration(
     minimum_wave_frequency=0.4,
     maximum_wave_frequency=2.5,
     wave_frequency_discrete_unit_count=50,
-    minimum_spreading_angle=-np.pi/2,
-    maximum_spreading_angle=np.pi/2,
+    minimum_spreading_angle=-np.pi,
+    maximum_spreading_angle=np.pi,
     spreading_angle_discrete_unit_count=10,
     spreading_coefficient=1,
     rho=1025.0,
@@ -225,7 +225,6 @@ own_ship = ShipAssets(
     ship_model=own_ship,
     integrator_term=own_ship_integrator_term,
     time_list=own_ship_times,
-    stop_flag=False,
     type_tag='own_ship'
 )
 
@@ -254,11 +253,11 @@ test1 = True
 if test1:
     
     ## THIS IS WHERE THE LOOPING HAPPENS
-    while own_ship.ship_model.int.time < own_ship.ship_model.int.sim_time:
+    while own_ship.ship_model.int.time < own_ship.ship_model.int.sim_time and env.stop is False:
         env.step()
 
     # Get the simulation results for all assets
-    own_ship_results_df = pd.DataFrame().from_dict(env.own_ship.ship_model.simulation_results)
+    own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
 
     # Plot 1: Overall process plot
     plot_1 = False

@@ -24,7 +24,6 @@ class ShipAssets:
     integrator_term: List[float]
     time_list: List[float]
     type_tag: str
-    stop_flag: bool
     init_copy: 'ShipAssets' = field(default=None, repr=False, compare=False)
 
 
@@ -60,7 +59,6 @@ class SingleShipEnv:
         
         ## Unpack assets
         self.assets = assets
-        self.own_ship = self.assets[0]
         
         # Store initial values for each assets for reset function
         for _, asset in enumerate(self.assets):
@@ -81,17 +79,17 @@ class SingleShipEnv:
         
         ## Fixed environment parameter
         # Wave
-        self.Hs = 0.3
+        self.Hs = 0.5
         self.Tp = 7.5
-        self.psi_0 = np.deg2rad(45)
+        self.psi_0 = np.deg2rad(30.0)
         
         # Current
-        self.vel_mean = 0.0
-        self.current_dir_mean = 0.0
+        self.vel_mean = 1.0
+        self.current_dir_mean = np.deg2rad(45.0)
         
         # Wind
-        self.Ubar_mean = 0.0
-        self.wind_dir_mean = 0.0
+        self.Ubar_mean = 1.0
+        self.wind_dir_mean = np.deg2rad(45.0)
         
         # Ship drawing configuration
         self.ship_draw = args.ship_draw
@@ -99,6 +97,10 @@ class SingleShipEnv:
 
         # Scenario-Based Model Predictive Controller
         self.sbmpc = SBMPC(tf=1000, dt=20)
+        
+        # Environment termination flag
+        self.ship_stop_status = [False] * len(self.assets)
+        self.stop = False
         
         return
     
@@ -120,14 +122,21 @@ class SingleShipEnv:
         env_args = (wave_args, current_args, wind_args)
         
         ## Step up all available digital assets
-        self.own_ship.ship_model.step(env_args)
+        for i, ship in enumerate(self.assets):
+            ship.ship_model.step(env_args)
+            self.ship_stop_status[i] = ship.ship_model.stop
+        
+        if np.all(self.ship_stop_status):
+            self.stop = True
+            return
         
         ## Apply ship drawing (set as optional function) after stepping
         if self.ship_draw:
             if self.time_since_last_ship_drawing > 30:
-                self.own_ship.ship_model.ship_snap_shot()
+                for ship in self.assets:
+                    ship.ship_model.ship_snap_shot()
                 self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
-            self.time_since_last_ship_drawing += self.own_ship.ship_model.int.dt
+            self.time_since_last_ship_drawing += self.args.time_step
         
         return
 
@@ -146,9 +155,10 @@ class SingleShipEnv:
             # Reset parameters and lists
             ship.integrator_term = copy.deepcopy(init.integrator_term)
             ship.time_list = copy.deepcopy(init.time_list)
-            
-            # Reset the stop flag
-            ship.stop_flag = False
+        
+        # Reset the stop status
+        self.ship_stop_status = [False] * len(self.assets)
+        self.stop = False
         
         return
        

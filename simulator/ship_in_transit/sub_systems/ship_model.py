@@ -20,6 +20,8 @@ from simulator.ship_in_transit.sub_systems.controllers import (EngineThrottleFro
                                                                HeadingControllerGains,
                                                                LosParameters)
 
+from simulator.ship_in_transit.utils.check_condition import is_reaches_endpoint
+
 
 ###################################################################################################################
 ####################################### CONFIGURATION FOR SHIP MODEL ##############################################
@@ -161,6 +163,9 @@ class BaseShipModel:
         self.cx = 0.5
         self.cy = 0.7
         self.cn = 0.08
+        
+        # Stop Flags
+        self.stop = False
         
         # Record of the initial parameters
         self.record_initial_parameters()
@@ -411,7 +416,7 @@ class BaseShipModel:
                         'd_forward_speed', 'd_sideways_speed', 'd_yaw_rate',
                         'proj_area_f', 'proj_area_l',
                         'omega_vec', 'domega', 'k_vec', 'psi_vec', 'dpsi', 'theta',
-                        'ship_drawings']
+                        'ship_drawings', 'stop']
             }
 
     def reset(self):
@@ -661,6 +666,11 @@ class ShipModel(BaseShipModel):
         heading = self.yaw_angle
         measured_shaft_speed = self.ship_machinery_model.omega
         measured_speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
+        
+        if is_reaches_endpoint([self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]],
+                               [north_position, east_position]):
+            self.stop = True
+            return
         
         # Find appropriate rudder angle and engine throttle
         rudder_angle = self.auto_pilot.rudder_angle_from_sampled_route(
