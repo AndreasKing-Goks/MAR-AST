@@ -43,7 +43,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 
 ## Add arguments for environments
-parser.add_argument('--time_step', type=int, default=0.5, metavar='TIMESTEP',
+parser.add_argument('--time_step', type=int, default=4clear, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 30)')
 parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
                     help='ENV: radius of acceptance for LOS algorithm (default: 300)')
@@ -190,11 +190,11 @@ own_ship_config = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=200, ki_ship_speed=0.0525, kp_shaft_speed=50, ki_shaft_speed=0.00025
+    kp_ship_speed=7, ki_ship_speed=0.13, kp_shaft_speed=0.05, ki_shaft_speed=0.005
 )
 own_ship_route_filename = 'own_ship_route.txt'
 own_ship_route_name = get_data_path(own_ship_route_filename)
-own_ship_heading_controller_gains = HeadingControllerGains(kp=1, kd=0.0001, ki=0.0001)
+own_ship_heading_controller_gains = HeadingControllerGains(kp=4, kd=90, ki=0.01)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -215,6 +215,7 @@ own_ship = ShipModel(
     los_parameters=own_ship_los_guidance_parameters,
     route_name=own_ship_route_name,
     desired_speed=own_ship_desired_speed,
+    engine_steps_per_time_step=10,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi / 30,
 )
 own_ship_integrator_term = []

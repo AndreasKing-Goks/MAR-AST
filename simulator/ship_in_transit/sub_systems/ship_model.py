@@ -468,12 +468,13 @@ class ShipModel(BaseShipModel):
                  los_parameters: LosParameters,
                  route_name,
                  desired_speed,
+                 engine_steps_per_time_step,
                  initial_propeller_shaft_speed_rad_per_s):
         super().__init__(ship_config, simulation_config, wave_model_config, current_model_config, wind_model_config)
         self.ship_machinery_model = ShipMachineryModel(
             machinery_config=machinery_config,
             initial_propeller_shaft_speed_rad_per_sec=initial_propeller_shaft_speed_rad_per_s,
-            time_step=self.int.dt
+            time_step=self.int.dt/engine_steps_per_time_step
         )
         self.throttle_controller = EngineThrottleFromSpeedSetPoint(
             gains=throttle_controller_gain,
@@ -569,7 +570,8 @@ class ShipModel(BaseShipModel):
             update the full differential equation of the ship.
         '''
         self.three_dof_kinematics()
-        self.ship_machinery_model.update_shaft_equation(engine_throttle)
+        for _ in range(int(self.int.dt / self.ship_machinery_model.int.dt)):
+            self.ship_machinery_model.update_shaft_equation(engine_throttle)
         self.three_dof_kinetics(thrust_force=self.ship_machinery_model.thrust(), 
                                 rudder_angle=rudder_angle,
                                 env_args=env_args)
