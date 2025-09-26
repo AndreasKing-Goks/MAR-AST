@@ -182,8 +182,8 @@ own_ship_config = SimulationConfiguration(
     initial_north_position_m=100,
     initial_east_position_m=100,
     initial_yaw_angle_rad=60 * np.pi / 180,
-    initial_forward_speed_m_per_s=4.25,
-    initial_sideways_speed_m_per_s=0,
+    initial_forward_speed_m_per_s=4.0,
+    initial_sideways_speed_m_per_s=4.0,
     initial_yaw_rate_rad_per_s=0,
     integration_step=args.time_step,
     simulation_time=10000,
@@ -194,7 +194,7 @@ own_ship_throttle_controller_gains = ThrottleControllerGains(
 )
 own_ship_route_filename = 'own_ship_route.txt'
 own_ship_route_name = get_data_path(own_ship_route_filename)
-own_ship_heading_controller_gains = HeadingControllerGains(kp=4, kd=90, ki=0.01)
+own_ship_heading_controller_gains = HeadingControllerGains(kp=2, kd=90, ki=0.001)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -216,7 +216,7 @@ own_ship = ShipModel(
     route_name=own_ship_route_name,
     desired_speed=own_ship_desired_speed,
     engine_steps_per_time_step=10,
-    initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi / 30,
+    initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
 )
 own_ship_integrator_term = []
 own_ship_times = []
@@ -298,10 +298,12 @@ if test1:
         # Plot 2.3: Cross Track error
         axes[2].plot(own_ship_results_df['time [s]'], own_ship_results_df['cross track error [m]'])
         axes[2].set_title('Own Ship Cross Track Error [m]')
+        axes[2].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
         axes[2].set_xlabel('Time (s)')
         axes[2].set_ylabel('Cross track error (m)')
         axes[2].grid(color='0.8', linestyle='-', linewidth=0.5)
         axes[2].set_xlim(left=0)
+        axes[2].set_ylim(-501,501)
 
         # Plot 2.4: Propeller Shaft Speed
         axes[3].plot(own_ship_results_df['time [s]'], own_ship_results_df['propeller shaft speed [rpm]'])
