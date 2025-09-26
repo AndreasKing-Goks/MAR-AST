@@ -18,6 +18,7 @@ class MachineryModeParams(NamedTuple):
     main_engine_capacity: float
     electrical_capacity: float
     shaft_generator_state: str
+    name_tag: str
 
 
 class MachineryMode:
@@ -25,6 +26,7 @@ class MachineryMode:
         self.main_engine_capacity = params.main_engine_capacity
         self.electrical_capacity = params.electrical_capacity
         self.shaft_generator_state = params.shaft_generator_state
+        self.name_tag = params.name_tag
         self.available_propulsion_power = 0
         self.available_propulsion_power_main_engine = 0
         self.available_propulsion_power_electrical = 0
@@ -370,6 +372,9 @@ class ShipMachineryModel(BaseMachineryModel):
         self.omega = initial_propeller_shaft_speed_rad_per_sec
         self.d_omega = 0
 
+        # OPERATING MODES NAME TAG
+        self.operating_mode = machinery_config.machinery_modes.list_of_modes[machinery_config.machinery_operating_mode].name_tag
+        
         # Set up integration
         self.time_step = time_step
         self.int = EulerInt()  # Instantiate the Euler integrator

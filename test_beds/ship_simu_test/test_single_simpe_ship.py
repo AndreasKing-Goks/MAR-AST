@@ -57,8 +57,8 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
 args = parser.parse_args()
 
 # Engine configuration
-main_engine_capacity = 2160e3
-diesel_gen_capacity = 510e3
+main_engine_capacity = 3160e3 # 2160e3
+diesel_gen_capacity = 610e3   # 510e3
 hybrid_shaft_gen_as_generator = 'GEN'
 hybrid_shaft_gen_as_motor = 'MOTOR'
 hybrid_shaft_gen_as_offline = 'OFF'
@@ -122,21 +122,24 @@ wind_model_config = WindModelConfiguration(
 pto_mode_params = MachineryModeParams(
     main_engine_capacity=main_engine_capacity,
     electrical_capacity=0,
-    shaft_generator_state=hybrid_shaft_gen_as_generator
+    shaft_generator_state=hybrid_shaft_gen_as_generator,
+    name_tag='PTO'
 )
 pto_mode = MachineryMode(params=pto_mode_params)
 
 pti_mode_params = MachineryModeParams(
     main_engine_capacity=0,
     electrical_capacity=2*diesel_gen_capacity,
-    shaft_generator_state=hybrid_shaft_gen_as_motor
+    shaft_generator_state=hybrid_shaft_gen_as_motor,
+    name_tag='PTI'
 )
 pti_mode = MachineryMode(params=pti_mode_params)
 
 mec_mode_params = MachineryModeParams(
     main_engine_capacity=main_engine_capacity,
     electrical_capacity=diesel_gen_capacity,
-    shaft_generator_state=hybrid_shaft_gen_as_offline
+    shaft_generator_state=hybrid_shaft_gen_as_offline,
+    name_tag='MEC'
 )
 mec_mode = MachineryMode(params=mec_mode_params)
 mso_modes = MachineryModes(
@@ -146,7 +149,7 @@ fuel_spec_me = SpecificFuelConsumptionWartila6L26()
 fuel_spec_dg = SpecificFuelConsumptionBaudouin6M26Dot3()
 machinery_config = MachinerySystemConfiguration(
     machinery_modes=mso_modes,
-    machinery_operating_mode=0,
+    machinery_operating_mode=1,
     linear_friction_main_engine=68,
     linear_friction_hybrid_shaft_generator=57,
     gear_ratio_between_main_engine_and_propeller=0.6,
@@ -181,10 +184,10 @@ map = PolygonObstacle(map_data)
 own_ship_config = SimulationConfiguration(
     initial_north_position_m=100,
     initial_east_position_m=100,
-    initial_yaw_angle_rad=60 * np.pi / 180,
+    initial_yaw_angle_rad=np.deg2rad(0.0),
     initial_forward_speed_m_per_s=4.0,
-    initial_sideways_speed_m_per_s=4.0,
-    initial_yaw_rate_rad_per_s=0,
+    initial_sideways_speed_m_per_s=0.0,
+    initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
     simulation_time=10000,
 )
@@ -213,19 +216,16 @@ own_ship = ShipModel(
     throttle_controller_gain=own_ship_throttle_controller_gains,
     heading_controller_gain=own_ship_heading_controller_gains,
     los_parameters=own_ship_los_guidance_parameters,
+    name_tag='Own ship',
     route_name=own_ship_route_name,
     desired_speed=own_ship_desired_speed,
     engine_steps_per_time_step=10,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
+    map_obj=map
 )
-own_ship_integrator_term = []
-own_ship_times = []
 # Wraps simulation objects based on the ship type using a dictionary
 own_ship = ShipAssets(
     ship_model=own_ship,
-    integrator_term=own_ship_integrator_term,
-    time_list=own_ship_times,
-    type_tag='own_ship'
 )
 
 # Package the assets for reinforcement learning agent
@@ -314,14 +314,24 @@ if test1:
         axes[3].set_xlim(left=0)
 
         # Plot 2.5: Power vs Available Power
-        axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power me [kw]'], label="Power")
-        axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power me [kw]'], label="Available Power")
-        axes[4].set_title("Own Ship's Power vs Available Power [kw]")
-        axes[4].set_xlabel('Time (s)')
-        axes[4].set_ylabel('Power (kw)')
-        axes[4].legend()
-        axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[4].set_xlim(left=0)
+        if assets[0].ship_model.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
+            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power me [kw]'], label="Power")
+            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power me [kw]'], label="Available Power")
+            axes[4].set_title("Own Ship's Power vs Available Mechanical Power [kw]")
+            axes[4].set_xlabel('Time (s)')
+            axes[4].set_ylabel('Power (kw)')
+            axes[4].legend()
+            axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
+            axes[4].set_xlim(left=0)
+        elif assets[0].ship_model.ship_machinery_model.operating_mode == 'PTI':
+            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power electrical [kw]'], label="Power")
+            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power electrical [kw]'], label="Available Power")
+            axes[4].set_title("Own Ship's Power vs Available Power Electrical [kw]")
+            axes[4].set_xlabel('Time (s)')
+            axes[4].set_ylabel('Power (kw)')
+            axes[4].legend()
+            axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
+            axes[4].set_xlim(left=0)
 
         # Plot 2.6: Fuel Consumption
         axes[5].plot(own_ship_results_df['time [s]'], own_ship_results_df['fuel consumption [kg]'])
@@ -348,7 +358,7 @@ if test1:
 
         plt.xlim(0, 20000)
         plt.ylim(0, 10000)
-        plt.title('Ship Trajectory with the Sampled Route')
+        plt.title('Ship Trajectory')
         plt.xlabel('East position (m)')
         plt.ylabel('North position (m)')
         plt.gca().set_aspect('equal')

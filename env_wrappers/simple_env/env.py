@@ -21,9 +21,6 @@ import copy
 @dataclass
 class ShipAssets:
     ship_model: ShipModel
-    integrator_term: List[float]
-    time_list: List[float]
-    type_tag: str
     init_copy: 'ShipAssets' = field(default=None, repr=False, compare=False)
 
 
@@ -79,9 +76,9 @@ class SingleShipEnv:
         
         ## Fixed environment parameter
         # Wave
-        self.Hs = 0.3
+        self.Hs = 0.1
         self.Tp = 7.5
-        self.psi_0 = np.deg2rad(30.0)
+        self.psi_0 = np.deg2rad(45.0)
         
         # Current
         self.vel_mean = 1.0
@@ -122,9 +119,9 @@ class SingleShipEnv:
         env_args = (wave_args, current_args, wind_args)
         
         ## Step up all available digital assets
-        for i, ship in enumerate(self.assets):
-            ship.ship_model.step(env_args)
-            self.ship_stop_status[i] = ship.ship_model.stop
+        for i, asset in enumerate(self.assets):
+            if asset.ship_model.stop is False: asset.ship_model.step(env_args)   # If all asset is not stopped, step up
+            self.ship_stop_status[i] = asset.ship_model.stop
         
         if np.all(self.ship_stop_status):
             self.stop = True

@@ -20,7 +20,7 @@ from simulator.ship_in_transit.sub_systems.controllers import (EngineThrottleFro
                                                                HeadingControllerGains,
                                                                LosParameters)
 
-from simulator.ship_in_transit.utils.check_condition import is_reaches_endpoint
+from simulator.ship_in_transit.utils import check_condition
 
 
 ###################################################################################################################
@@ -471,11 +471,17 @@ class ShipModel(BaseShipModel):
                  throttle_controller_gain: ThrottleControllerGains,
                  heading_controller_gain: HeadingControllerGains,
                  los_parameters: LosParameters,
+                 name_tag: str,
                  route_name,
                  desired_speed,
                  engine_steps_per_time_step,
-                 initial_propeller_shaft_speed_rad_per_s):
+                 initial_propeller_shaft_speed_rad_per_s,
+                 map_obj=None,):
         super().__init__(ship_config, simulation_config, wave_model_config, current_model_config, wind_model_config)
+        
+        if map_obj is not None:
+            self.map_obj = map_obj
+        
         self.ship_machinery_model = ShipMachineryModel(
             machinery_config=machinery_config,
             initial_propeller_shaft_speed_rad_per_sec=initial_propeller_shaft_speed_rad_per_s,
@@ -494,8 +500,24 @@ class ShipModel(BaseShipModel):
             time_step=self.int.dt,
             max_rudder_angle=np.rad2deg(machinery_config.max_rudder_angle_degrees)
         )
+        
+        # Ship desired speed
         self.desired_speed = desired_speed
         self.init_desired_speed = self.desired_speed
+        
+        # Get stop_info
+        self.stop_info = {
+            'grounding_failure' : False,
+            'navigation_failure': False,
+            'reaches_endpoint'  : False,
+            'outside_horizon'   : False,
+            'power_overload'    : False
+        }
+        
+        # Ship name
+        self.name_tag = name_tag
+        
+        # Default dictionary for simulation results
         self.simulation_results = defaultdict(list)
 
     def three_dof_kinetics(self, 
@@ -637,7 +659,8 @@ class ShipModel(BaseShipModel):
         
     ## ADDITIONAL ##
     def store_last_simulation_data(self):
-        '''Stores the last known state repeatedly when the ship has stopped moving.
+        '''
+        Stores the last known state repeatedly when the ship has stopped moving.
         '''
         if not self.simulation_results['time [s]']:
             raise RuntimeError("No simulation data to repeat — ship has not run yet.")
@@ -648,6 +671,54 @@ class ShipModel(BaseShipModel):
             if key != 'time [s]':
                 last_value = self.simulation_results[key][-1]
                 self.simulation_results[key].append(last_value)
+                
+    def evaluate_ship_condition(self):
+        '''
+        Evaluate the ship condition to determine the stop flags.
+        '''
+        # Only evaluate this condition when the map_obj is exists
+        if self.map_obj is not None:
+            if check_condition.is_grounding(map_obj=self.map_obj,
+                                            pos=[self.north, self.east],
+                                            ship_length=self.l_ship):
+                self.stop_info['grounding_failure'] = True
+                self.stop = True
+                print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences grounding.')
+            
+            if check_condition.is_pos_outside_horizon(map_obj=self.map_obj,
+                                                pos=[self.north, self.east],
+                                                ship_length=self.l_ship):
+                self.stop_info['outside_horizon'] = True
+                self.stop = True
+                print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode is outside the map horizon.')
+            
+        if check_condition.is_ship_navigation_failure(e_ct=self.auto_pilot.navigate.e_ct,
+                                                      e_tol=500):
+            self.stop_info['navigation_failure'] = True
+            self.stop = True
+            print(self.name_tag, ' experiences navigational failure.')
+        
+        if check_condition.is_reaches_endpoint(route_end=[self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]], 
+                                               pos=[self.north, self.east], 
+                                               arrival_radius=250):
+            self.stop_info['reaches_endpoint'] = True
+            self.stop = True
+            print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode reaches its final destination.')
+        
+        if len(self.simulation_results['power me [kw]']) > 0:
+            if self.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
+                power = self.simulation_results['power me [kw]'][-1]
+                available_power=self.simulation_results['available power me [kw]'][-1]
+            elif self.ship_machinery_model.operating_mode == 'PTI':
+                power = self.simulation_results['power electrical [kw]'][-1]
+                available_power=self.simulation_results['available power electrical [kw]'][-1]
+            
+            if check_condition.is_power_overload(power=power, 
+                                                 available_power=available_power):
+                    self.stop_info['power_overload'] = True
+                    self.stop = True
+                    print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences power overloading.')
+        
     
     def step(self, env_args):
         ''' 
@@ -667,9 +738,9 @@ class ShipModel(BaseShipModel):
         measured_shaft_speed = self.ship_machinery_model.omega
         measured_speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
         
-        if is_reaches_endpoint([self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]],
-                               [north_position, east_position]):
-            self.stop = True
+        # Evaluate the ship condition. If the ship stopped, immediately return
+        self.evaluate_ship_condition()
+        if self.stop is True:
             return
         
         # Find appropriate rudder angle and engine throttle
@@ -709,6 +780,15 @@ class ShipModel(BaseShipModel):
         
         # Reset the desired speed
         self.desired_speed = self.init_desired_speed
+        
+        # Reset stop_info
+        self.stop_info = {
+            'grounding_failure' : False,
+            'navigation_failure': False,
+            'reaches_endpoint'  : False,
+            'outside_horizon'   : False,
+            'power_overload'    : False
+        }
         
         #  Also reset the results and draws container
         self.simulation_results = defaultdict(list)

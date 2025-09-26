@@ -47,9 +47,9 @@ def is_pos_outside_horizon(map_obj:PolygonObstacle,
         
     return is_outside
     
-def is_pos_inside_obstacles(map_obj:PolygonObstacle,
-                            pos, 
-                            ship_length):
+def is_grounding(map_obj:PolygonObstacle,
+                 pos, 
+                 ship_length):
     ''' 
         Checks if the positions is inside any obstacle
     '''
@@ -203,6 +203,14 @@ def is_reach_radius_of_acceptance(obs_obj,
         
     is_reach_roa =  dist_to_next_route < r_o_a**2
     return is_reach_roa 
+
+def is_power_overload(power, available_power):
+    '''
+    Check if the power overloading happens
+    '''
+    
+    is_power_overload = power > available_power
+    return is_power_overload
 
 def is_within_simu_time_limit(asset):
     '''
