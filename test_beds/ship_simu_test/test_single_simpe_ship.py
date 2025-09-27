@@ -57,7 +57,7 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
 args = parser.parse_args()
 
 # Engine configuration
-main_engine_capacity = 3160e3 # 2160e3
+main_engine_capacity = 4160e3 # 2160e3
 diesel_gen_capacity = 610e3   # 510e3
 hybrid_shaft_gen_as_generator = 'GEN'
 hybrid_shaft_gen_as_motor = 'MOTOR'
