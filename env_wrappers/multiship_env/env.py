@@ -8,6 +8,10 @@ from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWaveModel, W
 from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, CurrentModelConfiguration
 from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, WindModelConfiguration
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
+from simulator.ship_in_transit.sub_systems.sbmpc import SBMPC
+
+
+from simulator.ship_in_transit.utils import check_condition
 
 from dataclasses import dataclass, field
 from typing import Union, List
@@ -20,7 +24,7 @@ class ShipAssets:
     init_copy: 'ShipAssets' = field(default=None, repr=False, compare=False)
 
 
-class SingleShipEnv:
+class MultiShipEnv:
     """
     This class is the main class for the Ship-Transit Simulator. It handles:
     
@@ -87,6 +91,9 @@ class SingleShipEnv:
         # Ship drawing configuration
         self.ship_draw = args.ship_draw
         self.time_since_last_ship_drawing = args.time_since_last_ship_drawing
+
+        # Scenario-Based Model Predictive Controller
+        self.sbmpc = SBMPC(tf=1000, dt=20)
         
         # Environment termination flag
         self.ship_stop_status = [False] * len(self.assets)
@@ -111,9 +118,12 @@ class SingleShipEnv:
         # Compile env_args
         env_args = (wave_args, current_args, wind_args)
         
+        # Compile the colav_args
+        colav_args = 1
+        
         ## Step up all available digital assets
         for i, asset in enumerate(self.assets):
-            if asset.stop is False: asset.step(env_args)   # If all asset is not stopped, step up
+            if asset.stop is False: asset.step(env_args, colav_args)   # If all asset is not stopped, step up
             self.ship_stop_status[i] = asset.stop
         
         if np.all(self.ship_stop_status):

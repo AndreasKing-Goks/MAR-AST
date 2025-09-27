@@ -223,10 +223,6 @@ own_ship = ShipModel(
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
     map_obj=map
 )
-# Wraps simulation objects based on the ship type using a dictionary
-own_ship = ShipAssets(
-    ship_model=own_ship,
-)
 
 # Package the assets for reinforcement learning agent
 assets: List[ShipAssets] = [own_ship]
@@ -253,11 +249,11 @@ test1 = True
 if test1:
     
     ## THIS IS WHERE THE LOOPING HAPPENS
-    while own_ship.ship_model.int.time < own_ship.ship_model.int.sim_time and env.stop is False:
+    while own_ship.int.time < own_ship.int.sim_time and env.stop is False:
         env.step()
 
     # Get the simulation results for all assets
-    own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
+    own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].simulation_results)
 
     # Plot 1: Overall process plot
     plot_1 = False
@@ -314,7 +310,7 @@ if test1:
         axes[3].set_xlim(left=0)
 
         # Plot 2.5: Power vs Available Power
-        if assets[0].ship_model.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
+        if assets[0].ship_machinery_model.operating_mode in ('PTO', 'MEC'):
             axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power me [kw]'], label="Power")
             axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power me [kw]'], label="Available Power")
             axes[4].set_title("Own Ship's Power vs Available Mechanical Power [kw]")
@@ -323,7 +319,7 @@ if test1:
             axes[4].legend()
             axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
             axes[4].set_xlim(left=0)
-        elif assets[0].ship_model.ship_machinery_model.operating_mode == 'PTI':
+        elif assets[0].ship_machinery_model.operating_mode == 'PTI':
             axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power electrical [kw]'], label="Power")
             axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power electrical [kw]'], label="Available Power")
             axes[4].set_title("Own Ship's Power vs Available Power Electrical [kw]")
@@ -350,9 +346,9 @@ if test1:
         # Plot 1.1: Ship trajectory with sampled route
         # Test ship
         plt.plot(own_ship_results_df['east position [m]'].to_numpy(), own_ship_results_df['north position [m]'].to_numpy())
-        plt.scatter(own_ship.ship_model.auto_pilot.navigate.east, own_ship.ship_model.auto_pilot.navigate.north, marker='x', color='blue')  # Waypoints
-        plt.plot(own_ship.ship_model.auto_pilot.navigate.east, own_ship.ship_model.auto_pilot.navigate.north, linestyle='--', color='blue')  # Line
-        for x, y in zip(own_ship.ship_model.ship_drawings[1], own_ship.ship_model.ship_drawings[0]):
+        plt.scatter(own_ship.auto_pilot.navigate.east, own_ship.auto_pilot.navigate.north, marker='x', color='blue')  # Waypoints
+        plt.plot(own_ship.auto_pilot.navigate.east, own_ship.auto_pilot.navigate.north, linestyle='--', color='blue')  # Line
+        for x, y in zip(own_ship.ship_drawings[1], own_ship.ship_drawings[0]):
             plt.plot(x, y, color='blue')
         map.plot_obstacle(plt.gca())  # get current Axes to pass into map function
 

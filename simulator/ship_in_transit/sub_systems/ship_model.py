@@ -476,7 +476,8 @@ class ShipModel(BaseShipModel):
                  desired_speed,
                  engine_steps_per_time_step,
                  initial_propeller_shaft_speed_rad_per_s,
-                 map_obj=None,):
+                 map_obj=None,
+                 colav_mode=None):
         super().__init__(ship_config, simulation_config, wave_model_config, current_model_config, wind_model_config)
         
         if map_obj is not None:
@@ -513,6 +514,10 @@ class ShipModel(BaseShipModel):
             'outside_horizon'   : False,
             'power_overload'    : False
         }
+        
+        # Get the collision info
+        self.colav_mode = colav_mode
+        self.colav_active = False
         
         # Ship name
         self.name_tag = name_tag
@@ -720,7 +725,7 @@ class ShipModel(BaseShipModel):
                     print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences power overloading.')
         
     
-    def step(self, env_args):
+    def step(self, env_args=None, colav_args=None):
         ''' 
             The method is used for stepping up the simulator for the ship asset
             
@@ -738,6 +743,46 @@ class ShipModel(BaseShipModel):
         measured_shaft_speed = self.ship_machinery_model.omega
         measured_speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
         
+        # Keep it, even when sbmpc is disabled
+        speed_factor, desired_heading_offset = 1.0, 0.0
+
+        ## COLLISION AVOIDANCE - SBMPC
+        ####################################################################################################
+        if self.colav_mode == 'sbmpc' and colav_args is not None:
+            # Get desired heading and speed for collav
+            self.next_wpt, self.prev_wpt = self.test.auto_pilot.navigate.next_wpt(self.test.auto_pilot.next_wpt, north_position, east_position)
+            chi_d = self.test.auto_pilot.navigate.los_guidance(self.test.auto_pilot.next_wpt, north_position, east_position)
+            u_d = self.test.desired_forward_speed
+
+            # Get OS state required for SBMPC
+            os_state = np.array([self.east,            # x
+                                 self.north,           # y
+                                -self.yaw_angle,       # Same reference angle but clockwise positive
+                                 self.forward_speed,   # u
+                                 self.sideways_speed,  # v
+                                 self.yaw_rate         # Unused
+                                ])
+            
+            # Get dynamic obstacles info required for SBMPC
+            do_list = [
+                (
+                 i, 
+                 np.array([asset.ship_model.east, asset.ship_model.north, -asset.ship_model.yaw_angle, asset.ship_model.forward_speed, asset.ship_model.sideways_speed]), 
+                 None, 
+                 asset.ship_model.ship_config.length_of_ship, asset.ship_model.ship_config.width_of_ship) 
+                 for i, asset in enumerate(self.assets[1::]
+                ) # first asset is own ship
+            ]
+
+            speed_factor, desired_heading_offset = self.sbmpc.get_optimal_ctrl_offset(
+                    u_d=u_d,
+                    chi_d=-chi_d,
+                    os_state=os_state,
+                    do_list=do_list
+                )
+            # Note: self.sbmpc.is_stephen_useful() -> bool can be used to know whether or not the SBMPC colav algorithm is currently active
+        #################################################################################################### 
+        
         # Evaluate the ship condition. If the ship stopped, immediately return
         self.evaluate_ship_condition()
         if self.stop is True:
@@ -748,10 +793,11 @@ class ShipModel(BaseShipModel):
             north_position=north_position,
             east_position=east_position,
             heading=heading,
+            desired_heading_offset=desired_heading_offset
         )
 
         throttle = self.throttle_controller.throttle(
-            speed_set_point = self.desired_speed,
+            speed_set_point = self.desired_speed * speed_factor,
             measured_speed = measured_speed,
             measured_shaft_speed = measured_shaft_speed,
         )
@@ -780,6 +826,9 @@ class ShipModel(BaseShipModel):
         
         # Reset the desired speed
         self.desired_speed = self.init_desired_speed
+        
+        # Reset the collision info
+        self.colav_active = False
         
         # Reset stop_info
         self.stop_info = {
