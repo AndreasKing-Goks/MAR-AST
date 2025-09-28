@@ -14,7 +14,7 @@ def get_data_path(filename):
 
 
 ### IMPORT SIMULATOR ENVIRONMENTS
-from env_wrappers.simple_env.env import ShipAssets, SingleShipEnv
+from env_wrappers.simple_env.env import SingleShipEnv
 
 from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, SimulationConfiguration, ShipModel
 from simulator.ship_in_transit.sub_systems.ship_engine import MachinerySystemConfiguration, MachineryMode, MachineryModeParams, MachineryModes, SpecificFuelConsumptionBaudouin6M26Dot3, SpecificFuelConsumptionWartila6L26, RudderConfiguration
@@ -57,7 +57,7 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
 args = parser.parse_args()
 
 # Engine configuration
-main_engine_capacity = 4160e3 # 2160e3
+main_engine_capacity = 2160e3 # 2160e3
 diesel_gen_capacity = 610e3   # 510e3
 hybrid_shaft_gen_as_generator = 'GEN'
 hybrid_shaft_gen_as_motor = 'MOTOR'
@@ -193,11 +193,11 @@ own_ship_config = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=7, ki_ship_speed=0.13, kp_shaft_speed=0.05, ki_shaft_speed=0.005
+    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 own_ship_route_filename = 'own_ship_route.txt'
 own_ship_route_name = get_data_path(own_ship_route_filename)
-own_ship_heading_controller_gains = HeadingControllerGains(kp=2, kd=90, ki=0.001)
+own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -225,7 +225,7 @@ own_ship = ShipModel(
 )
 
 # Package the assets for reinforcement learning agent
-assets: List[ShipAssets] = [own_ship]
+assets: List = [own_ship]
 
 # Timer for drawing the ship
 ship_draw = True

@@ -14,13 +14,13 @@ def get_data_path(filename):
 
 
 ### IMPORT SIMULATOR ENVIRONMENTS
-from env_wrappers.simple_env.env import ShipAssets, SingleShipEnv
+from env_wrappers.multiship_env.env import AssetInfo, ShipAsset, MultiShipEnv
 
 from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, SimulationConfiguration, ShipModel
 from simulator.ship_in_transit.sub_systems.ship_engine import MachinerySystemConfiguration, MachineryMode, MachineryModeParams, MachineryModes, SpecificFuelConsumptionBaudouin6M26Dot3, SpecificFuelConsumptionWartila6L26, RudderConfiguration
 from simulator.ship_in_transit.sub_systems.LOS_guidance import LosParameters
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
-from simulator.ship_in_transit.sub_systems.controllers import ThrottleControllerGains, EngineThrottleFromSpeedSetPoint, HeadingControllerGains, HeadingBySampledRouteController
+from simulator.ship_in_transit.sub_systems.controllers import ThrottleControllerGains, HeadingControllerGains   
 from simulator.ship_in_transit.sub_systems.wave_model import WaveModelConfiguration
 from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConfiguration
 from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
@@ -184,7 +184,7 @@ map = PolygonObstacle(map_data)
 own_ship_config = SimulationConfiguration(
     initial_north_position_m=100,
     initial_east_position_m=100,
-    initial_yaw_angle_rad=np.deg2rad(0.0),
+    initial_yaw_angle_rad=np.deg2rad(45.0),
     initial_forward_speed_m_per_s=4.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
@@ -193,11 +193,11 @@ own_ship_config = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=7, ki_ship_speed=0.13, kp_shaft_speed=0.05, ki_shaft_speed=0.005
+    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 own_ship_route_filename = 'own_ship_route.txt'
 own_ship_route_name = get_data_path(own_ship_route_filename)
-own_ship_heading_controller_gains = HeadingControllerGains(kp=2, kd=90, ki=0.001)
+own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -221,15 +221,93 @@ own_ship = ShipModel(
     desired_speed=own_ship_desired_speed,
     engine_steps_per_time_step=10,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
-    map_obj=map
+    map_obj=map,
+    colav_mode='sbmpc'
+)
+own_ship_info = AssetInfo(
+    # dynamic state (mutable)
+    current_north       = own_ship.north,
+    current_east        = own_ship.east,
+    current_yaw_angle   = own_ship.yaw_angle,
+    forward_speed       = own_ship.forward_speed,
+    sideways_speed      = own_ship.sideways_speed,
+
+    # static properties (constants)
+    name_tag            = own_ship.name_tag,
+    ship_length         = own_ship.l_ship,
+    ship_width          = own_ship.w_ship
 )
 # Wraps simulation objects based on the ship type using a dictionary
-own_ship = ShipAssets(
+own_ship_asset = ShipAsset(
     ship_model=own_ship,
+    info=own_ship_info
+)
+
+## Own ship
+obs_ship_config = SimulationConfiguration(
+    initial_north_position_m=9900,
+    initial_east_position_m=14900,
+    initial_yaw_angle_rad=np.deg2rad(-135.0),
+    initial_forward_speed_m_per_s=4.0,
+    initial_sideways_speed_m_per_s=0.0,
+    initial_yaw_rate_rad_per_s=0.0,
+    integration_step=args.time_step,
+    simulation_time=10000,
+)
+# Set the throttle and autopilot controllers for the own ship
+obs_ship_throttle_controller_gains = ThrottleControllerGains(
+    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+)
+obs_ship_route_filename = 'obs_ship_route_1.txt'
+obs_ship_route_name = get_data_path(obs_ship_route_filename)
+obs_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
+obs_ship_los_guidance_parameters = LosParameters(
+    radius_of_acceptance=args.radius_of_acceptance,
+    lookahead_distance=args.lookahead_distance,
+    integral_gain=0.002,
+    integrator_windup_limit=4000
+)
+obs_ship_desired_speed =8.0
+obs_ship_initial_propeller_shaft_speed = 420
+obs_ship = ShipModel(
+    ship_config=ship_config,
+    simulation_config=obs_ship_config,
+    wave_model_config=wave_model_config,
+    current_model_config=current_model_config,
+    wind_model_config=wind_model_config,
+    machinery_config=machinery_config,                       
+    throttle_controller_gain=obs_ship_throttle_controller_gains,
+    heading_controller_gain=obs_ship_heading_controller_gains,
+    los_parameters=obs_ship_los_guidance_parameters,
+    name_tag='Target ship',
+    route_name=obs_ship_route_name,
+    desired_speed=obs_ship_desired_speed,
+    engine_steps_per_time_step=10,
+    initial_propeller_shaft_speed_rad_per_s=obs_ship_initial_propeller_shaft_speed * np.pi /30,
+    map_obj=map,
+    colav_mode='sbmpc'
+)
+obs_ship_info = AssetInfo(
+    # dynamic state (mutable)
+    current_north       = obs_ship.north,
+    current_east        = obs_ship.east,
+    current_yaw_angle   = obs_ship.yaw_angle,
+    forward_speed       = obs_ship.forward_speed,
+    sideways_speed      = obs_ship.sideways_speed,
+
+    # static properties (constants)
+    name_tag            = obs_ship.name_tag,
+    ship_length         = obs_ship.l_ship,
+    ship_width          = obs_ship.w_ship
+)
+# Wraps simulation objects based on the ship type using a dictionary
+obs_ship_asset = ShipAsset(
+    ship_model=obs_ship,
+    info=obs_ship_info
 )
 
 # Package the assets for reinforcement learning agent
-assets: List[ShipAssets] = [own_ship]
+assets: List[ShipAsset] = [own_ship_asset, obs_ship_asset]
 
 # Timer for drawing the ship
 ship_draw = True
@@ -238,7 +316,7 @@ time_since_last_ship_drawing = 30
 ################################### ENV SPACE ###################################
 
 # Initiate Multi-Ship Reinforcement Learning Environment Class Wrapper
-env = SingleShipEnv(
+env = MultiShipEnv(
     assets=assets,
     map=map,
     wave_model_config=wave_model_config,
@@ -253,96 +331,98 @@ test1 = True
 if test1:
     
     ## THIS IS WHERE THE LOOPING HAPPENS
-    while own_ship.ship_model.int.time < own_ship.ship_model.int.sim_time and env.stop is False:
+    running_time = np.max([asset.ship_model.int.time for asset in assets])
+    while running_time < own_ship.int.sim_time and env.stop is False:
         env.step()
 
     # Get the simulation results for all assets
     own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
+    obs_ship_results_df = pd.DataFrame().from_dict(env.assets[1].ship_model.simulation_results)
 
     # Plot 1: Overall process plot
     plot_1 = False
     plot_1 = True
 
-    # Plot 2: Status plot
-    plot_2 = False
-    plot_2 = True
+    # # Plot 2: Status plot
+    # plot_2 = False
+    # plot_2 = True
 
-    # Create a No.2 3x4 grid for subplots
-    if plot_2:
-        fig_2, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
-        plt.figure(fig_2.number)  # Ensure it's the current figure
-        axes = axes.flatten()  # Flatten the 2D array for easier indexing
+    # # Create a No.2 3x4 grid for subplots
+    # if plot_2:
+    #     fig_2, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
+    #     plt.figure(fig_2.number)  # Ensure it's the current figure
+    #     axes = axes.flatten()  # Flatten the 2D array for easier indexing
     
-        # Center plotting
-        center_plot_window()
+    #     # Center plotting
+    #     center_plot_window()
 
-        # Plot 2.1:Speed
-        own_ship_speed = np.sqrt(own_ship_results_df['forward speed [m/s]']**2 + own_ship_results_df['sideways speed [m/s]']**2)
-        axes[0].plot(own_ship_results_df['time [s]'], own_ship_speed)
-        axes[0].axhline(y=own_ship_desired_speed, color='red', linestyle='--', linewidth=1.5, label='Desired Forward Speed')
-        axes[0].set_title('Own Ship Speed [m/s]')
-        axes[0].set_xlabel('Time (s)')
-        axes[0].set_ylabel('Forward Speed (m/s)')
-        axes[0].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[0].set_xlim(left=0)
+    #     # Plot 2.1:Speed
+    #     own_ship_speed = np.sqrt(own_ship_results_df['forward speed [m/s]']**2 + own_ship_results_df['sideways speed [m/s]']**2)
+    #     axes[0].plot(own_ship_results_df['time [s]'], own_ship_speed)
+    #     axes[0].axhline(y=own_ship_desired_speed, color='red', linestyle='--', linewidth=1.5, label='Desired Forward Speed')
+    #     axes[0].set_title('Own Ship Speed [m/s]')
+    #     axes[0].set_xlabel('Time (s)')
+    #     axes[0].set_ylabel('Forward Speed (m/s)')
+    #     axes[0].grid(color='0.8', linestyle='-', linewidth=0.5)
+    #     axes[0].set_xlim(left=0)
 
-        # Plot 2.2: Rudder Angle
-        axes[1].plot(own_ship_results_df['time [s]'], own_ship_results_df['rudder angle [deg]'])
-        axes[1].set_title('Test Ship Rudder angle [deg]')
-        axes[1].set_xlabel('Time (s)')
-        axes[1].set_ylabel('Rudder angle [deg]')
-        axes[1].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[1].set_xlim(left=0)
-        axes[1].set_ylim(-31,31)
+    #     # Plot 2.2: Rudder Angle
+    #     axes[1].plot(own_ship_results_df['time [s]'], own_ship_results_df['rudder angle [deg]'])
+    #     axes[1].set_title('Test Ship Rudder angle [deg]')
+    #     axes[1].set_xlabel('Time (s)')
+    #     axes[1].set_ylabel('Rudder angle [deg]')
+    #     axes[1].grid(color='0.8', linestyle='-', linewidth=0.5)
+    #     axes[1].set_xlim(left=0)
+    #     axes[1].set_ylim(-31,31)
 
-        # Plot 2.3: Cross Track error
-        axes[2].plot(own_ship_results_df['time [s]'], own_ship_results_df['cross track error [m]'])
-        axes[2].set_title('Own Ship Cross Track Error [m]')
-        axes[2].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
-        axes[2].set_xlabel('Time (s)')
-        axes[2].set_ylabel('Cross track error (m)')
-        axes[2].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[2].set_xlim(left=0)
-        axes[2].set_ylim(-501,501)
+    #     # Plot 2.3: Cross Track error
+    #     axes[2].plot(own_ship_results_df['time [s]'], own_ship_results_df['cross track error [m]'])
+    #     axes[2].set_title('Own Ship Cross Track Error [m]')
+    #     axes[2].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
+    #     axes[2].set_xlabel('Time (s)')
+    #     axes[2].set_ylabel('Cross track error (m)')
+    #     axes[2].grid(color='0.8', linestyle='-', linewidth=0.5)
+    #     axes[2].set_xlim(left=0)
+    #     axes[2].set_ylim(-501,501)
 
-        # Plot 2.4: Propeller Shaft Speed
-        axes[3].plot(own_ship_results_df['time [s]'], own_ship_results_df['propeller shaft speed [rpm]'])
-        axes[3].set_title('Own Ship Propeller Shaft Speed [rpm]')
-        axes[3].set_xlabel('Time (s)')
-        axes[3].set_ylabel('Propeller Shaft Speed (rpm)')
-        axes[3].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[3].set_xlim(left=0)
+    #     # Plot 2.4: Propeller Shaft Speed
+    #     axes[3].plot(own_ship_results_df['time [s]'], own_ship_results_df['propeller shaft speed [rpm]'])
+    #     axes[3].set_title('Own Ship Propeller Shaft Speed [rpm]')
+    #     axes[3].set_xlabel('Time (s)')
+    #     axes[3].set_ylabel('Propeller Shaft Speed (rpm)')
+    #     axes[3].grid(color='0.8', linestyle='-', linewidth=0.5)
+    #     axes[3].set_xlim(left=0)
 
-        # Plot 2.5: Power vs Available Power
-        if assets[0].ship_model.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
-            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power me [kw]'], label="Power")
-            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power me [kw]'], label="Available Power")
-            axes[4].set_title("Own Ship's Power vs Available Mechanical Power [kw]")
-            axes[4].set_xlabel('Time (s)')
-            axes[4].set_ylabel('Power (kw)')
-            axes[4].legend()
-            axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
-            axes[4].set_xlim(left=0)
-        elif assets[0].ship_model.ship_machinery_model.operating_mode == 'PTI':
-            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power electrical [kw]'], label="Power")
-            axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power electrical [kw]'], label="Available Power")
-            axes[4].set_title("Own Ship's Power vs Available Power Electrical [kw]")
-            axes[4].set_xlabel('Time (s)')
-            axes[4].set_ylabel('Power (kw)')
-            axes[4].legend()
-            axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
-            axes[4].set_xlim(left=0)
+    #     # Plot 2.5: Power vs Available Power
+    #     if assets[0].ship_model.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
+    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power me [kw]'], label="Power")
+    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power me [kw]'], label="Available Power")
+    #         axes[4].set_title("Own Ship's Power vs Available Mechanical Power [kw]")
+    #         axes[4].set_xlabel('Time (s)')
+    #         axes[4].set_ylabel('Power (kw)')
+    #         axes[4].legend()
+    #         axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
+    #         axes[4].set_xlim(left=0)
+    #     elif assets[0].ship_model.ship_machinery_model.operating_mode == 'PTI':
+    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power electrical [kw]'], label="Power")
+    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power electrical [kw]'], label="Available Power")
+    #         axes[4].set_title("Own Ship's Power vs Available Power Electrical [kw]")
+    #         axes[4].set_xlabel('Time (s)')
+    #         axes[4].set_ylabel('Power (kw)')
+    #         axes[4].legend()
+    #         axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
+    #         axes[4].set_xlim(left=0)
 
-        # Plot 2.6: Fuel Consumption
-        axes[5].plot(own_ship_results_df['time [s]'], own_ship_results_df['fuel consumption [kg]'])
-        axes[5].set_title('Own Ship Fuel Consumption [kg]')
-        axes[5].set_xlabel('Time (s)')
-        axes[5].set_ylabel('Fuel Consumption (kg)')
-        axes[5].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[5].set_xlim(left=0)
+    #     # Plot 2.6: Fuel Consumption
+    #     axes[5].plot(own_ship_results_df['time [s]'], own_ship_results_df['fuel consumption [kg]'])
+    #     axes[5].set_title('Own Ship Fuel Consumption [kg]')
+    #     axes[5].set_xlabel('Time (s)')
+    #     axes[5].set_ylabel('Fuel Consumption (kg)')
+    #     axes[5].grid(color='0.8', linestyle='-', linewidth=0.5)
+    #     axes[5].set_xlim(left=0)
 
-        # Adjust layout for better spacing
-        plt.tight_layout()
+    #     # Adjust layout for better spacing
+    #     plt.tight_layout()
 
     if plot_1:    
         plt.figure(figsize=(10, 5.5))
@@ -350,10 +430,16 @@ if test1:
         # Plot 1.1: Ship trajectory with sampled route
         # Test ship
         plt.plot(own_ship_results_df['east position [m]'].to_numpy(), own_ship_results_df['north position [m]'].to_numpy())
-        plt.scatter(own_ship.ship_model.auto_pilot.navigate.east, own_ship.ship_model.auto_pilot.navigate.north, marker='x', color='blue')  # Waypoints
-        plt.plot(own_ship.ship_model.auto_pilot.navigate.east, own_ship.ship_model.auto_pilot.navigate.north, linestyle='--', color='blue')  # Line
-        for x, y in zip(own_ship.ship_model.ship_drawings[1], own_ship.ship_model.ship_drawings[0]):
+        plt.scatter(own_ship_asset.ship_model.auto_pilot.navigate.east, own_ship_asset.ship_model.auto_pilot.navigate.north, marker='x', color='blue')  # Waypoints
+        plt.plot(own_ship_asset.ship_model.auto_pilot.navigate.east, own_ship_asset.ship_model.auto_pilot.navigate.north, linestyle='--', color='blue')  # Line
+        for x, y in zip(own_ship_asset.ship_model.ship_drawings[1], own_ship_asset.ship_model.ship_drawings[0]):
             plt.plot(x, y, color='blue')
+            
+        plt.plot(obs_ship_results_df['east position [m]'].to_numpy(), obs_ship_results_df['north position [m]'].to_numpy())
+        plt.scatter(obs_ship_asset.ship_model.auto_pilot.navigate.east, obs_ship_asset.ship_model.auto_pilot.navigate.north, marker='x', color='red')  # Waypoints
+        plt.plot(obs_ship_asset.ship_model.auto_pilot.navigate.east, obs_ship_asset.ship_model.auto_pilot.navigate.north, linestyle='--', color='red')  # Line
+        for x, y in zip(obs_ship_asset.ship_model.ship_drawings[1], obs_ship_asset.ship_model.ship_drawings[0]):
+            plt.plot(x, y, color='red')
         map.plot_obstacle(plt.gca())  # get current Axes to pass into map function
 
         plt.xlim(0, 20000)

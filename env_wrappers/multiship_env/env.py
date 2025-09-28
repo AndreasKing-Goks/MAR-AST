@@ -19,22 +19,46 @@ from typing import Union, List
 import copy
 
 @dataclass
-class ShipAssets:
+class AssetInfo:
+    # dynamic state (mutable)
+    current_north: float
+    current_east: float
+    current_yaw_angle: float
+    forward_speed: float
+    sideways_speed: float
+
+    # static properties (constants)
+    name_tag: str
+    ship_length: float
+    ship_width: float
+
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            if key in ("name_tag", "ship_length", "ship_width"):
+                raise AttributeError(f"{key} is constant and cannot be updated.")
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                raise AttributeError(f"{key} is not a valid attribute of {self.__class__.__name__}")
+
+@dataclass
+class ShipAsset:
     ship_model: ShipModel
-    init_copy: 'ShipAssets' = field(default=None, repr=False, compare=False)
+    info: AssetInfo
+    init_copy: 'ShipAsset' = field(default=None, repr=False, compare=False)
 
 
 class MultiShipEnv:
     """
-    This class is the main class for the Ship-Transit Simulator. It handles:
+    This class is the main class for the Ship-Transit Simulator for multiple ships. It handles:
     
     To turn on collision avoidance on the ship under test:
-    - set collav=None         : No collision avoidance is implemented
-    - set collav='simple'     : Simple collision avoidance is implemented
-    - set collav='sbmpc'      : SBMPC collision avoidance is implemented
+    - set colav_mode=None         : No collision avoidance is implemented
+    - set colav_mode='simple'     : Simple collision avoidance is implemented
+    - set colav_mode='sbmpc'      : SBMPC collision avoidance is implemented
     """
     def __init__(self, 
-                 assets:List[ShipAssets],
+                 assets:List[ShipAsset],
                  map: PolygonObstacle,
                  wave_model_config: WaveModelConfiguration,
                  current_model_config: CurrentModelConfiguration,
@@ -91,9 +115,6 @@ class MultiShipEnv:
         # Ship drawing configuration
         self.ship_draw = args.ship_draw
         self.time_since_last_ship_drawing = args.time_since_last_ship_drawing
-
-        # Scenario-Based Model Predictive Controller
-        self.sbmpc = SBMPC(tf=1000, dt=20)
         
         # Environment termination flag
         self.ship_stop_status = [False] * len(self.assets)
@@ -118,13 +139,23 @@ class MultiShipEnv:
         # Compile env_args
         env_args = (wave_args, current_args, wind_args)
         
-        # Compile the colav_args
-        colav_args = 1
+        # Collect assets_info
+        asset_infos = [asset.info for asset in self.assets]
         
         ## Step up all available digital assets
         for i, asset in enumerate(self.assets):
-            if asset.stop is False: asset.step(env_args, colav_args)   # If all asset is not stopped, step up
-            self.ship_stop_status[i] = asset.stop
+            # Step
+            if asset.ship_model.stop is False: asset.ship_model.step(env_args, asset_infos)   # If all asset is not stopped, step up
+            
+            # Update asset.info
+            asset.info.update(current_north     = asset.ship_model.north,
+                              current_east      = asset.ship_model.east,
+                              current_yaw_angle = asset.ship_model.yaw_angle,
+                              forward_speed     = asset.ship_model.forward_speed,
+                              sideways_speed    = asset.ship_model.sideways_speed)
+            
+            # Update stop list
+            self.ship_stop_status[i] = asset.ship_model.stop
         
         if np.all(self.ship_stop_status):
             self.stop = True
@@ -134,7 +165,7 @@ class MultiShipEnv:
         if self.ship_draw:
             if self.time_since_last_ship_drawing > 30:
                 for ship in self.assets:
-                    ship.ship_snap_shot()
+                    ship.ship_model.ship_snap_shot()
                 self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
             self.time_since_last_ship_drawing += self.args.time_step
         
@@ -150,11 +181,7 @@ class MultiShipEnv:
             init = ship.init_copy
             
             #  Reset the ship simulator
-            ship.reset()
-            
-            # Reset parameters and lists
-            ship.integrator_term = copy.deepcopy(init.integrator_term)
-            ship.time_list = copy.deepcopy(init.time_list)
+            ship.ship_model.reset()
         
         # Reset the stop status
         self.ship_stop_status = [False] * len(self.assets)

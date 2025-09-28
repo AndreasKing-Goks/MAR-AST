@@ -19,6 +19,7 @@ from simulator.ship_in_transit.sub_systems.controllers import (EngineThrottleFro
                                                                HeadingBySampledRouteController,
                                                                HeadingControllerGains,
                                                                LosParameters)
+from simulator.ship_in_transit.sub_systems.sbmpc import SBMPC
 
 from simulator.ship_in_transit.utils import check_condition
 
@@ -519,6 +520,9 @@ class ShipModel(BaseShipModel):
         self.colav_mode = colav_mode
         self.colav_active = False
         
+        # Scenario-Based Model Predictive Controller
+        self.sbmpc = SBMPC(tf=1000, dt=20)
+        
         # Ship name
         self.name_tag = name_tag
         
@@ -725,7 +729,7 @@ class ShipModel(BaseShipModel):
                     print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences power overloading.')
         
     
-    def step(self, env_args=None, colav_args=None):
+    def step(self, env_args=None, asset_infos=None):
         ''' 
             The method is used for stepping up the simulator for the ship asset
             
@@ -748,11 +752,11 @@ class ShipModel(BaseShipModel):
 
         ## COLLISION AVOIDANCE - SBMPC
         ####################################################################################################
-        if self.colav_mode == 'sbmpc' and colav_args is not None:
+        if self.colav_mode == 'sbmpc' and asset_infos is not None:
             # Get desired heading and speed for collav
-            self.next_wpt, self.prev_wpt = self.test.auto_pilot.navigate.next_wpt(self.test.auto_pilot.next_wpt, north_position, east_position)
-            chi_d = self.test.auto_pilot.navigate.los_guidance(self.test.auto_pilot.next_wpt, north_position, east_position)
-            u_d = self.test.desired_forward_speed
+            self.next_wpt, self.prev_wpt = self.auto_pilot.navigate.next_wpt(self.auto_pilot.next_wpt, north_position, east_position)
+            chi_d = self.auto_pilot.navigate.los_guidance(self.auto_pilot.next_wpt, north_position, east_position)
+            u_d = self.desired_speed
 
             # Get OS state required for SBMPC
             os_state = np.array([self.east,            # x
@@ -763,16 +767,24 @@ class ShipModel(BaseShipModel):
                                  self.yaw_rate         # Unused
                                 ])
             
-            # Get dynamic obstacles info required for SBMPC
-            do_list = [
-                (
-                 i, 
-                 np.array([asset.ship_model.east, asset.ship_model.north, -asset.ship_model.yaw_angle, asset.ship_model.forward_speed, asset.ship_model.sideways_speed]), 
-                 None, 
-                 asset.ship_model.ship_config.length_of_ship, asset.ship_model.ship_config.width_of_ship) 
-                 for i, asset in enumerate(self.assets[1::]
-                ) # first asset is own ship
-            ]
+            do_list = []
+            for i, asset_info in enumerate(asset_infos):
+                if asset_info.name_tag != self.name_tag:  # skip self
+                    do_list.append(
+                                        (
+                    i, 
+                    np.array([
+                        asset_info.current_east,
+                        asset_info.current_north,
+                        -asset_info.current_yaw_angle,
+                        asset_info.forward_speed,
+                        asset_info.sideways_speed
+                    ]),
+                    None,
+                    asset_info.ship_length,
+                    asset_info.ship_width
+                )
+                    )
 
             speed_factor, desired_heading_offset = self.sbmpc.get_optimal_ctrl_offset(
                     u_d=u_d,
@@ -780,6 +792,9 @@ class ShipModel(BaseShipModel):
                     os_state=os_state,
                     do_list=do_list
                 )
+            
+            # if self.sbmpc.is_stephen_useful():
+            #     print(self.name_tag, ' COLAV system activated')
             # Note: self.sbmpc.is_stephen_useful() -> bool can be used to know whether or not the SBMPC colav algorithm is currently active
         #################################################################################################### 
         

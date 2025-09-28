@@ -14,12 +14,6 @@ from typing import Union, List
 
 import copy
 
-@dataclass
-class ShipAssets:
-    ship_model: ShipModel
-    init_copy: 'ShipAssets' = field(default=None, repr=False, compare=False)
-
-
 class SingleShipEnv:
     """
     This class is the main class for the Ship-Transit Simulator. It handles:
@@ -30,7 +24,7 @@ class SingleShipEnv:
     - set collav='sbmpc'      : SBMPC collision avoidance is implemented
     """
     def __init__(self, 
-                 assets:List[ShipAssets],
+                 assets:List,
                  map: PolygonObstacle,
                  wave_model_config: WaveModelConfiguration,
                  current_model_config: CurrentModelConfiguration,
@@ -141,10 +135,6 @@ class SingleShipEnv:
             
             #  Reset the ship simulator
             ship.reset()
-            
-            # Reset parameters and lists
-            ship.integrator_term = copy.deepcopy(init.integrator_term)
-            ship.time_list = copy.deepcopy(init.time_list)
         
         # Reset the stop status
         self.ship_stop_status = [False] * len(self.assets)
