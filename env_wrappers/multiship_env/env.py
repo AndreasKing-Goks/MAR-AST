@@ -176,12 +176,15 @@ class MultiShipEnv:
             Reset all of the ship environment inside the assets container.
         '''
         # Reset the assets
-        for i, ship in enumerate(self.assets):
+        for i, asset in enumerate(self.assets):
             # Call upon the copied initial values
-            init = ship.init_copy
+            init = asset.init_copy
             
             #  Reset the ship simulator
-            ship.ship_model.reset()
+            asset.ship_model.reset()
+            
+            # Reset the asset info
+            asset.info = init.info
         
         # Reset the stop status
         self.ship_stop_status = [False] * len(self.assets)

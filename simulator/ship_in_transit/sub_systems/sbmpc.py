@@ -135,8 +135,6 @@ class SBMPC:
         self.active = False
         d = np.zeros(2)
 
-        # print(do_list)
-
         if do_list is None:
             u_os_best = 1
             chi_os_best = 0
@@ -178,7 +176,7 @@ class SBMPC:
                     cost = cost_i
                     u_os_best = self._params.P_ca_[j]
                     chi_os_best = self._params.Chi_ca_[i]
-
+        
         self._params.P_ca_last_ = u_os_best
         self._params.Chi_ca_last_ = chi_os_best
 

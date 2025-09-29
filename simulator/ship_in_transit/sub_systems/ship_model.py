@@ -770,6 +770,7 @@ class ShipModel(BaseShipModel):
             do_list = []
             for i, asset_info in enumerate(asset_infos):
                 if asset_info.name_tag != self.name_tag:  # skip self
+                    # print(asset_info.name_tag)
                     do_list.append(
                                         (
                     i, 
@@ -785,7 +786,7 @@ class ShipModel(BaseShipModel):
                     asset_info.ship_width
                 )
                     )
-
+            
             speed_factor, desired_heading_offset = self.sbmpc.get_optimal_ctrl_offset(
                     u_d=u_d,
                     chi_d=-chi_d,
