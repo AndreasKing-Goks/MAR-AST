@@ -1,16 +1,10 @@
 from pathlib import Path
 import sys
 
-## PATH HELPER
+## PATH HELPER (OBLIGATORY)
 # project root = two levels up from this file
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-
-def get_project_root():
-    return str(ROOT)
-
-def get_data_path(filename):
-    return str(ROOT / "env_wrappers" / "multiship_env" / "data" / filename)
 
 
 ### IMPORT SIMULATOR ENVIRONMENTS
@@ -24,10 +18,6 @@ from simulator.ship_in_transit.sub_systems.controllers import ThrottleController
 from simulator.ship_in_transit.sub_systems.wave_model import WaveModelConfiguration
 from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConfiguration
 from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
-
-## IMPORT FUNCTIONS
-from utils.animate import ShipTrajectoryAnimator, RLShipTrajectoryAnimator
-from utils.center_plot import center_plot_window
 
 ### IMPORT TOOLS
 import argparse
@@ -196,7 +186,7 @@ own_ship_throttle_controller_gains = ThrottleControllerGains(
     kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 own_ship_route_filename = 'own_ship_route.txt'
-own_ship_route_name = get_data_path(own_ship_route_filename)
+own_ship_route_name = str(ROOT / "test_beds" / "ship_simu_test" / "data" / own_ship_route_filename)
 own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
@@ -259,7 +249,7 @@ tar_ship_throttle_controller_gains1 = ThrottleControllerGains(
     kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 tar_ship_route_filename1 = 'tar_ship_route_1.txt'
-tar_ship_route_name1 = get_data_path(tar_ship_route_filename1)
+tar_ship_route_name1 = str(ROOT / "test_beds" / "ship_simu_test" / "data" / tar_ship_route_filename1)
 tar_ship_heading_controller_gains1 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
 tar_ship_los_guidance_parameters1 = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
@@ -322,7 +312,7 @@ tar_ship_throttle_controller_gains2 = ThrottleControllerGains(
     kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 tar_ship_route_filename2 = 'tar_ship_route_2.txt'
-tar_ship_route_name2 = get_data_path(tar_ship_route_filename2)
+tar_ship_route_name2 = str(ROOT / "test_beds" / "ship_simu_test" / "data" / tar_ship_route_filename2)
 tar_ship_heading_controller_gains2 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
 tar_ship_los_guidance_parameters2 = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,

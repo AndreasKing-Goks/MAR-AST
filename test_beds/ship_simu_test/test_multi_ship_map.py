@@ -2,16 +2,10 @@ from pathlib import Path
 import sys
 import geopandas as gpd
 
-## PATH HELPER
+## PATH HELPER (OBLIGATORY)
 # project root = two levels up from this file
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-
-def get_project_root():
-    return str(ROOT)
-
-def get_data_path(filename):
-    return str(ROOT / "env_wrappers" / "multiship_env" / "data" / filename)
 
 
 ### IMPORT SIMULATOR ENVIRONMENTS
@@ -27,6 +21,7 @@ from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConf
 from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
 
 ## IMPORT FUNCTIONS
+from utils.get_path import get_ship_route_path, get_map_path
 from utils.animate import ShipTrajectoryAnimator, RLShipTrajectoryAnimator
 from utils.center_plot import center_plot_window
 
@@ -43,7 +38,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 # -----------------------
 # GPKG settings (edit if your layer names differ)
 # -----------------------
-GPKG_PATH   = str(ROOT / "files" / "basemap.gpkg")       # <-- put your file here (or absolute path)
+GPKG_PATH   = get_map_path(ROOT, "basemap.gpkg")       # <-- put your file here (or absolute path)
 FRAME_LAYER = "frame_3857"
 OCEAN_LAYER = "ocean_3857"
 LAND_LAYER  = "land_3857"
@@ -88,10 +83,6 @@ map = PolygonObstacle(map_data)              # <-- reuse your existing simulator
 
 
 ###############################################################################
-
-
-
-
 
 # Argument Parser
 parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
@@ -236,7 +227,7 @@ machinery_config = MachinerySystemConfiguration(
 ### CONFIGURE THE SHIP SIMULATION MODELS
 ## Own ship
 own_ship_route_filename = 'own_ship_route.txt'
-own_ship_route_name = get_data_path(own_ship_route_filename)
+own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
 
 start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
 
@@ -303,7 +294,7 @@ own_ship_asset = ShipAsset(
 
 ## Target ship 1
 tar_ship_route_filename1 = 'tar_ship_route_1.txt'
-tar_ship_route_name1 = get_data_path(tar_ship_route_filename1)
+tar_ship_route_name1 = get_ship_route_path(ROOT, tar_ship_route_filename1)
 
 start_E1, start_N1 = np.loadtxt(tar_ship_route_name1)[0]  # expecting two columns: east, north
 
@@ -371,7 +362,7 @@ tar_ship_asset1 = ShipAsset(
 
 ## Target ship 2
 tar_ship_route_filename2 = 'tar_ship_route_2.txt'
-tar_ship_route_name2 = get_data_path(tar_ship_route_filename2)
+tar_ship_route_name2 = get_ship_route_path(ROOT, tar_ship_route_filename2)
 
 start_E2, start_N2 = np.loadtxt(tar_ship_route_name2)[0]  # expecting two columns: east, north
 

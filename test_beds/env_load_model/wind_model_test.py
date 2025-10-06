@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys
 
-## PATH HELPER
+# PATH HELPER
 # project root = two levels up from this file
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
