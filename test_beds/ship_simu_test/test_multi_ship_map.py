@@ -40,13 +40,10 @@ from matplotlib.patches import Circle
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
-
-
-
 # -----------------------
 # GPKG settings (edit if your layer names differ)
 # -----------------------
-GPKG_PATH   = Path("files/basemap.gpkg")       # <-- put your file here (or absolute path)
+GPKG_PATH   = str(ROOT / "files" / "basemap.gpkg")       # <-- put your file here (or absolute path)
 FRAME_LAYER = "frame_3857"
 OCEAN_LAYER = "ocean_3857"
 LAND_LAYER  = "land_3857"
