@@ -37,6 +37,7 @@ The full system state includes:
 - `r`: Yaw rate (turn rate) [rad/s]
 
 > ⚠️ **ANGLE IN NED FRAME**
+>
 > When we first initiate the ship heading, `0°` starts from `NORTH (y+)` direction. **Positive heading** is clockwise in direction.
 
 
