@@ -52,6 +52,10 @@ parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
                     help='ENV: time delay in second between ship drawing record (default: 30)')
 
+# Add arguments for episodic run
+parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
+                    help='AST: number of simulation episode counts (default: 1)')
+
 args = parser.parse_args()
 
 # -----------------------
@@ -400,11 +404,24 @@ env = MultiShipEnv(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args)
+
+
+### THIS IS WHERE THE EPISODE HAPPENS
+episode = 1
+while episode <= args.n_episodes:
+    # Reset the environment at the beginning of episode
+    # env.reset()
     
-## THIS IS WHERE THE LOOPING HAPPENS
-running_time = np.max([asset.ship_model.int.time for asset in assets])
-while running_time < own_ship.int.sim_time and env.stop is False:
-    env.step()
+    # Print message
+    print("--- EPISODE " + str(episode) + " ---")
+    
+    ## THIS IS WHERE THE SIMULATION HAPPENS
+    running_time = np.max([asset.ship_model.int.time for asset in assets])
+    while running_time < own_ship.int.sim_time and env.stop is False:
+        env.step()
+    
+    # Increment the episode
+    episode += 1
 
 ################################## GET RESULTS ##################################
 

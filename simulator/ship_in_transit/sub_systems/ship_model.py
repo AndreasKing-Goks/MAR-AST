@@ -432,11 +432,6 @@ class BaseShipModel:
         self.int = EulerInt()
         self.int.set_dt(self.simulation_config.integration_step)
         self.int.set_sim_time(self.simulation_config.simulation_time)
-        
-        # Reset the environment model
-        self.wave_model.reset()
-        self.current_model.reset()
-        self.wind_model.reset()
 
         self.draw = ShipDraw()
 
@@ -525,14 +520,14 @@ class ShipModel(BaseShipModel):
         
         # Ship name
         self.name_tag = name_tag
-        
+
         # Default dictionary for simulation results
         self.simulation_results = defaultdict(list)
 
     def three_dof_kinetics(self, 
                            thrust_force=None, 
                            rudder_angle=None, 
-                           env_args=None,
+                           env_loads=None,
                            *args, 
                            **kwargs):
         ''' Calculates accelerations of the ship, as a function
@@ -540,21 +535,8 @@ class ShipModel(BaseShipModel):
             states in the previous time-step.
         '''
         # Environmental conditions
-        if env_args is None:
-            wind_force = np.array([0.0, 0.0, 0.0])
-            wave_force = np.array([0.0, 0.0, 0.0])
-            vel_c      = np.array([0.0, 0.0, 0.0])
-        else:
-            wave_args, current_args, wind_args = env_args
-            
-            wave_force = self.get_wave_force(wave_args)
-            wind_force = self.get_wind_force(wind_args)
-            
-            current_speed, current_dir = current_args
-            vel_c = np.array([
-                current_speed * np.sin(current_dir),
-                current_speed * np.cos(current_dir),
-                0.0])
+
+        wave_force, wind_force, vel_c = env_loads
 
         # Forces acting (replace zero vectors with suitable functions)
         f_rudder_v, f_rudder_r = self.rudder(rudder_angle, vel_c)
@@ -599,7 +581,7 @@ class ShipModel(BaseShipModel):
     def update_differentials(self, 
                              engine_throttle=None, 
                              rudder_angle=None, 
-                             env_args=None,
+                             env_loads=None,
                              *args, 
                              **kwargs):
         ''' This method should be called in the simulation loop. It will
@@ -610,7 +592,7 @@ class ShipModel(BaseShipModel):
             self.ship_machinery_model.update_shaft_equation(engine_throttle)
         self.three_dof_kinetics(thrust_force=self.ship_machinery_model.thrust(), 
                                 rudder_angle=rudder_angle,
-                                env_args=env_args)
+                                env_loads=env_loads)
 
     def integrate_differentials(self):
         ''' Integrates the differential equation one time step ahead using
@@ -665,6 +647,16 @@ class ShipModel(BaseShipModel):
         self.simulation_results['thrust force [kN]'].append(self.ship_machinery_model.thrust() / 1000)
         self.simulation_results['cross track error [m]'].append(e_ct)
         self.simulation_results['heading error [deg]'].append(e_psi)
+        self.simulation_results['wave force north [N]'].append(self.wave_force_north)
+        self.simulation_results['wave force east [N]'].append(self.wave_force_east)
+        self.simulation_results['wave moment [Nm]'].append(self.wave_moment)
+        self.simulation_results['wind force north [N]'].append(self.wind_force_north)
+        self.simulation_results['wind force east [N]'].append(self.wind_force_east)
+        self.simulation_results['wind moment [Nm]'].append(self.wind_moment)
+        self.simulation_results['wind speed [m/s]'].append(self.wind_speed)
+        self.simulation_results['wind dir [deg]'].append(np.rad2deg(self.wind_dir))
+        self.simulation_results['current speed [m/s]'].append(self.current_speed)
+        self.simulation_results['current dir [deg]'].append(np.rad2deg(self.current_dir))
         
     ## ADDITIONAL ##
     def store_last_simulation_data(self):
@@ -804,6 +796,52 @@ class ShipModel(BaseShipModel):
         if self.stop is True:
             return
         
+        # Get environment args
+        if env_args is None:
+            wind_force = np.array([0.0, 0.0, 0.0])
+            wave_force = np.array([0.0, 0.0, 0.0])
+            vel_c      = np.array([0.0, 0.0, 0.0])
+            
+            self.wave_force_north = wave_force[1]
+            self.wave_force_east  = wave_force[0]
+            self.wave_moment      = wave_force[2]
+            
+            self.wind_force_north = wind_force[1]
+            self.wind_force_east  = wind_force[0]
+            self.wind_moment      = wind_force[2]
+            
+            self.wind_speed = 0.0
+            self.wind_dir   = 0.0
+            
+            self.current_speed = 0.0
+            self.current_dir   = 0.0
+        else:
+            wave_args, current_args, wind_args = env_args
+            
+            wave_force = self.get_wave_force(wave_args)
+            wind_force = self.get_wind_force(wind_args)
+            current_speed, current_dir = current_args
+            vel_c = np.array([
+                current_speed * np.sin(current_dir),
+                current_speed * np.cos(current_dir),
+                0.0])
+            
+            self.wave_force_north = wave_force[1]
+            self.wave_force_east  = wave_force[0]
+            self.wave_moment      = wave_force[2]
+                
+            self.wind_force_north = wind_force[1]
+            self.wind_force_east  = wind_force[0]
+            self.wind_moment      = wind_force[2]
+                
+            self.wind_speed = wind_args[0]
+            self.wind_dir   = wind_args[1]
+                
+            self.current_speed = current_speed
+            self.current_dir   = current_dir
+            
+        env_loads = wave_force, wind_force, vel_c
+        
         # Find appropriate rudder angle and engine throttle
         rudder_angle = self.auto_pilot.rudder_angle_from_sampled_route(
             north_position=north_position,
@@ -818,6 +856,7 @@ class ShipModel(BaseShipModel):
             measured_shaft_speed = measured_shaft_speed,
         )
         
+        
         # Update and integrate differential equations for current time step
         self.store_simulation_data(throttle, 
                                    rudder_angle,
@@ -825,7 +864,7 @@ class ShipModel(BaseShipModel):
                                    self.auto_pilot.get_heading_error())
         self.update_differentials(engine_throttle=throttle, 
                                   rudder_angle=rudder_angle, 
-                                  env_args=env_args)
+                                  env_loads=env_loads)
         self.integrate_differentials()
         
         # Step up the simulator

@@ -190,5 +190,10 @@ class MultiShipEnv:
         self.ship_stop_status = [False] * len(self.assets)
         self.stop = False
         
+        # Reset the environment model
+        self.wave_model.reset()
+        self.current_model.reset()
+        self.wind_model.reset()
+        
         return
        
