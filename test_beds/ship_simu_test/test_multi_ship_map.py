@@ -74,8 +74,8 @@ map_data = get_polygon_from_gdf(land_gdf)   # list of exterior rings (E,N)
 map = PolygonObstacle(map_data)              # <-- reuse your existing simulator map type
 
 # Engine configuration
-main_engine_capacity = 4160e3 # 2160e3
-diesel_gen_capacity = 610e3   # 510e3
+main_engine_capacity = 2160e3 #4160e3
+diesel_gen_capacity = 510e3 #610e3
 hybrid_shaft_gen_as_generator = 'GEN'
 hybrid_shaft_gen_as_motor = 'MOTOR'
 hybrid_shaft_gen_as_offline = 'OFF'

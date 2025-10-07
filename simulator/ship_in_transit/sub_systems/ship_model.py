@@ -695,7 +695,7 @@ class ShipModel(BaseShipModel):
                 print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode is outside the map horizon.')
             
         if check_condition.is_ship_navigation_failure(e_ct=self.auto_pilot.navigate.e_ct,
-                                                      e_tol=np.inf):
+                                                      e_tol=500):
             self.stop_info['navigation_failure'] = True
             self.stop = True
             print(self.name_tag, ' experiences navigational failure.')
@@ -718,7 +718,7 @@ class ShipModel(BaseShipModel):
             if check_condition.is_power_overload(power=power, 
                                                  available_power=available_power):
                     self.stop_info['power_overload'] = True
-                    # self.stop = True
+                    self.stop = True
                     print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences power overloading.')
         
     

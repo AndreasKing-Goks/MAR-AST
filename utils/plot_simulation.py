@@ -124,7 +124,7 @@ def plot_ship_and_real_map(assets,
     # Center plotting
     center_plot_window()
     
-    fig, ax = plt.subplots(figsize=(14, 10))
+    fig, ax = plt.subplots(figsize=(14, 8))
 
     # draw order: land first, then ocean/water, then coast lines, then frame boundary
     if not land_gdf.empty:
@@ -148,15 +148,16 @@ def plot_ship_and_real_map(assets,
     color = ['blue', 'red', 'green', 'yellow', 'pink', 'brown', 'black', 'white', 'gray']
     
     for i, asset in enumerate(assets):
-        plt.plot(result_dfs[i]['east position [m]'].to_numpy(), result_dfs[i]['north position [m]'].to_numpy())
+        plt.plot(result_dfs[i]['east position [m]'].to_numpy(), result_dfs[i]['north position [m]'].to_numpy(), label=asset.info.name_tag) # Trajectories
         plt.scatter(asset.ship_model.auto_pilot.navigate.east, asset.ship_model.auto_pilot.navigate.north, marker='x', color=color[i])  # Waypoints
-        plt.plot(asset.ship_model.auto_pilot.navigate.east, asset.ship_model.auto_pilot.navigate.north, linestyle='--', color=color[i])  # Line
+        plt.plot(asset.ship_model.auto_pilot.navigate.east, asset.ship_model.auto_pilot.navigate.north, linestyle='--', color=color[i])  # Waypoints Line
         for x, y in zip(asset.ship_model.ship_drawings[1], asset.ship_model.ship_drawings[0]):
             plt.plot(x, y, color=color[i])
 
     plt.title('Ship Trajectory')
     plt.xlabel('East position (m)')
     plt.ylabel('North position (m)')
+    plt.legend()
     plt.gca().set_aspect('equal')
     plt.grid(color='0.8', linestyle='-', linewidth=0.5)
 
