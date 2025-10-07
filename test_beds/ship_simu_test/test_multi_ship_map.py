@@ -7,7 +7,6 @@ import geopandas as gpd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-
 ### IMPORT SIMULATOR ENVIRONMENTS
 from env_wrappers.multiship_env.env import AssetInfo, ShipAsset, MultiShipEnv
 
@@ -22,8 +21,9 @@ from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfigurat
 
 ## IMPORT FUNCTIONS
 from utils.get_path import get_ship_route_path, get_map_path
+from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
 from utils.animate import ShipTrajectoryAnimator, RLShipTrajectoryAnimator
-from utils.center_plot import center_plot_window
+from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ### IMPORT TOOLS
 import argparse
@@ -31,55 +31,8 @@ from typing import List
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-
-# -----------------------
-# GPKG settings (edit if your layer names differ)
-# -----------------------
-GPKG_PATH   = get_map_path(ROOT, "basemap.gpkg")       # <-- put your file here (or absolute path)
-FRAME_LAYER = "frame_3857"
-OCEAN_LAYER = "ocean_3857"
-LAND_LAYER  = "land_3857"
-COAST_LAYER = "coast_3857"               # optional
-WATER_LAYER = "water_3857"               # optional
-
-# -----------------------
-# 1) LOAD + PLOT THE MAP (same axes we'll reuse for the SIT overlays)
-# -----------------------
-frame_gdf = gpd.read_file(GPKG_PATH, layer=FRAME_LAYER)
-ocean_gdf = gpd.read_file(GPKG_PATH, layer=OCEAN_LAYER)
-land_gdf  = gpd.read_file(GPKG_PATH, layer=LAND_LAYER)
-
-try:
-    coast_gdf = gpd.read_file(GPKG_PATH, layer=COAST_LAYER)
-except Exception:
-    coast_gdf = gpd.GeoDataFrame(geometry=[], crs=ocean_gdf.crs)
-
-try:
-    water_gdf = gpd.read_file(GPKG_PATH, layer=WATER_LAYER)
-except Exception:
-    water_gdf = gpd.GeoDataFrame(geometry=[], crs=ocean_gdf.crs)
-
-
-# --- Build map_data from land polygons in the SAME CRS as your route ---
-from shapely.geometry import Polygon, MultiPolygon
-
-def polygon_list_from_gdf(gdf):
-    polys = []
-    for geom in gdf.geometry:
-        if geom is None:
-            continue
-        if isinstance(geom, Polygon):
-            polys.append(list(geom.exterior.coords))
-        elif isinstance(geom, MultiPolygon):
-            for p in geom.geoms:
-                polys.append(list(p.exterior.coords))
-    return polys
-
-map_data = polygon_list_from_gdf(land_gdf)   # list of exterior rings (E,N)
-map = PolygonObstacle(map_data)              # <-- reuse your existing simulator map type
 
 
 ###############################################################################
@@ -100,6 +53,21 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
                     help='ENV: time delay in second between ship drawing record (default: 30)')
 
 args = parser.parse_args()
+
+# -----------------------
+# GPKG settings (edit if your layer names differ)
+# -----------------------
+GPKG_PATH   = get_map_path(ROOT, "basemap.gpkg")       # <-- put your file here (or absolute path)
+FRAME_LAYER = "frame_3857"
+OCEAN_LAYER = "ocean_3857"
+LAND_LAYER  = "land_3857"
+COAST_LAYER = "coast_3857"               # optional
+WATER_LAYER = "water_3857"               # optional
+
+frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = get_gdf_from_gpkg(GPKG_PATH, FRAME_LAYER, OCEAN_LAYER, LAND_LAYER, COAST_LAYER, WATER_LAYER)
+
+map_data = get_polygon_from_gdf(land_gdf)   # list of exterior rings (E,N)
+map = PolygonObstacle(map_data)              # <-- reuse your existing simulator map type
 
 # Engine configuration
 main_engine_capacity = 4160e3 # 2160e3
@@ -211,18 +179,6 @@ machinery_config = MachinerySystemConfiguration(
     specific_fuel_consumption_coefficients_me=fuel_spec_me.fuel_consumption_coefficients(),
     specific_fuel_consumption_coefficients_dg=fuel_spec_dg.fuel_consumption_coefficients()
 )
-
-# ## Configure the map data
-# map_data = [
-#     [(0,10000), (10000,10000), (9200,9000) , (7600,8500), (6700,7300), (4900,6500), (4300, 5400), (4700, 4500), (6000,4000), (5800,3600), (4200, 3200), (3200,4100), (2000,4500), (1000,4000), (900,3500), (500,2600), (0,2350)],   # Island 1 
-#     [(10000, 0), (11500,750), (12000, 2000), (11700, 3000), (11000, 3600), (11250, 4250), (12300, 4000), (13000, 3800), (14000, 3000), (14500, 2300), (15000, 1700), (16000, 800), (17500,0)], # Island 2
-#     [(15500, 10000), (16000, 9000), (18000, 8000), (19000, 7500), (20000, 6000), (20000, 10000)],
-#     [(5500, 5300), (6000,5000), (6800, 4500), (8000, 5000), (8700, 5500), (9200, 6700), (8000, 7000), (6700, 6300), (6000, 6000)],
-#     [(15000, 5000), (14000, 5500), (12500, 5000), (14000, 4100), (16000, 2000), (15700, 3700)],
-#     [(11000, 2000), (10300, 3200), (9000, 1500), (10000, 1000)]
-#     ]
-
-# map = PolygonObstacle(map_data)
 
 ### CONFIGURE THE SHIP SIMULATION MODELS
 ## Own ship
@@ -444,169 +400,27 @@ env = MultiShipEnv(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args)
-
-# Test the simulation step up using policy's action sampling or direct action manipulation
-test1 = True
-# test1 = False
-
-if test1:
     
-    ## THIS IS WHERE THE LOOPING HAPPENS
-    running_time = np.max([asset.ship_model.int.time for asset in assets])
-    while running_time < own_ship.int.sim_time and env.stop is False:
-        env.step()
+## THIS IS WHERE THE LOOPING HAPPENS
+running_time = np.max([asset.ship_model.int.time for asset in assets])
+while running_time < own_ship.int.sim_time and env.stop is False:
+    env.step()
 
-    # Get the simulation results for all assets
-    own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
-    tar_ship_results_df1 = pd.DataFrame().from_dict(env.assets[1].ship_model.simulation_results)
-    tar_ship_results_df2 = pd.DataFrame().from_dict(env.assets[2].ship_model.simulation_results)
+################################## GET RESULTS ##################################
 
-    # Plot 1: Overall process plot
-    plot_1 = False
-    plot_1 = True
+# Get the simulation results for all assets
+own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
+tar_ship_results_df1 = pd.DataFrame().from_dict(env.assets[1].ship_model.simulation_results)
+tar_ship_results_df2 = pd.DataFrame().from_dict(env.assets[2].ship_model.simulation_results)
+result_dfs = [own_ship_results_df, tar_ship_results_df1, tar_ship_results_df2]
 
-    # # Plot 2: Status plot
-    # plot_2 = False
-    # plot_2 = True
+# Plot 1: Trajectory
+plot_ship_status(own_ship_asset, own_ship_results_df)
+plot_ship_status(tar_ship_asset1, tar_ship_results_df1)
+plot_ship_status(tar_ship_asset2, tar_ship_results_df2)
 
-    # # Create a No.2 3x4 grid for subplots
-    # if plot_2:
-    #     fig_2, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
-    #     plt.figure(fig_2.number)  # Ensure it's the current figure
-    #     axes = axes.flatten()  # Flatten the 2D array for easier indexing
-    
-    #     # Center plotting
-    #     center_plot_window()
+# Plot 2: Status plot
+plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
 
-    #     # Plot 2.1:Speed
-    #     own_ship_speed = np.sqrt(own_ship_results_df['forward speed [m/s]']**2 + own_ship_results_df['sideways speed [m/s]']**2)
-    #     axes[0].plot(own_ship_results_df['time [s]'], own_ship_speed)
-    #     axes[0].axhline(y=own_ship_desired_speed, color='red', linestyle='--', linewidth=1.5, label='Desired Forward Speed')
-    #     axes[0].set_title('Own Ship Speed [m/s]')
-    #     axes[0].set_xlabel('Time (s)')
-    #     axes[0].set_ylabel('Forward Speed (m/s)')
-    #     axes[0].grid(color='0.8', linestyle='-', linewidth=0.5)
-    #     axes[0].set_xlim(left=0)
-
-    #     # Plot 2.2: Rudder Angle
-    #     axes[1].plot(own_ship_results_df['time [s]'], own_ship_results_df['rudder angle [deg]'])
-    #     axes[1].set_title('Test Ship Rudder angle [deg]')
-    #     axes[1].set_xlabel('Time (s)')
-    #     axes[1].set_ylabel('Rudder angle [deg]')
-    #     axes[1].grid(color='0.8', linestyle='-', linewidth=0.5)
-    #     axes[1].set_xlim(left=0)
-    #     axes[1].set_ylim(-31,31)
-
-    #     # Plot 2.3: Cross Track error
-    #     axes[2].plot(own_ship_results_df['time [s]'], own_ship_results_df['cross track error [m]'])
-    #     axes[2].set_title('Own Ship Cross Track Error [m]')
-    #     axes[2].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
-    #     axes[2].set_xlabel('Time (s)')
-    #     axes[2].set_ylabel('Cross track error (m)')
-    #     axes[2].grid(color='0.8', linestyle='-', linewidth=0.5)
-    #     axes[2].set_xlim(left=0)
-    #     axes[2].set_ylim(-501,501)
-
-    #     # Plot 2.4: Propeller Shaft Speed
-    #     axes[3].plot(own_ship_results_df['time [s]'], own_ship_results_df['propeller shaft speed [rpm]'])
-    #     axes[3].set_title('Own Ship Propeller Shaft Speed [rpm]')
-    #     axes[3].set_xlabel('Time (s)')
-    #     axes[3].set_ylabel('Propeller Shaft Speed (rpm)')
-    #     axes[3].grid(color='0.8', linestyle='-', linewidth=0.5)
-    #     axes[3].set_xlim(left=0)
-
-    #     # Plot 2.5: Power vs Available Power
-    #     if assets[0].ship_model.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
-    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power me [kw]'], label="Power")
-    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power me [kw]'], label="Available Power")
-    #         axes[4].set_title("Own Ship's Power vs Available Mechanical Power [kw]")
-    #         axes[4].set_xlabel('Time (s)')
-    #         axes[4].set_ylabel('Power (kw)')
-    #         axes[4].legend()
-    #         axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
-    #         axes[4].set_xlim(left=0)
-    #     elif assets[0].ship_model.ship_machinery_model.operating_mode == 'PTI':
-    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['power electrical [kw]'], label="Power")
-    #         axes[4].plot(own_ship_results_df['time [s]'], own_ship_results_df['available power electrical [kw]'], label="Available Power")
-    #         axes[4].set_title("Own Ship's Power vs Available Power Electrical [kw]")
-    #         axes[4].set_xlabel('Time (s)')
-    #         axes[4].set_ylabel('Power (kw)')
-    #         axes[4].legend()
-    #         axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
-    #         axes[4].set_xlim(left=0)
-
-    #     # Plot 2.6: Fuel Consumption
-    #     axes[5].plot(own_ship_results_df['time [s]'], own_ship_results_df['fuel consumption [kg]'])
-    #     axes[5].set_title('Own Ship Fuel Consumption [kg]')
-    #     axes[5].set_xlabel('Time (s)')
-    #     axes[5].set_ylabel('Fuel Consumption (kg)')
-    #     axes[5].grid(color='0.8', linestyle='-', linewidth=0.5)
-    #     axes[5].set_xlim(left=0)
-
-    #     # Adjust layout for better spacing
-    #     plt.tight_layout()
-
-    if plot_1:    
-
-
-        fig, ax = plt.subplots(figsize=(10, 8))
-
-        # draw order: land first, then ocean/water, then coast lines, then frame boundary
-        if not land_gdf.empty:
-            land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
-        if not ocean_gdf.empty:
-            ocean_gdf.plot(ax=ax, facecolor="#d9f2ff", edgecolor="#bde9ff", linewidth=0.4, alpha=0.95, zorder=2)
-        if not water_gdf.empty:
-            water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
-        if not coast_gdf.empty:
-            coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
-
-        # fit exactly to frame bounds, remove margins/axes so the basemap fills the figure
-        minx, miny, maxx, maxy = frame_gdf.total_bounds
-        ax.set_xlim(minx, maxx); ax.set_ylim(miny, maxy)
-        ax.set_aspect("equal"); ax.set_axis_off(); ax.margins(0)
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        # ax.set_title("SIT simulation over real map", fontsize=12)
-
-
-
-
-
-
-        # plt.figure(figsize=(10, 5.5))
-
-        # Plot 1.1: Ship trajectory with sampled route
-        # Test ship
-        plt.plot(own_ship_results_df['east position [m]'].to_numpy(), own_ship_results_df['north position [m]'].to_numpy())
-        plt.scatter(own_ship_asset.ship_model.auto_pilot.navigate.east, own_ship_asset.ship_model.auto_pilot.navigate.north, marker='x', color='blue')  # Waypoints
-        plt.plot(own_ship_asset.ship_model.auto_pilot.navigate.east, own_ship_asset.ship_model.auto_pilot.navigate.north, linestyle='--', color='blue')  # Line
-        for x, y in zip(own_ship_asset.ship_model.ship_drawings[1], own_ship_asset.ship_model.ship_drawings[0]):
-            plt.plot(x, y, color='blue')
-            
-        plt.plot(tar_ship_results_df1['east position [m]'].to_numpy(), tar_ship_results_df1['north position [m]'].to_numpy())
-        plt.scatter(tar_ship_asset1.ship_model.auto_pilot.navigate.east, tar_ship_asset1.ship_model.auto_pilot.navigate.north, marker='x', color='red')  # Waypoints
-        plt.plot(tar_ship_asset1.ship_model.auto_pilot.navigate.east, tar_ship_asset1.ship_model.auto_pilot.navigate.north, linestyle='--', color='red')  # Line
-        for x, y in zip(tar_ship_asset1.ship_model.ship_drawings[1], tar_ship_asset1.ship_model.ship_drawings[0]):
-            plt.plot(x, y, color='red')
-            
-        plt.plot(tar_ship_results_df2['east position [m]'].to_numpy(), tar_ship_results_df2['north position [m]'].to_numpy())
-        plt.scatter(tar_ship_asset2.ship_model.auto_pilot.navigate.east, tar_ship_asset2.ship_model.auto_pilot.navigate.north, marker='x', color='green')  # Waypoints
-        plt.plot(tar_ship_asset2.ship_model.auto_pilot.navigate.east, tar_ship_asset2.ship_model.auto_pilot.navigate.north, linestyle='--', color='green')  # Line
-        for x, y in zip(tar_ship_asset2.ship_model.ship_drawings[1], tar_ship_asset2.ship_model.ship_drawings[0]):
-            plt.plot(x, y, color='green')
-            
-        # map.plot_obstacle(plt.gca())  # get current Axes to pass into map function
-
-        # plt.xlim(0, 20000)
-        # plt.ylim(0, 10000)
-        plt.title('Ship Trajectory')
-        plt.xlabel('East position (m)')
-        plt.ylabel('North position (m)')
-        plt.gca().set_aspect('equal')
-        plt.grid(color='0.8', linestyle='-', linewidth=0.5)
-
-        # Adjust layout for better spacing
-        plt.tight_layout()
-    
-    # Show Plot
-    plt.show()
+# Show Plot
+plt.show()
