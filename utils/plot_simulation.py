@@ -120,7 +120,11 @@ def plot_ship_and_real_map(assets,
                            water_gdf,
                            coast_gdf,
                            frame_gdf):
-    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Center plotting
+    center_plot_window()
+    
+    fig, ax = plt.subplots(figsize=(14, 10))
 
     # draw order: land first, then ocean/water, then coast lines, then frame boundary
     if not land_gdf.empty:

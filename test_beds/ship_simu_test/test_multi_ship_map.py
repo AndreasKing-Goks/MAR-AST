@@ -194,7 +194,7 @@ start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: 
 own_ship_config = SimulationConfiguration(
     initial_north_position_m=start_E,
     initial_east_position_m=start_N,
-    initial_yaw_angle_rad=np.deg2rad(45.0),
+    initial_yaw_angle_rad=np.deg2rad(-30.0),
     initial_forward_speed_m_per_s=4.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
@@ -262,7 +262,7 @@ start_E1, start_N1 = np.loadtxt(tar_ship_route_name1)[0]  # expecting two column
 tar_ship_config1 = SimulationConfiguration(
     initial_north_position_m=start_E1,
     initial_east_position_m=start_N1,
-    initial_yaw_angle_rad=np.deg2rad(-135.0),
+    initial_yaw_angle_rad=np.deg2rad(-60.0),
     initial_forward_speed_m_per_s=4.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
@@ -329,7 +329,7 @@ start_E2, start_N2 = np.loadtxt(tar_ship_route_name2)[0]  # expecting two column
 tar_ship_config2 = SimulationConfiguration(
     initial_north_position_m=start_E2,
     initial_east_position_m=start_N2,
-    initial_yaw_angle_rad=np.deg2rad(-90.0),
+    initial_yaw_angle_rad=np.deg2rad(180.0),
     initial_forward_speed_m_per_s=4.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
@@ -410,7 +410,7 @@ env = MultiShipEnv(
 episode = 1
 while episode <= args.n_episodes:
     # Reset the environment at the beginning of episode
-    # env.reset()
+    env.reset()
     
     # Print message
     print("--- EPISODE " + str(episode) + " ---")

@@ -266,6 +266,7 @@ class BaseShipModel:
             ry = 0.5 * B * np.sign(np.sin(beta)) * (wy / wsum)
             return rx, ry
 
+        # Wave moment righting length
         rx, ry = r_cp_from_beta(beta, self.l_ship, self.w_ship)  # (1, Nd)
 
         # Yaw moment sum Mz = r_x*Fy - r_y*Fx (sum over freq & dir)
@@ -717,7 +718,7 @@ class ShipModel(BaseShipModel):
             if check_condition.is_power_overload(power=power, 
                                                  available_power=available_power):
                     self.stop_info['power_overload'] = True
-                    self.stop = True
+                    # self.stop = True
                     print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences power overloading.')
         
     

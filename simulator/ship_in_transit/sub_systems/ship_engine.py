@@ -340,6 +340,43 @@ class BaseMachineryModel:
 ######################## DESCENDANT CLASS BASED ON PARENT CLASS "BaseMachineryModel" ##############################
 ###################################################################################################################
 
+class SimplifiedMachineryModel(BaseMachineryModel):
+    def __init__(self, machinery_config: SimplifiedPropulsionMachinerySystemConfiguration,
+                 time_step: float,
+                 initial_thrust_force: float):
+
+        super().__init__(
+            fuel_coeffs_for_main_engine=machinery_config.specific_fuel_consumption_coefficients_me,
+            fuel_coeffs_for_diesel_gen=machinery_config.specific_fuel_consumption_coefficients_dg,
+            rudder_config=RudderConfiguration(
+                rudder_angle_to_sway_force_coefficient=machinery_config.rudder_angle_to_sway_force_coefficient,
+                rudder_angle_to_yaw_force_coefficient=machinery_config.rudder_angle_to_yaw_force_coefficient,
+                max_rudder_angle_degrees=machinery_config.max_rudder_angle_degrees
+            ),
+            machinery_modes=machinery_config.machinery_modes,
+            hotel_load=machinery_config.hotel_load,
+            operating_mode=machinery_config.machinery_operating_mode,
+            time_step=time_step)
+
+        self.update_available_propulsion_power()
+
+        self.thrust = initial_thrust_force
+        self.d_thrust = 0
+        self.k_thrust = 2160 / 790
+        self.thrust_time_constant = machinery_config.thrust_force_dynamic_time_constant
+
+    def update_thrust_force(self, load_perc):
+        ''' Updates the thrust force based on engine power
+        '''
+        power = load_perc * (self.mode.available_propulsion_power_main_engine
+                             + self.mode.available_propulsion_power_electrical)
+        self.d_thrust = (-self.k_thrust * self.thrust + power) / self.thrust_time_constant
+
+    def integrate_differentials(self):
+        ''' Integrates the differential equation one time step ahead
+        '''
+        self.thrust = self.int.integrate(x=self.thrust, dx=self.d_thrust)
+
 class ShipMachineryModel(BaseMachineryModel):
     def __init__(self,
                  machinery_config: MachinerySystemConfiguration,
@@ -475,50 +512,12 @@ class ShipMachineryModel(BaseMachineryModel):
         Resets the internal state of the ship to its initial record.
         Should be called at the beginning of each episode.
         '''
+        # Reset super class (Base Machinery Model) NOTE: RESET THE BASE CLASS FIRST
+        super().reset()
+        
         for key, value in self._initial_parameters.items():
             setattr(self, key, copy.deepcopy(value))
 
         # Re-create integrator and drawer
         self.int = EulerInt()
         self.int.set_dt(self.time_step)
-        
-        # Reset super class (Base Machinery Model)
-        super().reset()
-
-
-class SimplifiedMachineryModel(BaseMachineryModel):
-    def __init__(self, machinery_config: SimplifiedPropulsionMachinerySystemConfiguration,
-                 time_step: float,
-                 initial_thrust_force: float):
-
-        super().__init__(
-            fuel_coeffs_for_main_engine=machinery_config.specific_fuel_consumption_coefficients_me,
-            fuel_coeffs_for_diesel_gen=machinery_config.specific_fuel_consumption_coefficients_dg,
-            rudder_config=RudderConfiguration(
-                rudder_angle_to_sway_force_coefficient=machinery_config.rudder_angle_to_sway_force_coefficient,
-                rudder_angle_to_yaw_force_coefficient=machinery_config.rudder_angle_to_yaw_force_coefficient,
-                max_rudder_angle_degrees=machinery_config.max_rudder_angle_degrees
-            ),
-            machinery_modes=machinery_config.machinery_modes,
-            hotel_load=machinery_config.hotel_load,
-            operating_mode=machinery_config.machinery_operating_mode,
-            time_step=time_step)
-
-        self.update_available_propulsion_power()
-
-        self.thrust = initial_thrust_force
-        self.d_thrust = 0
-        self.k_thrust = 2160 / 790
-        self.thrust_time_constant = machinery_config.thrust_force_dynamic_time_constant
-
-    def update_thrust_force(self, load_perc):
-        ''' Updates the thrust force based on engine power
-        '''
-        power = load_perc * (self.mode.available_propulsion_power_main_engine
-                             + self.mode.available_propulsion_power_electrical)
-        self.d_thrust = (-self.k_thrust * self.thrust + power) / self.thrust_time_constant
-
-    def integrate_differentials(self):
-        ''' Integrates the differential equation one time step ahead
-        '''
-        self.thrust = self.int.integrate(x=self.thrust, dx=self.d_thrust)
