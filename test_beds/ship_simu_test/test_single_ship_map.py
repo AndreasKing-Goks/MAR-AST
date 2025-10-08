@@ -254,143 +254,8 @@ own_ship_asset = ShipAsset(
     info=own_ship_info
 )
 
-## Target ship 1
-tar_ship_route_filename1 = 'tar_ship_route_1.txt'
-tar_ship_route_name1 = get_ship_route_path(ROOT, tar_ship_route_filename1)
-
-start_E1, start_N1 = np.loadtxt(tar_ship_route_name1)[0]  # expecting two columns: east, north
-
-
-tar_ship_config1 = SimulationConfiguration(
-    initial_north_position_m=start_E1,
-    initial_east_position_m=start_N1,
-    initial_yaw_angle_rad=np.deg2rad(-60.0),
-    initial_forward_speed_m_per_s=4.0,
-    initial_sideways_speed_m_per_s=0.0,
-    initial_yaw_rate_rad_per_s=0.0,
-    integration_step=args.time_step,
-    simulation_time=10000,
-)
-# Set the throttle and autopilot controllers for the own ship
-tar_ship_throttle_controller_gains1 = ThrottleControllerGains(
-    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
-)
-
-tar_ship_heading_controller_gains1 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
-tar_ship_los_guidance_parameters1 = LosParameters(
-    radius_of_acceptance=args.radius_of_acceptance,
-    lookahead_distance=args.lookahead_distance,
-    integral_gain=0.002,
-    integrator_windup_limit=4000
-)
-tar_ship_desired_speed1 =8.0
-tar_ship_initial_propeller_shaft_speed1 = 420
-tar_ship1 = ShipModel(
-    ship_config=ship_config,
-    simulation_config=tar_ship_config1,
-    wave_model_config=wave_model_config,
-    current_model_config=current_model_config,
-    wind_model_config=wind_model_config,
-    machinery_config=machinery_config,                       
-    throttle_controller_gain=tar_ship_throttle_controller_gains1,
-    heading_controller_gain=tar_ship_heading_controller_gains1,
-    los_parameters=tar_ship_los_guidance_parameters1,
-    name_tag='Target ship 1',
-    route_name=tar_ship_route_name1,
-    desired_speed=tar_ship_desired_speed1,
-    engine_steps_per_time_step=args.engine_step_count,
-    initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed1 * np.pi /30,
-    map_obj=map,
-    colav_mode='sbmpc'
-)
-tar_ship_info1 = AssetInfo(
-    # dynamic state (mutable)
-    current_north       = tar_ship1.north,
-    current_east        = tar_ship1.east,
-    current_yaw_angle   = tar_ship1.yaw_angle,
-    forward_speed       = tar_ship1.forward_speed,
-    sideways_speed      = tar_ship1.sideways_speed,
-
-    # static properties (constants)
-    name_tag            = tar_ship1.name_tag,
-    ship_length         = tar_ship1.l_ship,
-    ship_width          = tar_ship1.w_ship
-)
-# Wraps simulation objects based on the ship type using a dictionary
-tar_ship_asset1 = ShipAsset(
-    ship_model=tar_ship1,
-    info=tar_ship_info1
-)
-
-## Target ship 2
-tar_ship_route_filename2 = 'tar_ship_route_2.txt'
-tar_ship_route_name2 = get_ship_route_path(ROOT, tar_ship_route_filename2)
-
-start_E2, start_N2 = np.loadtxt(tar_ship_route_name2)[0]  # expecting two columns: east, north
-
-tar_ship_config2 = SimulationConfiguration(
-    initial_north_position_m=start_E2,
-    initial_east_position_m=start_N2,
-    initial_yaw_angle_rad=np.deg2rad(180.0),
-    initial_forward_speed_m_per_s=4.0,
-    initial_sideways_speed_m_per_s=0.0,
-    initial_yaw_rate_rad_per_s=0.0,
-    integration_step=args.time_step,
-    simulation_time=10000,
-)
-# Set the throttle and autopilot controllers for the own ship
-tar_ship_throttle_controller_gains2 = ThrottleControllerGains(
-    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
-)
-
-tar_ship_heading_controller_gains2 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
-tar_ship_los_guidance_parameters2 = LosParameters(
-    radius_of_acceptance=args.radius_of_acceptance,
-    lookahead_distance=args.lookahead_distance,
-    integral_gain=0.002,
-    integrator_windup_limit=4000
-)
-tar_ship_desired_speed2 =8.0
-tar_ship_initial_propeller_shaft_speed2 = 420
-tar_ship2 = ShipModel(
-    ship_config=ship_config,
-    simulation_config=tar_ship_config2,
-    wave_model_config=wave_model_config,
-    current_model_config=current_model_config,
-    wind_model_config=wind_model_config,
-    machinery_config=machinery_config,                       
-    throttle_controller_gain=tar_ship_throttle_controller_gains2,
-    heading_controller_gain=tar_ship_heading_controller_gains2,
-    los_parameters=tar_ship_los_guidance_parameters2,
-    name_tag='Target ship 2',
-    route_name=tar_ship_route_name2,
-    desired_speed=tar_ship_desired_speed2,
-    engine_steps_per_time_step=args.engine_step_count,
-    initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed2 * np.pi /30,
-    map_obj=map,
-    colav_mode='sbmpc'
-)
-tar_ship_info2 = AssetInfo(
-    # dynamic state (mutable)
-    current_north       = tar_ship2.north,
-    current_east        = tar_ship2.east,
-    current_yaw_angle   = tar_ship2.yaw_angle,
-    forward_speed       = tar_ship2.forward_speed,
-    sideways_speed      = tar_ship2.sideways_speed,
-
-    # static properties (constants)
-    name_tag            = tar_ship2.name_tag,
-    ship_length         = tar_ship2.l_ship,
-    ship_width          = tar_ship2.w_ship
-)
-# Wraps simulation objects based on the ship type using a dictionary
-tar_ship_asset2 = ShipAsset(
-    ship_model=tar_ship2,
-    info=tar_ship_info2
-)
-
 # Package the assets for reinforcement learning agent
-assets: List[ShipAsset] = [own_ship_asset, tar_ship_asset1, tar_ship_asset2]
+assets: List[ShipAsset] = [own_ship_asset]
 
 # Timer for drawing the ship
 ship_draw = True
@@ -427,16 +292,14 @@ while episode <= args.n_episodes:
 
 ################################## GET RESULTS ##################################
 
-# Get the simulation results for all assets, and plot the asset simulation results
-result_dfs = []
-for i, asset in enumerate(assets):
-    result_df = pd.DataFrame().from_dict(env.assets[i].ship_model.simulation_results)
-    result_dfs.append(result_df)
-    
-    # Plot 1: Status plot
-    plot_ship_status(asset, result_df)
+# Get the simulation results for all assets
+own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
+result_dfs = [own_ship_results_df]
 
-# Plot 1: Ship and Map Plotting
+# Plot 1: Trajectory
+plot_ship_status(own_ship_asset, own_ship_results_df)
+
+# Plot 2: Status plot
 plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
 
 # Show Plot
