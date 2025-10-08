@@ -205,7 +205,7 @@ own_ship_config = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+    kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 
 own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
@@ -260,11 +260,10 @@ tar_ship_route_name1 = get_ship_route_path(ROOT, tar_ship_route_filename1)
 
 start_E1, start_N1 = np.loadtxt(tar_ship_route_name1)[0]  # expecting two columns: east, north
 
-
 tar_ship_config1 = SimulationConfiguration(
     initial_north_position_m=start_E1,
     initial_east_position_m=start_N1,
-    initial_yaw_angle_rad=np.deg2rad(-60.0),
+    initial_yaw_angle_rad=np.deg2rad(30.0),
     initial_forward_speed_m_per_s=4.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
@@ -273,7 +272,7 @@ tar_ship_config1 = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 tar_ship_throttle_controller_gains1 = ThrottleControllerGains(
-    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+    kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 
 tar_ship_heading_controller_gains1 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
@@ -340,7 +339,7 @@ tar_ship_config2 = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 tar_ship_throttle_controller_gains2 = ThrottleControllerGains(
-    kp_ship_speed=6, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+    kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 
 tar_ship_heading_controller_gains2 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
