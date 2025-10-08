@@ -43,6 +43,8 @@ parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 ## Add arguments for environments
 parser.add_argument('--time_step', type=int, default=4, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 30)')
+parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
+                    help='ENV: engine integration step count in between simulation timestep (default: 300)')
 parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
                     help='ENV: radius of acceptance for LOS algorithm (default: 300)')
 parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
@@ -228,7 +230,7 @@ own_ship = ShipModel(
     name_tag='Own ship',
     route_name=own_ship_route_name,
     desired_speed=own_ship_desired_speed,
-    engine_steps_per_time_step=10,
+    engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
     map_obj=map,
     colav_mode='sbmpc'
@@ -296,7 +298,7 @@ tar_ship1 = ShipModel(
     name_tag='Target ship 1',
     route_name=tar_ship_route_name1,
     desired_speed=tar_ship_desired_speed1,
-    engine_steps_per_time_step=10,
+    engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed1 * np.pi /30,
     map_obj=map,
     colav_mode='sbmpc'
@@ -363,7 +365,7 @@ tar_ship2 = ShipModel(
     name_tag='Target ship 2',
     route_name=tar_ship_route_name2,
     desired_speed=tar_ship_desired_speed2,
-    engine_steps_per_time_step=10,
+    engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed2 * np.pi /30,
     map_obj=map,
     colav_mode='sbmpc'
