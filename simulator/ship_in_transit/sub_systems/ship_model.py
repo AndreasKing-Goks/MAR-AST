@@ -695,10 +695,10 @@ class ShipModel(BaseShipModel):
                 print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode is outside the map horizon.')
             
         if check_condition.is_ship_navigation_failure(e_ct=self.auto_pilot.navigate.e_ct,
-                                                      e_tol=500):
+                                                      e_tol=750):
             self.stop_info['navigation_failure'] = True
             self.stop = True
-            print(self.name_tag, ' experiences navigational failure.')
+            print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' experiences navigational failure.')
         
         if check_condition.is_reaches_endpoint(route_end=[self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]], 
                                                pos=[self.north, self.east], 

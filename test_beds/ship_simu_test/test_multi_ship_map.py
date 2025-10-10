@@ -205,7 +205,7 @@ own_ship_config = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005 #kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
 )
 
 own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
@@ -272,7 +272,7 @@ tar_ship_config1 = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 tar_ship_throttle_controller_gains1 = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005
 )
 
 tar_ship_heading_controller_gains1 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
@@ -339,7 +339,7 @@ tar_ship_config2 = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 tar_ship_throttle_controller_gains2 = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005
 )
 
 tar_ship_heading_controller_gains2 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
