@@ -204,7 +204,7 @@ def main():
         GPKG_PATH, FRAME_LAYER, OCEAN_LAYER, LAND_LAYER, COAST_LAYER, WATER_LAYER
     )
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 8))
 
     if not land_gdf.empty:
         land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
@@ -221,7 +221,7 @@ def main():
     plt.subplots_adjust(left=0, right=1, top=1)
 
     # ----- Title / legend -----
-    ax.set_title("Click to add waypoints • Buttons below to Finish/Undo/Clear/Cancel")
+    ax.set_title("Route Planner • Click to add waypoints • Buttons below to Finish/Undo/Clear/Cancel")
     try:
         ax.legend(loc='upper right', framealpha=0.8)
     except Exception:
