@@ -470,9 +470,10 @@ class ShipModel(BaseShipModel):
                  los_parameters: LosParameters,
                  name_tag: str,
                  route_name,
-                 desired_speed,
                  engine_steps_per_time_step,
                  initial_propeller_shaft_speed_rad_per_s,
+                 desired_speed=8.0,
+                 cross_track_error_tolerance=500,
                  map_obj=None,
                  colav_mode=None):
         super().__init__(ship_config, simulation_config, wave_model_config, current_model_config, wind_model_config)
@@ -502,6 +503,10 @@ class ShipModel(BaseShipModel):
         # Ship desired speed
         self.desired_speed = desired_speed
         self.init_desired_speed = self.desired_speed
+        
+        # Cross track error tolerance
+        self.cross_track_error_tolerance = cross_track_error_tolerance
+        self.init_cross_track_error_tolerance = self.cross_track_error_tolerance
         
         # Get stop_info
         self.stop_info = {
@@ -695,7 +700,7 @@ class ShipModel(BaseShipModel):
                 print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode is outside the map horizon.')
             
         if check_condition.is_ship_navigation_failure(e_ct=self.auto_pilot.navigate.e_ct,
-                                                      e_tol=750):
+                                                      e_tol=self.cross_track_error_tolerance):
             self.stop_info['navigation_failure'] = True
             self.stop = True
             print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' experiences navigational failure.')
@@ -882,6 +887,9 @@ class ShipModel(BaseShipModel):
         
         # Reset the desired speed
         self.desired_speed = self.init_desired_speed
+        
+        # Reset the cross track error tolerance
+        self.cross_track_error_tolerance = self.init_cross_track_error_tolerance
         
         # Reset the collision info
         self.colav_active = False

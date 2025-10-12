@@ -33,84 +33,157 @@ def center_plot_window():
     except Exception as e:
         print("Could not reposition the plot window:", e)
 
-def plot_ship_status(asset, result_df, show=False):
-    fig_2, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10))
-    plt.figure(fig_2.number)  # Ensure it's the current figure
-    axes = axes.flatten()  # Flatten the 2D array for easier indexing
+def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
+    def _ax_style(ax, *, xlabel=False, ylabel=None, xlim_left=0, ypct_series=None):
+        ax.grid(color='0.85', linestyle='-', linewidth=0.5)
+        ax.set_xlim(left=xlim_left)
+        if ylabel:
+            ax.set_ylabel(ylabel)
+        if xlabel:
+            ax.set_xlabel('Time (s)')
+        if ypct_series is not None:
+            # percentile-based y-limits to avoid one spike flattening the trace
+            lo, hi = np.nanpercentile(ypct_series, [1, 99])
+            if np.isfinite(lo) and np.isfinite(hi) and lo != hi:
+                pad = 0.05 * (hi - lo)
+                ax.set_ylim(lo - pad, hi + pad)
+
+    # Global readability
+    plt.rcParams.update({
+        "font.size": 11,
+        "axes.titlesize": 12,
+        "axes.labelsize": 11,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "lines.linewidth": 1.1,
+    })
+
+    # ---------- FIGURE 1: SHIP STATUS ----------
+    fig_1, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10), constrained_layout=True)
+    axes = axes.flatten()
+    plt.figure(fig_1.number)
 
     # Center plotting
-    center_plot_window()
-    
-    # Plot 2.1:Speed
+    try:
+        center_plot_window()
+    except Exception:
+        pass
+
+    t = result_df['time [s]']
+    nm = str(asset.info.name_tag)
+
+    # 1. Speed (use resultant to match your code)
     speed = np.sqrt(result_df['forward speed [m/s]']**2 + result_df['sideways speed [m/s]']**2)
-    axes[0].plot(result_df['time [s]'], speed)
+    axes[0].plot(t, speed, label='Speed')
     axes[0].axhline(y=asset.ship_model.desired_speed, color='red', linestyle='--', linewidth=1.5, label='Desired Forward Speed')
-    axes[0].set_title(str(asset.info.name_tag + ' Speed [m/s]'))
-    axes[0].set_xlabel('Time (s)')
-    axes[0].set_ylabel('Forward Speed (m/s)')
-    axes[0].grid(color='0.8', linestyle='-', linewidth=0.5)
-    axes[0].set_xlim(left=0)
+    axes[0].set_title(f'{nm} Speed')
+    _ax_style(axes[0], xlabel=True, ylabel='Speed (m/s)')
+    axes[0].legend(loc='upper right', frameon=False)
 
-    # Plot 2.2: Rudder Angle
-    axes[1].plot(result_df['time [s]'], result_df['rudder angle [deg]'])
-    axes[1].set_title(asset.info.name_tag + ' Rudder angle [deg]')
-    axes[1].set_xlabel('Time (s)')
-    axes[1].set_ylabel('Rudder angle [deg]')
-    axes[1].grid(color='0.8', linestyle='-', linewidth=0.5)
-    axes[1].set_xlim(left=0)
-    axes[1].set_ylim(-31,31)
+    # 2. Rudder angle
+    axes[1].plot(t, result_df['rudder angle [deg]'])
+    axes[1].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
+    axes[1].set_title(f'{nm} Rudder Angle')
+    _ax_style(axes[1], xlabel=True, ylabel='Rudder angle (deg)')
+    axes[1].set_ylim(-np.rad2deg(asset.ship_model.ship_machinery_model.rudder_ang_max), np.rad2deg(asset.ship_model.ship_machinery_model.rudder_ang_max))
 
-    # Plot 2.3: Cross Track error
-    axes[2].plot(result_df['time [s]'], result_df['cross track error [m]'])
-    axes[2].set_title(asset.info.name_tag + ' Cross Track Error [m]')
+    # 3. Cross-track error
+    axes[2].plot(t, result_df['cross track error [m]'])
     axes[2].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
-    axes[2].set_xlabel('Time (s)')
-    axes[2].set_ylabel('Cross track error (m)')
-    axes[2].grid(color='0.8', linestyle='-', linewidth=0.5)
-    axes[2].set_xlim(left=0)
-    axes[2].set_ylim(-501,501)
+    axes[2].set_title(f'{nm} Cross-Track Error')
+    _ax_style(axes[2], xlabel=True, ylabel='Cross-track error (m)')
+    axes[2].set_ylim(-asset.ship_model.cross_track_error_tolerance, asset.ship_model.cross_track_error_tolerance)
 
-    # Plot 2.4: Propeller Shaft Speed
-    axes[3].plot(result_df['time [s]'], result_df['propeller shaft speed [rpm]'])
-    axes[3].set_title(asset.info.name_tag + ' Propeller Shaft Speed [rpm]')
-    axes[3].set_xlabel('Time (s)')
-    axes[3].set_ylabel('Propeller Shaft Speed (rpm)')
-    axes[3].grid(color='0.8', linestyle='-', linewidth=0.5)
-    axes[3].set_xlim(left=0)
+    # 4. Propeller shaft speed
+    axes[3].plot(t, result_df['propeller shaft speed [rpm]'])
+    axes[3].set_title(f'{nm} Propeller Shaft Speed')
+    _ax_style(axes[3], xlabel=True, ylabel='Shaft speed (rpm)')
 
-    # Plot 2.5: Power vs Available Power
-    if asset.ship_model.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
-        axes[4].plot(result_df['time [s]'], result_df['power me [kw]'], label="Power")
-        axes[4].plot(result_df['time [s]'], result_df['available power me [kw]'], label="Available Power")
-        axes[4].set_title(asset.info.name_tag + " Power vs Available Mechanical Power [kw]")
-        axes[4].set_xlabel('Time (s)')
-        axes[4].set_ylabel('Power (kw)')
-        axes[4].legend()
-        axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[4].set_xlim(left=0)
-    elif asset.ship_model.ship_machinery_model.operating_mode == 'PTI':
-        axes[4].plot(result_df['time [s]'], result_df['power electrical [kw]'], label="Power")
-        axes[4].plot(result_df['time [s]'], result_df['available power electrical [kw]'], label="Available Power")
-        axes[4].set_title(asset.info.name_tag + " Power vs Available Power Electrical [kw]")
-        axes[4].set_xlabel('Time (s)')
-        axes[4].set_ylabel('Power (kw)')
-        axes[4].legend()
-        axes[4].grid(color='0.8', linestyle='-', linewidth=0.5)
-        axes[4].set_xlim(left=0)
+    # 5. Power vs available power (mode-dependent)
+    ax5 = axes[4]
+    mode = asset.ship_model.ship_machinery_model.operating_mode
+    if mode in ('PTO', 'MEC'):
+        ax5.plot(t, result_df['power me [kw]'], label='Power')
+        ax5.plot(t, result_df['available power me [kw]'], color='red', linestyle='--', label='Available Power')
+        ax5.set_title(f'{nm} Power vs Available Mechanical Power')
+        _ax_style(ax5, xlabel=True, ylabel='Power (kW)')
+        ax5.legend(frameon=False)
+    elif mode == 'PTI':
+        ax5.plot(t, result_df['power electrical [kw]'], label='Power')
+        ax5.plot(t, result_df['available power electrical [kw]'], color='red', linestyle='--', label='Available Power')
+        ax5.set_title(f'{nm} Power vs Available Electrical Power')
+        _ax_style(ax5, xlabel=True, ylabel='Power (kW)')
+        ax5.legend(frameon=False)
+    else:
+        ax5.set_visible(False)
 
-    # Plot 2.6: Fuel Consumption
-    axes[5].plot(result_df['time [s]'], result_df['fuel consumption [kg]'])
-    axes[5].set_title(asset.info.name_tag + ' Fuel Consumption [kg]')
-    axes[5].set_xlabel('Time (s)')
-    axes[5].set_ylabel('Fuel Consumption (kg)')
-    axes[5].grid(color='0.8', linestyle='-', linewidth=0.5)
-    axes[5].set_xlim(left=0)
+    # 6. Fuel consumption
+    axes[5].plot(t, result_df['fuel consumption [kg]'])
+    axes[5].set_title(f'{nm} Fuel Consumption')
+    _ax_style(axes[5], xlabel=True, ylabel='Fuel (kg)')
 
-    # Adjust layout for better spacing
-    plt.tight_layout()
-    
-    # Show
-    if show is True:
+    # ---------- FIGURES 2–4: ENVIRONMENT LOADS (optional) ----------
+    if plot_env_load:
+        # --- WAVES: Fx, Fy, Mz ---
+        fig_w, aw = plt.subplots(1, 3, figsize=(16, 5), sharex=True, constrained_layout=True)
+        cols = ['wave force north [N]', 'wave force east [N]']
+        max_value = result_df[cols].abs().to_numpy().max()
+        
+        aw[0].plot(t, result_df['wave force north [N]'])
+        aw[0].set_title('Wave Force North'); _ax_style(aw[0], ylabel='Force (N)', ypct_series=result_df['wave force north [N]'])
+        aw[0].set_ylim(-max_value, max_value)
+
+        aw[1].plot(t, result_df['wave force east [N]'])
+        aw[1].set_title('Wave Force East'); _ax_style(aw[1], ypct_series=result_df['wave force east [N]'])
+        aw[1].set_ylim(-max_value, max_value)
+
+        aw[2].plot(t, result_df['wave moment [Nm]'])
+        aw[2].set_title('Wave Moment'); _ax_style(aw[2], xlabel=True, ylabel='Moment (Nm)', ypct_series=result_df['wave moment [Nm]'])
+
+        fig_w.suptitle(f'Wave loads on {nm}', y=1.02)
+
+        # --- WIND: speed, dir, Fx, Fy, Mz ---
+        fig_wind, axw = plt.subplots(2, 3, figsize=(18, 8), sharex=True, constrained_layout=True)
+        axw = axw.ravel()
+        
+        cols = ['wind force north [N]', 'wind force east [N]']
+        max_value = result_df[cols].abs().to_numpy().max()
+
+        axw[0].plot(t, result_df['wind speed [m/s]'])
+        axw[0].set_title('Wind Speed'); _ax_style(axw[0], ylabel='Speed (m/s)', ypct_series=result_df['wind speed [m/s]'])
+
+        axw[1].plot(t, result_df['wind dir [deg]'])
+        axw[1].set_title('Wind Direction'); _ax_style(axw[1], ypct_series=result_df['wind dir [deg]'])
+        axw[1].set_ylim(-180, 180)
+
+        axw[2].axis('off')  # spacer to make a clean 2x3 grid
+
+        axw[3].plot(t, result_df['wind force north [N]'])
+        axw[3].set_title('Wind Force North'); _ax_style(axw[3], ylabel='Force (N)', ypct_series=result_df['wind force north [N]'])
+        axw[3].set_ylim(-max_value, max_value)
+
+        axw[4].plot(t, result_df['wind force east [N]'])
+        axw[4].set_title('Wind Force East'); _ax_style(axw[4], ypct_series=result_df['wind force east [N]'])
+        axw[4].set_ylim(-max_value, max_value)
+
+        axw[5].plot(t, result_df['wind moment [Nm]'])
+        axw[5].set_title('Wind Moment'); _ax_style(axw[5], xlabel=True, ylabel='Moment (Nm)', ypct_series=result_df['wind moment [Nm]'])
+
+        fig_wind.suptitle(f'Wind field & loads on {nm}', y=1.02)
+
+        # --- CURRENT: speed, dir ---
+        fig_c, ac = plt.subplots(1, 2, figsize=(12, 5), sharex=True, constrained_layout=True)
+
+        ac[0].plot(t, result_df['current speed [m/s]'])
+        ac[0].set_title('Current Speed'); _ax_style(ac[0], ylabel='Speed (m/s)', ypct_series=result_df['current speed [m/s]'])
+
+        ac[1].plot(t, result_df['current dir [deg]'])
+        ac[1].set_title('Current Direction'); _ax_style(ac[1], xlabel=True, ylabel='Angle in NED (deg)')
+        ac[1].set_ylim(-180, 180)
+
+        fig_c.suptitle(f'Current field on {nm}', y=1.02)
+
+    if show:
         plt.show()
         
 def plot_ship_and_real_map(assets,

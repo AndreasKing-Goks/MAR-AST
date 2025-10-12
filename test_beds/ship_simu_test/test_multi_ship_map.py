@@ -215,7 +215,8 @@ own_ship_los_guidance_parameters = LosParameters(
     integral_gain=0.002,
     integrator_windup_limit=4000
 )
-own_ship_desired_speed =8.0
+own_ship_desired_speed = 8.0
+own_ship_cross_track_error_tolerance = 750
 own_ship_initial_propeller_shaft_speed = 420
 own_ship = ShipModel(
     ship_config=ship_config,
@@ -229,9 +230,10 @@ own_ship = ShipModel(
     los_parameters=own_ship_los_guidance_parameters,
     name_tag='Own ship',
     route_name=own_ship_route_name,
-    desired_speed=own_ship_desired_speed,
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
+    desired_speed=own_ship_desired_speed,
+    cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=map,
     colav_mode='sbmpc'
 )
@@ -282,7 +284,8 @@ tar_ship_los_guidance_parameters1 = LosParameters(
     integral_gain=0.002,
     integrator_windup_limit=4000
 )
-tar_ship_desired_speed1 =8.0
+tar_ship_desired_speed1 = 8.0
+tar_ship_cross_track_error_tolerance1 = 750
 tar_ship_initial_propeller_shaft_speed1 = 420
 tar_ship1 = ShipModel(
     ship_config=ship_config,
@@ -296,9 +299,10 @@ tar_ship1 = ShipModel(
     los_parameters=tar_ship_los_guidance_parameters1,
     name_tag='Target ship 1',
     route_name=tar_ship_route_name1,
-    desired_speed=tar_ship_desired_speed1,
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed1 * np.pi /30,
+    desired_speed=tar_ship_desired_speed1,
+    cross_track_error_tolerance=tar_ship_cross_track_error_tolerance1,
     map_obj=map,
     colav_mode='sbmpc'
 )
@@ -350,6 +354,7 @@ tar_ship_los_guidance_parameters2 = LosParameters(
     integrator_windup_limit=4000
 )
 tar_ship_desired_speed2 =8.0
+tar_ship_cross_track_error_tolerance2 = 750
 tar_ship_initial_propeller_shaft_speed2 = 420
 tar_ship2 = ShipModel(
     ship_config=ship_config,
@@ -363,9 +368,10 @@ tar_ship2 = ShipModel(
     los_parameters=tar_ship_los_guidance_parameters2,
     name_tag='Target ship 2',
     route_name=tar_ship_route_name2,
-    desired_speed=tar_ship_desired_speed2,
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed2 * np.pi /30,
+    desired_speed=tar_ship_desired_speed2,
+    cross_track_error_tolerance=tar_ship_cross_track_error_tolerance2,
     map_obj=map,
     colav_mode='sbmpc'
 )
@@ -428,12 +434,13 @@ while episode <= args.n_episodes:
 
 # Get the simulation results for all assets, and plot the asset simulation results
 result_dfs = []
+plot_env_load = [True, True, True] # Own ship, Target ship 1, Target ship 2
 for i, asset in enumerate(assets):
     result_df = pd.DataFrame().from_dict(env.assets[i].ship_model.simulation_results)
     result_dfs.append(result_df)
     
     # Plot 1: Status plot
-    plot_ship_status(asset, result_df)
+    plot_ship_status(asset, result_df, plot_env_load=plot_env_load[i])
 
 # Plot 1: Ship and Map Plotting
 plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)

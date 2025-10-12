@@ -215,7 +215,8 @@ own_ship_los_guidance_parameters = LosParameters(
     integral_gain=0.002,
     integrator_windup_limit=4000
 )
-own_ship_desired_speed =8.0
+own_ship_desired_speed = 8.0
+own_ship_cross_track_error_tolerance = 750
 own_ship_initial_propeller_shaft_speed = 420
 own_ship = ShipModel(
     ship_config=ship_config,
@@ -229,9 +230,10 @@ own_ship = ShipModel(
     los_parameters=own_ship_los_guidance_parameters,
     name_tag='Own ship',
     route_name=own_ship_route_name,
-    desired_speed=own_ship_desired_speed,
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
+    desired_speed=own_ship_desired_speed,
+    cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=map,
     colav_mode='sbmpc'
 )
@@ -297,7 +299,7 @@ own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulati
 result_dfs = [own_ship_results_df]
 
 # Plot 1: Trajectory
-plot_ship_status(own_ship_asset, own_ship_results_df)
+plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)
 
 # Plot 2: Status plot
 plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
