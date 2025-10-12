@@ -235,7 +235,7 @@ own_ship = ShipModel(
     desired_speed=own_ship_desired_speed,
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=map,
-    colav_mode='sbmpc'
+    colav_mode=None
 )
 own_ship_info = AssetInfo(
     # dynamic state (mutable)
@@ -304,7 +304,7 @@ tar_ship1 = ShipModel(
     desired_speed=tar_ship_desired_speed1,
     cross_track_error_tolerance=tar_ship_cross_track_error_tolerance1,
     map_obj=map,
-    colav_mode='sbmpc'
+    colav_mode=None
 )
 tar_ship_info1 = AssetInfo(
     # dynamic state (mutable)

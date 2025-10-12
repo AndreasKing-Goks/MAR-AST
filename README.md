@@ -223,7 +223,8 @@ See [here](https://github.com/AndreasKing-Goks/MAR-AST/tree/main/test_beds).
 
 | Script | Description |
 |--------|-------------|
+| `test_double_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating two ship asset. Used to check the COLAV system. |
 | `test_multi_ship_map.py` | Run `MultiShipEnv()` class on a real-world map with multiple ship asset simulated together. |
 | `test_multi_ship.py` | Run `MultiShipEnv()` class on a simple map with multiple ship asset simulated together. |
-| `test_single_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating single ship asset . |
+| `test_single_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating single ship asset. |
 | `test_single_ship.py` | Run `SingleShipEnv()` class for single-ship cases. |
