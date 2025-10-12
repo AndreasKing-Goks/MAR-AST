@@ -188,7 +188,7 @@ machinery_config = MachinerySystemConfiguration(
 
 ### CONFIGURE THE SHIP SIMULATION MODELS
 ## Own ship
-own_ship_route_filename = 'own_ship_route.txt'
+own_ship_route_filename = 'collide_own.txt'
 own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
 
 start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
@@ -196,7 +196,7 @@ start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: 
 own_ship_config = SimulationConfiguration(
     initial_north_position_m=start_E,
     initial_east_position_m=start_N,
-    initial_yaw_angle_rad=np.deg2rad(-30.0),
+    initial_yaw_angle_rad=np.deg2rad(150.0),
     initial_forward_speed_m_per_s=4.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
@@ -257,7 +257,7 @@ own_ship_asset = ShipAsset(
 )
 
 ## Target ship 1
-tar_ship_route_filename1 = 'tar_ship_route_1.txt'
+tar_ship_route_filename1 = 'collide_tar.txt'
 tar_ship_route_name1 = get_ship_route_path(ROOT, tar_ship_route_filename1)
 
 start_E1, start_N1 = np.loadtxt(tar_ship_route_name1)[0]  # expecting two columns: east, north
@@ -325,77 +325,9 @@ tar_ship_asset1 = ShipAsset(
     info=tar_ship_info1
 )
 
-## Target ship 2
-tar_ship_route_filename2 = 'tar_ship_route_2.txt'
-tar_ship_route_name2 = get_ship_route_path(ROOT, tar_ship_route_filename2)
-
-start_E2, start_N2 = np.loadtxt(tar_ship_route_name2)[0]  # expecting two columns: east, north
-
-tar_ship_config2 = SimulationConfiguration(
-    initial_north_position_m=start_E2,
-    initial_east_position_m=start_N2,
-    initial_yaw_angle_rad=np.deg2rad(-90.0),
-    initial_forward_speed_m_per_s=4.0,
-    initial_sideways_speed_m_per_s=0.0,
-    initial_yaw_rate_rad_per_s=0.0,
-    integration_step=args.time_step,
-    simulation_time=10000,
-)
-# Set the throttle and autopilot controllers for the own ship
-tar_ship_throttle_controller_gains2 = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005
-)
-
-tar_ship_heading_controller_gains2 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
-tar_ship_los_guidance_parameters2 = LosParameters(
-    radius_of_acceptance=args.radius_of_acceptance,
-    lookahead_distance=args.lookahead_distance,
-    integral_gain=0.002,
-    integrator_windup_limit=4000
-)
-tar_ship_desired_speed2 =8.0
-tar_ship_cross_track_error_tolerance2 = 750
-tar_ship_initial_propeller_shaft_speed2 = 420
-tar_ship2 = ShipModel(
-    ship_config=ship_config,
-    simulation_config=tar_ship_config2,
-    wave_model_config=wave_model_config,
-    current_model_config=current_model_config,
-    wind_model_config=wind_model_config,
-    machinery_config=machinery_config,                       
-    throttle_controller_gain=tar_ship_throttle_controller_gains2,
-    heading_controller_gain=tar_ship_heading_controller_gains2,
-    los_parameters=tar_ship_los_guidance_parameters2,
-    name_tag='Target ship 2',
-    route_name=tar_ship_route_name2,
-    engine_steps_per_time_step=args.engine_step_count,
-    initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed2 * np.pi /30,
-    desired_speed=tar_ship_desired_speed2,
-    cross_track_error_tolerance=tar_ship_cross_track_error_tolerance2,
-    map_obj=map,
-    colav_mode='sbmpc'
-)
-tar_ship_info2 = AssetInfo(
-    # dynamic state (mutable)
-    current_north       = tar_ship2.north,
-    current_east        = tar_ship2.east,
-    current_yaw_angle   = tar_ship2.yaw_angle,
-    forward_speed       = tar_ship2.forward_speed,
-    sideways_speed      = tar_ship2.sideways_speed,
-
-    # static properties (constants)
-    name_tag            = tar_ship2.name_tag,
-    ship_length         = tar_ship2.l_ship,
-    ship_width          = tar_ship2.w_ship
-)
-# Wraps simulation objects based on the ship type using a dictionary
-tar_ship_asset2 = ShipAsset(
-    ship_model=tar_ship2,
-    info=tar_ship_info2
-)
 
 # Package the assets for reinforcement learning agent
-assets: List[ShipAsset] = [own_ship_asset, tar_ship_asset1, tar_ship_asset2]
+assets: List[ShipAsset] = [own_ship_asset, tar_ship_asset1]
 
 # Timer for drawing the ship
 ship_draw = True

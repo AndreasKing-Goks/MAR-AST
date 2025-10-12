@@ -8,6 +8,7 @@ import numpy as np
 import copy
 from collections import defaultdict
 from typing import NamedTuple, List
+from itertools import combinations
 
 from simulator.ship_in_transit.utils.utils import EulerInt, ShipDraw
 from simulator.ship_in_transit.sub_systems.ship_engine import ShipMachineryModel, MachinerySystemConfiguration
@@ -510,6 +511,7 @@ class ShipModel(BaseShipModel):
         
         # Get stop_info
         self.stop_info = {
+            'collision'         : [False, None],    # Collision, Colliders
             'grounding_failure' : False,
             'navigation_failure': False,
             'reaches_endpoint'  : False,
@@ -519,13 +521,19 @@ class ShipModel(BaseShipModel):
         
         # Get the collision info
         self.colav_mode = colav_mode
-        self.colav_active = False
         
         # Scenario-Based Model Predictive Controller
         self.sbmpc = SBMPC(tf=1000, dt=20)
         
         # Ship name
         self.name_tag = name_tag
+        
+        # Ship statuses time series
+        self.colav_active_array     = []
+        self.collision_array        = []
+        self.nav_failure_array      = []
+        self.grounding_array        = []
+        self.power_overload_array   = []
 
         # Default dictionary for simulation results
         self.simulation_results = defaultdict(list)
@@ -679,52 +687,110 @@ class ShipModel(BaseShipModel):
                 last_value = self.simulation_results[key][-1]
                 self.simulation_results[key].append(last_value)
                 
-    def evaluate_ship_condition(self):
-        '''
+    def evaluate_ship_condition(self, asset_infos=None):
+        """
         Evaluate the ship condition to determine the stop flags.
-        '''
-        # Only evaluate this condition when the map_obj is exists
+        Ensures each *_array gets exactly one boolean appended per timestep.
+        """
+        # --- Helpers -------------------------------------------------------------
+        def push_flag(flag_name: str, value: bool, arr: list | None = None, detail=None):
+            # Write stop_info every tick so stale values don’t linger
+            self.stop_info[flag_name] = value if detail is None else [value, detail]
+            if arr is not None:
+                arr.append(bool(value))
+            if value:
+                self.stop = True
+
+        # --- Map-related checks --------------------------------------------------
         if self.map_obj is not None:
-            if check_condition.is_grounding(map_obj=self.map_obj,
-                                            pos=[self.north, self.east],
-                                            ship_length=self.l_ship):
-                self.stop_info['grounding_failure'] = True
-                self.stop = True
-                print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences grounding.')
-            
-            if check_condition.is_pos_outside_horizon(map_obj=self.map_obj,
-                                                pos=[self.north, self.east],
-                                                ship_length=self.l_ship):
-                self.stop_info['outside_horizon'] = True
-                self.stop = True
-                print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode is outside the map horizon.')
-            
-        if check_condition.is_ship_navigation_failure(e_ct=self.auto_pilot.navigate.e_ct,
-                                                      e_tol=self.cross_track_error_tolerance):
-            self.stop_info['navigation_failure'] = True
-            self.stop = True
-            print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' experiences navigational failure.')
-        
-        if check_condition.is_reaches_endpoint(route_end=[self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]], 
-                                               pos=[self.north, self.east], 
-                                               arrival_radius=250):
-            self.stop_info['reaches_endpoint'] = True
-            self.stop = True
-            print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode reaches its final destination.')
-        
-        if len(self.simulation_results['power me [kw]']) > 0:
+            grounded = check_condition.is_grounding(
+                map_obj=self.map_obj,
+                pos=[self.north, self.east],
+                ship_length=self.l_ship
+            )
+            push_flag('grounding_failure', grounded, self.grounding_array)
+            if grounded:
+                print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                    'mode experiences grounding.')
+
+            outside = check_condition.is_pos_outside_horizon(
+                map_obj=self.map_obj,
+                pos=[self.north, self.east],
+                ship_length=self.l_ship
+            )
+            # Keep per-tick alignment (add an array if you plan to analyze later)
+            if not hasattr(self, 'outside_horizon_array'):
+                self.outside_horizon_array = []
+            push_flag('outside_horizon', outside, self.outside_horizon_array)
+            if outside:
+                print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                    'mode is outside the map horizon.')
+
+        # --- Navigation failure --------------------------------------------------
+        nav_fail = check_condition.is_ship_navigation_failure(
+            e_ct=self.auto_pilot.navigate.e_ct,
+            e_tol=self.cross_track_error_tolerance
+        )
+        push_flag('navigation_failure', nav_fail, self.nav_failure_array)
+        if nav_fail:
+            print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                'experiences navigational failure.')
+
+        # --- Reaches endpoint ----------------------------------------------------
+        reached = check_condition.is_reaches_endpoint(
+            route_end=[self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]],
+            pos=[self.north, self.east],
+            arrival_radius=250
+        )
+        # Keep per-tick alignment (add an array if useful)
+        if not hasattr(self, 'reaches_endpoint_array'):
+            self.reaches_endpoint_array = []
+        push_flag('reaches_endpoint', reached, self.reaches_endpoint_array)
+        if reached:
+            print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                'mode reaches its final destination.')
+
+        # --- Power overload ------------------------------------------------------
+        power_overload = False
+        if isinstance(self.simulation_results, dict):
+            # Guard against missing keys / empty series
             if self.ship_machinery_model.operating_mode in ('PTO', 'MEC'):
-                power = self.simulation_results['power me [kw]'][-1]
-                available_power=self.simulation_results['available power me [kw]'][-1]
+                if (self.simulation_results.get('power me [kw]') and
+                    self.simulation_results.get('available power me [kw]')):
+                    power = self.simulation_results['power me [kw]'][-1]
+                    available = self.simulation_results['available power me [kw]'][-1]
+                    power_overload = check_condition.is_power_overload(power=power, available_power=available)
             elif self.ship_machinery_model.operating_mode == 'PTI':
-                power = self.simulation_results['power electrical [kw]'][-1]
-                available_power=self.simulation_results['available power electrical [kw]'][-1]
-            
-            if check_condition.is_power_overload(power=power, 
-                                                 available_power=available_power):
-                    self.stop_info['power_overload'] = True
-                    self.stop = True
-                    print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences power overloading.')
+                if (self.simulation_results.get('power electrical [kw]') and
+                    self.simulation_results.get('available power electrical [kw]')):
+                    power = self.simulation_results['power electrical [kw]'][-1]
+                    available = self.simulation_results['available power electrical [kw]'][-1]
+                    power_overload = check_condition.is_power_overload(power=power, available_power=available)
+
+        push_flag('power_overload', power_overload, self.power_overload_array)
+        if power_overload:
+            print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                'mode experiences power overloading.')
+
+        # --- Collision (this ship vs others) ------------------------------------
+        colliders = []
+        if asset_infos:
+            for asset_info in asset_infos:
+                if asset_info is self or asset_info.name_tag == self.name_tag:
+                    continue
+                if check_condition.is_ship_collision(
+                    (self.north, self.east),
+                    (asset_info.current_north, asset_info.current_east),
+                    minimum_ship_distance=50
+                ):
+                    colliders.append(asset_info.name_tag)
+
+        collision = bool(colliders)
+        push_flag('collision', collision, self.collision_array, detail=(colliders if colliders else None))
+        if collision:
+            print(f"{self.name_tag} in {self.ship_machinery_model.operating_mode} "
+                f"collides with {', '.join(colliders)}")
+
         
     def sbmpc_colav_override(self, asset_infos):
         # Get desired heading and speed for collav
@@ -795,11 +861,12 @@ class ShipModel(BaseShipModel):
         ####################################################################################################
         if self.colav_mode == 'sbmpc' and asset_infos is not None:
             speed_factor, desired_heading_offset = self.sbmpc_colav_override(asset_infos)
-            self.colav_active = self.sbmpc.is_stephen_useful()
+            # Append colav active boolean
+            self.colav_active_array.append(self.sbmpc.is_stephen_useful())
         #################################################################################################### 
         
         # Evaluate the ship condition. If the ship stopped, immediately return
-        self.evaluate_ship_condition()
+        self.evaluate_ship_condition(asset_infos)
         if self.stop is True:
             return
         
@@ -892,17 +959,22 @@ class ShipModel(BaseShipModel):
         # Reset the cross track error tolerance
         self.cross_track_error_tolerance = self.init_cross_track_error_tolerance
         
-        # Reset the collision info
-        self.colav_active = False
-        
         # Reset stop_info
         self.stop_info = {
+            'collision'         : [False, None],    # Collision, Colliders
             'grounding_failure' : False,
             'navigation_failure': False,
             'reaches_endpoint'  : False,
             'outside_horizon'   : False,
             'power_overload'    : False
         }
+        
+        # Reset statuses time series
+        self.colav_active_array     = []
+        self.collision_array        = []
+        self.nav_failure_array      = []
+        self.grounding_array        = []
+        self.power_overload_array   = []
         
         #  Also reset the results and draws container
         self.simulation_results = defaultdict(list)

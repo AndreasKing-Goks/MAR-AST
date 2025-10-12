@@ -22,7 +22,7 @@ from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfigurat
 ## IMPORT FUNCTIONS
 from utils.get_path import get_ship_route_path, get_map_path
 from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
-from utils.animate import ShipTrajectoryAnimator, RLShipTrajectoryAnimator
+from utils.animate import Animator
 from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ### IMPORT TOOLS
@@ -71,6 +71,7 @@ COAST_LAYER = "coast_3857"               # optional
 WATER_LAYER = "water_3857"               # optional
 
 frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = get_gdf_from_gpkg(GPKG_PATH, FRAME_LAYER, OCEAN_LAYER, LAND_LAYER, COAST_LAYER, WATER_LAYER)
+map_gdfs = frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf
 
 map_data = get_polygon_from_gdf(land_gdf)   # list of exterior rings (E,N)
 map = PolygonObstacle(map_data)              # <-- reuse your existing simulator map type
@@ -294,7 +295,7 @@ while episode <= args.n_episodes:
 
 ################################## GET RESULTS ##################################
 
-# Get the simulation results for all assets
+## Get the simulation results for all assets, and plot the asset simulation results
 own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
 result_dfs = [own_ship_results_df]
 
