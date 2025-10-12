@@ -91,7 +91,7 @@ class RoutePicker:
         if event.xdata is None or event.ydata is None:
             return
         e, n = float(event.xdata), float(event.ydata)
-        self.points.append((e, n))
+        self.points.append((n, e)) # flipped
         # big marker for visibility
         self.ax.scatter([e], [n], s=POINT_MARKER_SIZE)
         # numbered label
