@@ -22,7 +22,6 @@ from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfigurat
 ## IMPORT FUNCTIONS
 from utils.get_path import get_ship_route_path, get_map_path
 from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
-from utils.animate import Animator
 from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ### IMPORT TOOLS

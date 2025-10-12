@@ -66,7 +66,7 @@ class ShipDraw:
 
     def local_coords(self):
         ''' Here the ship is pointing along the local
-            x-axix with its center of origin (midship)
+            x-axis with its center of origin (midship)
             at the origin
             1 denotes the left back corner
             2 denotes the left starting point of bow curvatiure

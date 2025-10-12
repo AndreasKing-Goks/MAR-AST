@@ -1,13 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
-from matplotlib.gridspec import GridSpec
-from matplotlib.patches import Rectangle, Polygon
+from matplotlib.patches import Polygon, Rectangle
+from matplotlib import gridspec as mpl_gs
 
-# ---------- static helpers for the basemap ----------
+# =========================
+# Shared helpers
+# =========================
 
 def draw_real_map(ax, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf):
-    # draw order: land -> ocean/water -> coasts
+    # Draw order
     if land_gdf is not None and not land_gdf.empty:
         land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
     if ocean_gdf is not None and not ocean_gdf.empty:
@@ -17,236 +19,346 @@ def draw_real_map(ax, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf):
     if coast_gdf is not None and not coast_gdf.empty:
         coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
 
-    # fit to frame bounds
+    # Keep the full frame extent (avoid aspect cropping)
     if frame_gdf is not None and not frame_gdf.empty:
         minx, miny, maxx, maxy = frame_gdf.total_bounds
-        ax.set_xlim(minx, maxx); ax.set_ylim(miny, maxy)
+        ax.set_xlim(minx, maxx)
+        ax.set_ylim(miny, maxy)
 
-    ax.set_aspect("equal")
+    ax.set_autoscale_on(False)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_anchor('C')
     ax.set_axis_off()
     ax.margins(0)
     ax.grid(False)
 
+def setup_nav_polar(ax, rmax):
+    ax.set_rlim(0, max(1.0, rmax))
+    ax.set_theta_zero_location('N')   # 0° at North
+    ax.set_theta_direction(-1)        # CW positive
+    ax.set_thetagrids([0,45,90,135,180,225,270,315],
+                      labels=['0','45','90','135','180','-135','-90','-45'])
+    ax.set_rlabel_position(225)
+    ax.grid(alpha=0.3)
 
-# ---------- animator with GDF basemap on the left ----------
+def _wrap180(a_deg):  # [-180, 180]
+    return ((a_deg + 180.0) % 360.0) - 180.0
 
-class Animator:
-    def __init__(self,
-                 assets,                 # list of ships: see previous message
-                 env,                    # dict (wave/current/wind) for focus ship
-                 map_gdfs,
-                 focus_ship_index=0,     # System under test index under assets
-                 interval_ms=500,
-                 status=None):
+def _math_to_nav(deg_math):  # 0E/CCW+ -> 0N/CW+
+    return _wrap180(90.0 - deg_math)
 
+def ship_vertices_polar(ship_draw, heading_rad_nav, ax, size_frac=0.25):
+    """Vertices in (theta, r) for a ShipDraw outline, rotated by heading."""
+    x_loc, y_loc = ship_draw.local_coords()
+    rmax = ax.get_rmax()
+    scale = (size_frac * rmax) / (ship_draw.l / 2.0)
+    x = x_loc * scale; y = y_loc * scale
+    theta_math = np.arctan2(y, x)
+    theta_nav  = (np.pi/2.0) - theta_math + heading_rad_nav
+    r = np.hypot(x, y)
+    return np.column_stack([theta_nav, r])
+
+# -------- Window positioning (backend-safe-ish) --------
+def get_screen_size(fig):
+    m = fig.canvas.manager
+    # Tk
+    try:
+        return m.window.winfo_screenwidth(), m.window.winfo_screenheight()
+    except Exception:
+        pass
+    # Qt
+    try:
+        scr = m.window.screen() if hasattr(m.window, "screen") else m.window.windowHandle().screen()
+        geo = scr.availableGeometry()
+        return geo.width(), geo.height()
+    except Exception:
+        pass
+    # Fallback
+    return 1920, 1080
+
+def move_figure(fig, x, y, w=None, h=None):
+    m = fig.canvas.manager
+    backend = plt.get_backend().lower()
+    try:
+        if 'tk' in backend:
+            if w is None or h is None:
+                m.window.wm_geometry(f"+{int(x)}+{int(y)}")
+            else:
+                m.window.geometry(f"{int(w)}x{int(h)}+{int(x)}+{int(y)}")
+        elif 'qt' in backend:
+            if w is not None and h is not None:
+                m.window.setGeometry(int(x), int(y), int(w), int(h))
+            else:
+                m.window.move(int(x), int(y))
+        elif 'wx' in backend:
+            m.window.SetPosition((int(x), int(y)))
+            if w is not None and h is not None:
+                m.window.SetSize((int(w), int(h)))
+    except Exception:
+        # Last-ditch: ignore failures silently
+        pass
+
+def place_side_by_side(fig_left, fig_right, left_frac=0.68, height_frac=0.92, gap_px=12):
+    """Center both windows on screen, same height, side-by-side."""
+    sw, sh = get_screen_size(fig_left)
+    H = int(sh * height_frac)
+    W_left  = int(sw * left_frac) - gap_px // 2
+    W_right = int(sw * (1 - left_frac)) - gap_px // 2
+    total_w = W_left + gap_px + W_right
+    x0 = (sw - total_w) // 2
+    y0 = (sh - H) // 2
+    move_figure(fig_left,  x0,              y0, W_left,  H)
+    move_figure(fig_right, x0 + W_left + gap_px, y0, W_right, H)
+
+# =========================
+# 1) MAP-ONLY ANIMATOR (with status strip)
+# =========================
+
+class MapAnimator:
+    """
+    Map-only animation with basemap + ships + status strip (for one chosen asset).
+    """
+    def __init__(self, assets, map_gdfs, interval_ms=500, status_asset_index=0):
         self.assets = assets
-        self.t = assets[focus_ship_index].simulation_results['time [s]']
         self.interval = interval_ms
-        self.focus = focus_ship_index
-        
+        self.focus_idx = status_asset_index
+        self.stop_requested = False
         land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf = map_gdfs
 
-        # Environment (same as before)
-        dy = assets[focus_ship_index].ship_model.simulation_results['wave force north [N]']
-        dx = assets[focus_ship_index].ship_model.simulation_results['wave force east [N]']
-        self.wave_dir_deg  = np.rad2deg(np.arctan2(dy, dx))
-        self.wave_mag      = np.sqrt(dy**2 + dx**2)
-        
-        self.curr_dir_deg  = assets[focus_ship_index].ship_model.simulation_results['current dir [deg]']
-        self.curr_speed    = assets[focus_ship_index].ship_model.simulation_results['current speed [m/s]']
-        
-        self.wind_dir_deg  = assets[focus_ship_index].ship_model.simulation_results['wind dir [deg]']
-        self.wind_speed    = assets[focus_ship_index].ship_model.simulation_results['wind speed [m/s]']
+        def sr(a, k): return np.asarray(a.ship_model.simulation_results[k])
+        self.t = sr(self.assets[0], 'time [s]')  # assume aligned
 
-        status = status or {}
-        self.colav_active  = np.asarray(status.get('colav_active',  []))
-        self.collision     = np.asarray(status.get('collision',     []))
-        self.nav_failure   = np.asarray(status.get('nav_failure',   []))
-        self.grounding     = np.asarray(status.get('grounding',     []))
+        # Cache series per asset
+        self.series = []
+        for a in assets:
+            s = a.ship_model
+            sim = s.simulation_results
+            self.series.append({
+                'east':  np.asarray(sim['east position [m]']),
+                'north': np.asarray(sim['north position [m]']),
+                'hdg':   np.radians(np.asarray(sim['yaw angle [deg]'])),
+                'label': getattr(getattr(a, 'info', None), 'name_tag', 'Ship'),
+                'drawer': getattr(s, 'draw', None),
+                'route_e': getattr(getattr(s, 'auto_pilot', None), 'navigate', None).east
+                           if hasattr(getattr(s, 'auto_pilot', None), 'navigate') else None,
+                'route_n': getattr(getattr(s, 'auto_pilot', None), 'navigate', None).north
+                           if hasattr(getattr(s, 'auto_pilot', None), 'navigate') else None,
+            })
 
-        # Precompute headings (deg->rad)
-        for a in self.assets:
-            a['headings_rad'] = (np.radians(a['headings_deg'])
-                                 if a.get('headings_deg') is not None else None)
+        # Status arrays for the focus ship
+        fm = self.assets[self.focus_idx].ship_model
+        self.colav = np.asarray(getattr(fm, 'colav_active_array', []))
+        self.colli = np.asarray(getattr(fm, 'collision_array', []))
+        self.navfl = np.asarray(getattr(fm, 'nav_failure_array', []))
+        self.ground= np.asarray(getattr(fm, 'grounding_array', []))
 
-        # --- Figure & layout
-        self.fig = plt.figure(figsize=(15, 7.5))
-        gs = GridSpec(nrows=3, ncols=2, width_ratios=[2.2, 1.0], height_ratios=[1.0, 1.0, 0.35], figure=self.fig)
+        # ---- Figure: map + status strip (taller than before)
+        self.fig = plt.figure(figsize=(17.5, 9.8), constrained_layout=True)
+        gs = self.fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1.0, 0.12], hspace=0.0)
+        self.ax_map   = self.fig.add_subplot(gs[0, 0])
+        self.ax_stat  = self.fig.add_subplot(gs[1, 0]); self.ax_stat.set_axis_off()
 
-        self.ax_map = self.fig.add_subplot(gs[:, 0])
-        self.ax_polar_wave = self.fig.add_subplot(gs[0, 1], projection='polar')
-        self.ax_polar_curr = self.fig.add_subplot(gs[1, 1], projection='polar')
-        self.ax_status     = self.fig.add_subplot(gs[2, 1])
-        self.ax_status.set_axis_off()
-
-        # --- Draw static basemap once (replaces self.map)
         draw_real_map(self.ax_map, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
-        self.ax_map.set_title("Top View: All Ships")  # optional title; axes stay off otherwise
+        self.ax_map.set_title("Ship Trajectory")
 
-        # --- Prepare dynamic artists on top of map
-        self.ship_trails, self.ship_outlines, self.route_handles, self.route_scats = [], [], [], []
-        for a in self.assets:
-            color = a.get('color', None)
-            trail, = self.ax_map.plot([], [], '-', linewidth=1.8, color=color, zorder=10)   # dynamic
-            outline, = self.ax_map.plot([], [], linewidth=1.5, color=color, zorder=12)     # dynamic
-            self.ship_trails.append(trail)
-            self.ship_outlines.append(outline)
-            if a.get('route') is not None:
-                r = a['route']
-                h, = self.ax_map.plot(r['east'], r['north'], '--', alpha=0.5, color=color, zorder=6)  # static
-                s = self.ax_map.scatter(r['east'], r['north'], marker='x', alpha=0.6, color=color, zorder=7)
-                self.route_handles.append(h); self.route_scats.append(s)
+        # Static routes
+        for s in self.series:
+            if s['route_e'] is not None and s['route_n'] is not None:
+                self.ax_map.plot(s['route_e'], s['route_n'], '--', alpha=0.55, zorder=6)
+                self.ax_map.scatter(s['route_e'], s['route_n'], marker='x', alpha=0.7, zorder=7)
 
-        # Timestamp
-        self.time_text = self.ax_map.text(0.01, 0.97, '', transform=self.ax_map.transAxes,
-                                          fontsize=12, va='top', zorder=20)
+        # Dynamic artists
+        self.trails, self.outlines = [], []
+        for s in self.series:
+            tr, = self.ax_map.plot([], [], '-', lw=1.8, zorder=10, label=s['label'])
+            ol, = self.ax_map.plot([], [], lw=1.4, zorder=12)
+            self.trails.append(tr); self.outlines.append(ol)
+        self.ax_map.legend(loc='upper right')
+        self.time_text = self.ax_map.text(0.01, 0.97, '', transform=self.ax_map.transAxes, fontsize=12, va='top')
 
-        # --- Polars & status
-        self._setup_polar(self.ax_polar_wave, "Wave load & heading",
-                          self._max_safe([self.wave_mag, self.curr_speed, self.wind_speed]))
-        self._setup_polar(self.ax_polar_curr, "Current & Wind",
-                          self._max_safe([self.wave_mag, self.curr_speed, self.wind_speed]))
-        self.wave_ship_line, = self.ax_polar_wave.plot([], [], linewidth=2)
-        self.wave_vec_line,  = self.ax_polar_wave.plot([], [], linewidth=2)
-        self.curr_ship_line, = self.ax_polar_curr.plot([], [], linewidth=2)
-        self.curr_vec_line,  = self.ax_polar_curr.plot([], [], linewidth=2)     # current
-        self.wind_vec_line,  = self.ax_polar_curr.plot([], [], linewidth=2, linestyle='--')  # wind
-        self.wave_ship_icon = None
-        self.curr_ship_icon = None
-
-        # Status boxes (text + hatch, not color-only)
-        self.status_boxes = []
-        labels = ["COLAV", "Collision", "Nav Failure", "Grounding"]
-        for i, lab in enumerate(labels):
+        # Status boxes (bottom)
+        self.boxes = []
+        for i, lab in enumerate(["COLAV", "Collision", "Nav Failure", "Grounding"]):
             x0, w = i/4.0, 1/4.0
-            rect = Rectangle((x0, 0.05), w-0.02, 0.9, fill=False, linewidth=1.2)
-            self.ax_status.add_patch(rect)
-            txt = self.ax_status.text(x0 + w/2 - 0.01, 0.5, f"{lab}\nINACTIVE",
-                                      ha='center', va='center', fontsize=10)
-            self.status_boxes.append((rect, txt))
-        self.ax_status.set_xlim(0, 1); self.ax_status.set_ylim(0, 1)
+            rect = Rectangle((x0, 0.05), w-0.02, 0.9, fill=False, lw=1.2)
+            self.ax_stat.add_patch(rect)
+            txt = self.ax_stat.text(x0 + w/2 - 0.01, 0.5, f"{lab}\nINACTIVE", ha='center', va='center', fontsize=10)
+            self.boxes.append((rect, txt))
+        self.ax_stat.set_xlim(0, 1); self.ax_stat.set_ylim(0, 1)
 
-    # ---------- setup helpers ----------
-    def _setup_polar(self, ax, title, max_r):
-        ax.set_title(title)
-        ax.set_rlim(0, max(1.0, max_r))
-        ax.set_rlabel_position(225)
-        ax.grid(alpha=0.3)
+        # 'q' to stop
+        self.fig.canvas.mpl_connect('key_press_event', lambda e: self.request_stop() if e.key == 'q' else None)
 
-    # ---------- animation core ----------
-    def init_animation(self):
-        for t in self.ship_trails: t.set_data([], [])
-        for o in self.ship_outlines: o.set_data([], [])
-        self.time_text.set_text('')
-        for line in [self.wave_ship_line, self.wave_vec_line,
-                     self.curr_ship_line, self.curr_vec_line, self.wind_vec_line]:
-            line.set_data([], [])
-        self._clear_ship_icon(self.ax_polar_wave)
-        self._clear_ship_icon(self.ax_polar_curr)
-        for _, txt in self.status_boxes:
-            txt.set_text(txt.get_text().split('\n')[0] + "\nINACTIVE")
-        return (*self.ship_trails, *self.ship_outlines,
-                self.wave_ship_line, self.wave_vec_line,
-                self.curr_ship_line, self.curr_vec_line, self.wind_vec_line,
-                self.time_text)
+    def request_stop(self):
+        self.stop_requested = True
+        try: self.animation.event_source.stop()
+        except Exception: pass
 
-    def animate(self, i):
-        # Left: trails + outlines
-        for a, trail, outline in zip(self.assets, self.ship_trails, self.ship_outlines):
-            df = a['df']
-            trail.set_data(df['east position [m]'][:i], df['north position [m]'][:i])
-            if a.get('drawer') and a.get('headings_rad') is not None and i < len(df):
-                east  = df['east position [m]'].iloc[i]
-                north = df['north position [m]'].iloc[i]
-                psi   = a['headings_rad'][i]
-                xL, yL = a['drawer'].local_coords()
-                xR, yR = a['drawer'].rotate_coords(xL, yL, psi)
-                xF, yF = a['drawer'].translate_coords(xR, yR, north, east)
-                outline.set_data(yF, xF)
-
-        # Right: polars for focus ship
-        focus = self.assets[self.focus]
-        hdg_deg = focus['headings_deg'][i] if focus.get('headings_deg') is not None else 0.0
-        hdg = np.deg2rad(hdg_deg)
-
-        # Wave panel
-        if self.wave_mag.size:
-            self._set_ray(self.wave_ship_line, hdg, 0.8*self.ax_polar_wave.get_rmax())
-            if self.wave_dir_deg.size:
-                self._set_ray(self.wave_vec_line, np.deg2rad(self.wave_dir_deg[i]), self.wave_mag[i])
-        self._draw_ship_icon(self.ax_polar_wave, hdg)
-
-        # Current+Wind panel
-        self._set_ray(self.curr_ship_line, hdg, 0.8*self.ax_polar_curr.get_rmax())
-        if self.curr_speed.size and self.curr_dir_deg.size:
-            self._set_ray(self.curr_vec_line, np.deg2rad(self.curr_dir_deg[i]), self.curr_speed[i])
-        if self.wind_speed.size and self.wind_dir_deg.size:
-            self._set_ray(self.wind_vec_line, np.deg2rad(self.wind_dir_deg[i]), self.wind_speed[i])
-
-        # Time + status
-        self.time_text.set_text(f"Time: {self.t[i]:.1f} s")
-        self._status_update(0, self._get(self.colav_active, i), "ACTIVE", "INACTIVE")
-        self._status_update(1, self._get(self.collision,    i), "YES",    "NO")
-        self._status_update(2, self._get(self.nav_failure,  i), "ACTIVE", "INACTIVE")
-        self._status_update(3, self._get(self.grounding,    i), "YES",    "NO")
-
-        return (*self.ship_trails, *self.ship_outlines,
-                self.wave_ship_line, self.wave_vec_line,
-                self.curr_ship_line, self.curr_vec_line, self.wind_vec_line,
-                self.time_text)
-
-    # ---------- small helpers ----------
-    @staticmethod
-    def _max_safe(seq_list):
-        vals = []
-        for s in seq_list:
-            if hasattr(s, 'size') and s.size:
-                vals.append(np.nanmax(s))
-        return max(vals) if vals else 1.0
-
-    @staticmethod
-    def _set_ray(line, theta, r):
-        line.set_data([theta, theta], [0, max(0, r)])
-
-    def _draw_ship_icon(self, ax_polar, heading_rad):
-        self._clear_ship_icon(ax_polar)
-        r = 0.25 * ax_polar.get_rmax(); dth = np.deg2rad(18)
-        verts = [(heading_rad, r), (heading_rad - dth, 0.6*r), (heading_rad + dth, 0.6*r)]
-        xy = np.array([(rho*np.cos(th), rho*np.sin(th)) for th, rho in verts])
-        patch = Polygon(xy, closed=True, fill=False, linewidth=1.5)
-        ax_polar.add_patch(patch)
-        if ax_polar is self.ax_polar_wave: self.wave_ship_icon = patch
-        else: self.curr_ship_icon = patch
-
-    def _clear_ship_icon(self, ax_polar):
-        ref = self.wave_ship_icon if ax_polar is self.ax_polar_wave else self.curr_ship_icon
-        if ref is not None: ref.remove()
-        if ax_polar is self.ax_polar_wave: self.wave_ship_icon = None
-        else: self.curr_ship_icon = None
-
-    @staticmethod
-    def _get(arr, i):  # safe boolean fetch
-        return bool(arr[i]) if hasattr(arr, 'size') and arr.size and i < arr.size else False
-
-    def _status_update(self, idx, on, on_text, off_text):
-        rect, txt = self.status_boxes[idx]
+    def _status(self, idx, on, on_text, off_text):
+        rect, txt = self.boxes[idx]
         label = txt.get_text().split('\n')[0]
         txt.set_text(f"{label}\n{on_text if on else off_text}")
         rect.set_fill(on); rect.set_alpha(0.15 if on else 0.0); rect.set_hatch('////' if on else '')
 
-    # ---------- public ----------
-    def run(self, fps=None):
+    @staticmethod
+    def _on(arr, i): return bool(arr[i]) if hasattr(arr, 'size') and i < arr.size else False
+
+    def init_animation(self):
+        for tr in self.trails: tr.set_data([], [])
+        for ol in self.outlines: ol.set_data([], [])
+        self.time_text.set_text('')
+        # reset status
+        for _, txt in self.boxes:
+            txt.set_text(txt.get_text().split('\n')[0] + "\nINACTIVE")
+        return (*self.trails, *self.outlines, self.time_text)
+
+    def animate(self, i):
+        if self.stop_requested:
+            return (*self.trails, *self.outlines, self.time_text)
+        for s, tr, ol in zip(self.series, self.trails, self.outlines):
+            tr.set_data(s['east'][:i], s['north'][:i])
+            if s['drawer'] is not None and i < len(s['east']):
+                east, north, psi = s['east'][i], s['north'][i], s['hdg'][i]
+                xL, yL = s['drawer'].local_coords()
+                xR, yR = s['drawer'].rotate_coords(xL, yL, psi)
+                xF, yF = s['drawer'].translate_coords(xR, yR, north, east)
+                ol.set_data(yF, xF)  # (East, North)
+        self.time_text.set_text(f"Time: {self.t[i]:.1f} s")
+
+        # status for focus ship
+        self._status(0, self._on(self.colav, i), "ACTIVE", "INACTIVE")
+        self._status(1, self._on(self.colli, i), "YES",    "NO")
+        self._status(2, self._on(self.navfl, i), "ACTIVE", "INACTIVE")
+        self._status(3, self._on(self.ground, i), "YES",    "NO")
+
+        return (*self.trails, *self.outlines, self.time_text)
+
+    def run(self, fps=None, show=False):
         if fps is not None: self.interval = 1000 / fps
-        self.animation = FuncAnimation(self.fig, self.animate,
-                                       frames=len(self.t),
-                                       init_func=self.init_animation,
-                                       blit=True, interval=self.interval, repeat=False)
-        plt.show()
+        self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
+                                       init_func=self.init_animation, blit=True,
+                                       interval=self.interval, repeat=False)
+        if show:
+            plt.show()
 
     def save(self, path, fps=2):
-        self.animation = FuncAnimation(self.fig, self.animate,
-                                       frames=len(self.t),
-                                       init_func=self.init_animation,
-                                       blit=True, interval=self.interval, repeat=False)
+        self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
+                                       init_func=self.init_animation, blit=True,
+                                       interval=self.interval, repeat=False)
+        writer = FFMpegWriter(fps=fps)
+        self.animation.save(path, writer=writer)
+
+# =========================
+# 2) POLAR-ONLY ANIMATOR (unchanged)
+# =========================
+
+class PolarAnimator:
+    def __init__(self, focus_asset, interval_ms=500):
+        self.a = focus_asset
+        self.interval = interval_ms
+
+        sim = self.a.ship_model.simulation_results
+        self.t = np.asarray(sim['time [s]'])
+        self.hdg_rad = np.radians(np.asarray(sim['yaw angle [deg]']))
+
+        dy = np.asarray(sim['wave force north [N]'])
+        dx = np.asarray(sim['wave force east [N]'])
+        wave_deg_math = np.rad2deg(np.arctan2(dy, dx))
+        self.wave_dir_deg = _math_to_nav(wave_deg_math)
+        self.wave_mag     = np.sqrt(dx**2 + dy**2)
+
+        self.curr_dir_deg = np.asarray(sim['current dir [deg]'])
+        self.curr_speed   = np.asarray(sim['current speed [m/s]'])
+        self.wind_dir_deg = np.asarray(sim['wind dir [deg]'])
+        self.wind_speed   = np.asarray(sim['wind speed [m/s]'])
+
+        self.fig = plt.figure(figsize=(6.5, 9), constrained_layout=True)
+        self.ax_wave  = self.fig.add_subplot(311, projection='polar')
+        self.ax_curr  = self.fig.add_subplot(312, projection='polar')
+        self.ax_wind  = self.fig.add_subplot(313, projection='polar')
+
+        rmax = max(1.0, np.nanmax([self.wave_mag.max() if self.wave_mag.size else 1,
+                                   self.curr_speed.max() if self.curr_speed.size else 1,
+                                   self.wind_speed.max() if self.wind_speed.size else 1]))
+        for ax, title in [(self.ax_wave, "Wave & heading"),
+                          (self.ax_curr, "Current & heading"),
+                          (self.ax_wind, "Wind & heading")]:
+            setup_nav_polar(ax, rmax); ax.set_title(title)
+
+        self.wave_ship, = self.ax_wave.plot([], [], lw=2)
+        self.wave_vec,  = self.ax_wave.plot([], [], lw=2)
+        self.curr_ship, = self.ax_curr.plot([], [], lw=2)
+        self.curr_vec,  = self.ax_curr.plot([], [], lw=2)
+        self.wind_ship, = self.ax_wind.plot([], [], lw=2)
+        self.wind_vec,  = self.ax_wind.plot([], [], lw=2)
+
+        self.ship_icon_wave = self.ship_icon_curr = self.ship_icon_wind = None
+        self.time_text = self.fig.text(0.02, 0.98, '', ha='left', va='top')
+
+    @staticmethod
+    def _set_ray(line, theta, r): line.set_data([theta, theta], [0, max(0, r)])
+
+    def init_animation(self):
+        for ln in [self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec]:
+            ln.set_data([], [])
+        for icon in [self.ship_icon_wave, self.ship_icon_curr, self.ship_icon_wind]:
+            try:
+                if icon is not None: icon.remove()
+            except Exception:
+                pass
+        self.ship_icon_wave = self.ship_icon_curr = self.ship_icon_wind = None
+        self.time_text.set_text('')
+        return self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec
+
+    def animate(self, i):
+        hdg = self.hdg_rad[i]
+        # Wave
+        self._set_ray(self.wave_ship, hdg, 0.8*self.ax_wave.get_rmax())
+        if self.wave_mag.size and self.wave_dir_deg.size:
+            self._set_ray(self.wave_vec, np.deg2rad(self.wave_dir_deg[i]), self.wave_mag[i])
+        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model, hdg, self.ax_wave, 0.25)
+        if self.ship_icon_wave is None:
+            self.ship_icon_wave = Polygon(verts, closed=True, fill=False, lw=1.5)
+            self.ship_icon_wave.set_transform(self.ax_wave.transData); self.ax_wave.add_patch(self.ship_icon_wave)
+        else:
+            self.ship_icon_wave.set_xy(verts)
+
+        # Current
+        self._set_ray(self.curr_ship, hdg, 0.8*self.ax_curr.get_rmax())
+        if self.curr_speed.size and self.curr_dir_deg.size:
+            self._set_ray(self.curr_vec, np.deg2rad(self.curr_dir_deg[i]), self.curr_speed[i])
+        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model, hdg, self.ax_curr, 0.25)
+        if self.ship_icon_curr is None:
+            self.ship_icon_curr = Polygon(verts, closed=True, fill=False, lw=1.5)
+            self.ship_icon_curr.set_transform(self.ax_curr.transData); self.ax_curr.add_patch(self.ship_icon_curr)
+        else:
+            self.ship_icon_curr.set_xy(verts)
+
+        # Wind
+        self._set_ray(self.wind_ship, hdg, 0.8*self.ax_wind.get_rmax())
+        if self.wind_speed.size and self.wind_dir_deg.size:
+            self._set_ray(self.wind_vec, np.deg2rad(self.wind_dir_deg[i]), self.wind_speed[i])
+        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model, hdg, self.ax_wind, 0.25)
+        if self.ship_icon_wind is None:
+            self.ship_icon_wind = Polygon(verts, closed=True, fill=False, lw=1.5)
+            self.ship_icon_wind.set_transform(self.ax_wind.transData); self.ax_wind.add_patch(self.ship_icon_wind)
+        else:
+            self.ship_icon_wind.set_xy(verts)
+
+        self.time_text.set_text(f"t = {self.t[i]:.1f} s")
+        return self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec
+
+    def run(self, fps=None, show=False):
+        if fps is not None: self.interval = 1000 / fps
+        self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
+                                       init_func=self.init_animation, blit=True,
+                                       interval=self.interval, repeat=False)
+        if show:
+            plt.show()
+
+    def save(self, path, fps=2):
+        self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
+                                       init_func=self.init_animation, blit=True,
+                                       interval=self.interval, repeat=False)
         writer = FFMpegWriter(fps=fps)
         self.animation.save(path, writer=writer)
