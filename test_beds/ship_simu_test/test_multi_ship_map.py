@@ -434,7 +434,7 @@ while episode <= args.n_episodes:
 
 # Get the simulation results for all assets, and plot the asset simulation results
 result_dfs = []
-plot_env_load = [True, True, True] # Own ship, Target ship 1, Target ship 2
+plot_env_load = [True, False, False] # Own ship, Target ship 1, Target ship 2
 for i, asset in enumerate(assets):
     result_df = pd.DataFrame().from_dict(env.assets[i].ship_model.simulation_results)
     result_dfs.append(result_df)

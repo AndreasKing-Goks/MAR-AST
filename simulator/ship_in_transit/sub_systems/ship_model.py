@@ -726,6 +726,49 @@ class ShipModel(BaseShipModel):
                     self.stop = True
                     print(self.name_tag, ' in ', self.ship_machinery_model.operating_mode, ' mode experiences power overloading.')
         
+    def sbmpc_colav_override(self, asset_infos):
+        # Get desired heading and speed for collav
+        self.next_wpt, self.prev_wpt = self.auto_pilot.navigate.next_wpt(self.auto_pilot.next_wpt, self.north, self.east)
+        chi_d = self.auto_pilot.navigate.los_guidance(self.auto_pilot.next_wpt, self.north, self.east)
+        u_d = self.desired_speed
+
+        # Get OS state required for SBMPC
+        os_state = np.array([self.east,            # x
+                             self.north,           # y
+                            -self.yaw_angle,       # Same reference angle but clockwise positive
+                             self.forward_speed,   # u
+                             self.sideways_speed,  # v
+                             self.yaw_rate         # Unused
+                            ])
+        
+        do_list = []
+        for i, asset_info in enumerate(asset_infos):
+            if asset_info.name_tag != self.name_tag:  # skip self
+                do_list.append(
+                                    (
+                i, 
+                np.array([
+                    asset_info.current_east,
+                    asset_info.current_north,
+                    -asset_info.current_yaw_angle,
+                    asset_info.forward_speed,
+                    asset_info.sideways_speed
+                ]),
+                None,
+                asset_info.ship_length,
+                asset_info.ship_width
+            )
+                )
+        
+        speed_factor, desired_heading_offset = self.sbmpc.get_optimal_ctrl_offset(
+                u_d=u_d,
+                chi_d=-chi_d,
+                os_state=os_state,
+                do_list=do_list
+                )
+        
+        # Note: self.sbmpc.is_stephen_useful() -> bool can be used to know whether or not the SBMPC colav algorithm is currently active
+        return speed_factor, desired_heading_offset
     
     def step(self, env_args=None, asset_infos=None):
         ''' 
@@ -748,53 +791,11 @@ class ShipModel(BaseShipModel):
         # Keep it, even when sbmpc is disabled
         speed_factor, desired_heading_offset = 1.0, 0.0
 
-        ## COLLISION AVOIDANCE - SBMPC
+        ## COLLISION AVOIDANCE
         ####################################################################################################
         if self.colav_mode == 'sbmpc' and asset_infos is not None:
-            # Get desired heading and speed for collav
-            self.next_wpt, self.prev_wpt = self.auto_pilot.navigate.next_wpt(self.auto_pilot.next_wpt, north_position, east_position)
-            chi_d = self.auto_pilot.navigate.los_guidance(self.auto_pilot.next_wpt, north_position, east_position)
-            u_d = self.desired_speed
-
-            # Get OS state required for SBMPC
-            os_state = np.array([self.east,            # x
-                                 self.north,           # y
-                                -self.yaw_angle,       # Same reference angle but clockwise positive
-                                 self.forward_speed,   # u
-                                 self.sideways_speed,  # v
-                                 self.yaw_rate         # Unused
-                                ])
-            
-            do_list = []
-            for i, asset_info in enumerate(asset_infos):
-                if asset_info.name_tag != self.name_tag:  # skip self
-                    # print(asset_info.name_tag)
-                    do_list.append(
-                                        (
-                    i, 
-                    np.array([
-                        asset_info.current_east,
-                        asset_info.current_north,
-                        -asset_info.current_yaw_angle,
-                        asset_info.forward_speed,
-                        asset_info.sideways_speed
-                    ]),
-                    None,
-                    asset_info.ship_length,
-                    asset_info.ship_width
-                )
-                    )
-            
-            speed_factor, desired_heading_offset = self.sbmpc.get_optimal_ctrl_offset(
-                    u_d=u_d,
-                    chi_d=-chi_d,
-                    os_state=os_state,
-                    do_list=do_list
-                )
-            
-            # if self.sbmpc.is_stephen_useful():
-            #     print(self.name_tag, ' COLAV system activated')
-            # Note: self.sbmpc.is_stephen_useful() -> bool can be used to know whether or not the SBMPC colav algorithm is currently active
+            speed_factor, desired_heading_offset = self.sbmpc_colav_override(asset_infos)
+            self.colav_active = self.sbmpc.is_stephen_useful()
         #################################################################################################### 
         
         # Evaluate the ship condition. If the ship stopped, immediately return
