@@ -370,10 +370,10 @@ map_anim = MapAnimator(
     interval_ms=500,
     status_asset_index=0  # flags for own ship
 )
-map_anim.run(fps=120, show=False)
+map_anim.run(fps=120, show=False, repeat=True)
 
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-polar_anim.run(fps=120, show=False)
+polar_anim.run(fps=120, show=False, repeat=True)
 
 # Place windows next to each other, same height, centered
 place_side_by_side(map_anim.fig, polar_anim.fig,

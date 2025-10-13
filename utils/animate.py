@@ -233,11 +233,11 @@ class MapAnimator:
 
         return (*self.trails, *self.outlines, self.time_text)
 
-    def run(self, fps=None, show=False):
+    def run(self, fps=None, show=False, repeat=False):
         if fps is not None: self.interval = 1000 / fps
         self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
                                        init_func=self.init_animation, blit=True,
-                                       interval=self.interval, repeat=False)
+                                       interval=self.interval, repeat=repeat)
         if show:
             plt.show()
 
@@ -348,11 +348,11 @@ class PolarAnimator:
         self.time_text.set_text(f"t = {self.t[i]:.1f} s")
         return self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec
 
-    def run(self, fps=None, show=False):
+    def run(self, fps=None, show=False, repeat=False):
         if fps is not None: self.interval = 1000 / fps
         self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
                                        init_func=self.init_animation, blit=True,
-                                       interval=self.interval, repeat=False)
+                                       interval=self.interval, repeat=repeat)
         if show:
             plt.show()
 
