@@ -27,7 +27,7 @@ def draw_real_map(ax, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf):
 
     ax.set_autoscale_on(False)
     ax.set_aspect('equal', adjustable='box')
-    ax.set_anchor('C')
+    # ax.set_anchor('C')
     ax.set_axis_off()
     ax.margins(0)
     ax.grid(False)

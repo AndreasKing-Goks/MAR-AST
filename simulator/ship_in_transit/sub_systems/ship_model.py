@@ -487,19 +487,27 @@ class ShipModel(BaseShipModel):
             initial_propeller_shaft_speed_rad_per_sec=initial_propeller_shaft_speed_rad_per_s,
             time_step=self.int.dt/engine_steps_per_time_step
         )
-        self.throttle_controller = EngineThrottleFromSpeedSetPoint(
-            gains=throttle_controller_gain,
-            max_shaft_speed=self.ship_machinery_model.shaft_speed_max,
-            time_step=self.int.dt,
-            initial_shaft_speed_integral_error=114
-        )
-        self.auto_pilot = HeadingBySampledRouteController(
-            route_name=route_name,
-            heading_controller_gains=heading_controller_gain,
-            los_parameters=los_parameters,
-            time_step=self.int.dt,
-            max_rudder_angle=np.rad2deg(machinery_config.max_rudder_angle_degrees)
-        )
+        
+        if throttle_controller_gain is not None:
+            self.throttle_controller = EngineThrottleFromSpeedSetPoint(
+                gains=throttle_controller_gain,
+                max_shaft_speed=self.ship_machinery_model.shaft_speed_max,
+                time_step=self.int.dt,
+                initial_shaft_speed_integral_error=114
+            )
+        else:
+            self.throttle_controller = None
+        
+        if heading_controller_gain is not None or los_parameters is not None:
+            self.auto_pilot = HeadingBySampledRouteController(
+                route_name=route_name,
+                heading_controller_gains=heading_controller_gain,
+                los_parameters=los_parameters,
+                time_step=self.int.dt,
+                max_rudder_angle=np.rad2deg(machinery_config.max_rudder_angle_degrees)
+            )
+        else:
+            self.auto_pilot = None
         
         # Ship desired speed
         self.desired_speed = desired_speed
@@ -604,7 +612,11 @@ class ShipModel(BaseShipModel):
         self.three_dof_kinematics()
         for _ in range(int(self.int.dt / self.ship_machinery_model.int.dt)):
             self.ship_machinery_model.update_shaft_equation(engine_throttle)
-        self.three_dof_kinetics(thrust_force=self.ship_machinery_model.thrust(), 
+        if engine_throttle is not None:
+            thrust_force = self.ship_machinery_model.thrust()
+        else:
+            thrust_force = 0.0
+        self.three_dof_kinetics(thrust_force=thrust_force, 
                                 rudder_angle=rudder_angle,
                                 env_loads=env_loads)
 
@@ -727,14 +739,15 @@ class ShipModel(BaseShipModel):
                     'mode is outside the map horizon.')
 
         # --- Navigation failure --------------------------------------------------
-        nav_fail = check_condition.is_ship_navigation_failure(
-            e_ct=self.auto_pilot.navigate.e_ct,
-            e_tol=self.cross_track_error_tolerance
-        )
-        push_flag('navigation_failure', nav_fail, self.nav_failure_array)
-        if nav_fail:
-            print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
-                'experiences navigational failure.')
+        if self.auto_pilot is not None:
+            nav_fail = check_condition.is_ship_navigation_failure(
+                e_ct=self.auto_pilot.navigate.e_ct,
+                e_tol=self.cross_track_error_tolerance
+            )
+            push_flag('navigation_failure', nav_fail, self.nav_failure_array)
+            if nav_fail:
+                print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                    'experiences navigational failure.')
 
         # --- Reaches endpoint ----------------------------------------------------
         reached = check_condition.is_reaches_endpoint(
@@ -859,7 +872,7 @@ class ShipModel(BaseShipModel):
 
         ## COLLISION AVOIDANCE
         ####################################################################################################
-        if self.colav_mode == 'sbmpc' and asset_infos is not None:
+        if self.colav_mode == 'sbmpc' and asset_infos is not None and self.auto_pilot is not None:
             speed_factor, desired_heading_offset = self.sbmpc_colav_override(asset_infos)
             # Append colav active boolean
             self.colav_active_array.append(self.sbmpc.is_stephen_useful())
@@ -916,19 +929,24 @@ class ShipModel(BaseShipModel):
             
         env_loads = wave_force, wind_force, vel_c
         
+        # Value when free floating
+        rudder_angle, throttle = 0.0, 0.0
+        
         # Find appropriate rudder angle and engine throttle
-        rudder_angle = self.auto_pilot.rudder_angle_from_sampled_route(
-            north_position=north_position,
-            east_position=east_position,
-            heading=heading,
-            desired_heading_offset=desired_heading_offset
-        )
+        if self.auto_pilot is not None:
+            rudder_angle = self.auto_pilot.rudder_angle_from_sampled_route(
+                north_position=north_position,
+                east_position=east_position,
+                heading=heading,
+                desired_heading_offset=desired_heading_offset
+            )
 
-        throttle = self.throttle_controller.throttle(
-            speed_set_point = self.desired_speed * speed_factor,
-            measured_speed = measured_speed,
-            measured_shaft_speed = measured_shaft_speed,
-        )
+        if throttle is not None:
+            throttle = self.throttle_controller.throttle(
+                speed_set_point = self.desired_speed * speed_factor,
+                measured_speed = measured_speed,
+                measured_shaft_speed = measured_shaft_speed,
+            )
         
         
         # Update and integrate differential equations for current time step

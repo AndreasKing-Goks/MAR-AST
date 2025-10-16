@@ -184,21 +184,10 @@ own_ship_config = SimulationConfiguration(
     integration_step=args.time_step,
     simulation_time=10000,
 )
-# Set the throttle and autopilot controllers for the own ship
-own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005
-)
 
-own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
-own_ship_los_guidance_parameters = LosParameters(
-    radius_of_acceptance=args.radius_of_acceptance,
-    lookahead_distance=args.lookahead_distance,
-    integral_gain=0.002,
-    integrator_windup_limit=4000
-)
-own_ship_desired_speed = 8.0
-own_ship_cross_track_error_tolerance = 750
-own_ship_initial_propeller_shaft_speed = 420
+own_ship_desired_speed = 0.0
+own_ship_cross_track_error_tolerance = np.inf
+own_ship_initial_propeller_shaft_speed = 0.0
 own_ship = ShipModel(
     ship_config=ship_config,
     simulation_config=own_ship_config,
@@ -206,16 +195,16 @@ own_ship = ShipModel(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     machinery_config=machinery_config,                       
-    throttle_controller_gain=own_ship_throttle_controller_gains,
-    heading_controller_gain=own_ship_heading_controller_gains,
-    los_parameters=own_ship_los_guidance_parameters,
+    throttle_controller_gain=None,              # Ship is free-floating
+    heading_controller_gain=None,               # Ship is free-floating
+    los_parameters=None,                        # Ship is free-floating
     name_tag='Own ship',
-    route_name=own_ship_route_name,
+    route_name=None,                            # Ship is free-floating
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
     desired_speed=own_ship_desired_speed,
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
-    map_obj=map,
+    map_obj=None,
     colav_mode='sbmpc'
 )
 own_ship_info = AssetInfo(
@@ -249,7 +238,7 @@ time_since_last_ship_drawing = 30
 # Initiate Multi-Ship Reinforcement Learning Environment Class Wrapper
 env = MultiShipEnv(
     assets=assets,
-    map=map,
+    map=None,
     wave_model_config=wave_model_config,
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
@@ -300,10 +289,7 @@ result_dfs = [own_ship_results_df]
 #                      show=True)
 
 # # Plot 1: Trajectory
-# plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)
+# plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, showt=False)
 
 # Plot 2: Status plot
-plot_ship_and_real_map(assets, result_dfs, map_gdfs)
-
-# Show Plot
-plt.show()
+plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=True)

@@ -188,31 +188,32 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
         
 def plot_ship_and_real_map(assets,
                            result_dfs,
-                           map_gdfs=None):
-    
-    # Center plotting
-    center_plot_window()
+                           map_gdfs=None, 
+                           show=False):
     
     fig, ax = plt.subplots(figsize=(14, 8))
 
-    if map_gdfs is not None:
-        # draw order: land first, then ocean/water, then coast lines, then frame boundary
-        land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf = map_gdfs
-        if not land_gdf.empty:
-            land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
-        if not ocean_gdf.empty:
-            ocean_gdf.plot(ax=ax, facecolor="#d9f2ff", edgecolor="#bde9ff", linewidth=0.4, alpha=0.95, zorder=2)
-        if not water_gdf.empty:
-            water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
-        if not coast_gdf.empty:
-            coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
+    # if map_gdfs is not None:
+    # draw order: land first, then ocean/water, then coast lines, then frame boundary
+    land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf = map_gdfs
+    if not land_gdf.empty:
+        land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
+    if not ocean_gdf.empty:
+        ocean_gdf.plot(ax=ax, facecolor="#d9f2ff", edgecolor="#bde9ff", linewidth=0.4, alpha=0.95, zorder=2)
+    if not water_gdf.empty:
+        water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
+    if not coast_gdf.empty:
+        coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
 
-        # fit exactly to frame bounds, remove margins/axes so the basemap fills the figure
-        minx, miny, maxx, maxy = frame_gdf.total_bounds
-        ax.set_xlim(minx, maxx); ax.set_ylim(miny, maxy)
-        ax.set_aspect("equal"); ax.set_axis_off(); ax.margins(0)
-        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        # ax.set_title("SIT simulation over real map", fontsize=12)
+    # fit exactly to frame bounds, remove margins/axes so the basemap fills the figure
+    minx, miny, maxx, maxy = frame_gdf.total_bounds
+    # ax.set_xlim(minx, maxx)
+    # ax.set_ylim(miny, maxy)
+    ax.set_aspect('equal', adjustable='datalim')
+    ax.set_axis_off(); 
+    ax.margins(0)
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    # ax.set_title("SIT simulation over real map", fontsize=12)
 
     # Plot 1.1: Ship trajectory with sampled route
     # Test ship
@@ -234,3 +235,7 @@ def plot_ship_and_real_map(assets,
 
     # Adjust layout for better spacing
     plt.tight_layout()
+    
+    # Show plot
+    if show:
+        plt.show()

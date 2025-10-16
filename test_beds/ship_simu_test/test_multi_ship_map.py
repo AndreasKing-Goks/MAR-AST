@@ -461,10 +461,7 @@ for i, asset in enumerate(assets):
     result_dfs.append(result_df)
     
     # Plot 1: Status plot
-    plot_ship_status(asset, result_df, plot_env_load=plot_env_load[i])
+    plot_ship_status(asset, result_df, plot_env_load=plot_env_load[i], show=False)
 
 # Plot 1: Ship and Map Plotting
-plot_ship_and_real_map(assets, result_dfs, map_gdfs)
-
-# Show Plot
-plt.show()
+plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True)

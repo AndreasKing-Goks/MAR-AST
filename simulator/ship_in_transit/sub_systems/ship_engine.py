@@ -479,6 +479,7 @@ class ShipMachineryModel(BaseMachineryModel):
         self.omega = self.int.integrate(x=self.omega, dx=self.d_omega)
 
     def update_shaft_equation(self, load_percentage):
+        if load_percentage is None: load_percentage = 0.0
         self.shaft_eq(
             torque_main_engine=self.main_engine_torque(load_perc=load_percentage),
             torque_hsg=self.hsg_torque(load_perc=load_percentage)
