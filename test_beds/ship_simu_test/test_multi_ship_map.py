@@ -22,6 +22,7 @@ from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfigurat
 ## IMPORT FUNCTIONS
 from utils.get_path import get_ship_route_path, get_map_path
 from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
+from utils.animate import MapAnimator, PolarAnimator, place_side_by_side
 from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ### IMPORT TOOLS
@@ -430,6 +431,27 @@ while episode <= args.n_episodes:
     episode += 1
 
 ################################## GET RESULTS ##################################
+
+# Build both animations (don’t show yet)
+map_anim = MapAnimator(
+    assets=assets,
+    map_gdfs=(land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf),
+    interval_ms=500,
+    status_asset_index=0  # flags for own ship
+)
+map_anim.run(fps=120, show=True)
+
+polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
+polar_anim.run(fps=120, show=True)
+
+# Place windows next to each other, same height, centered
+place_side_by_side(map_anim.fig, polar_anim.fig,
+                   left_frac=0.68,  # how wide the map window is
+                   height_frac=0.92,
+                   gap_px=16)
+
+# Show both together
+plt.show()
 
 ## Get the simulation results for all assets, and plot the asset simulation results
 result_dfs = []

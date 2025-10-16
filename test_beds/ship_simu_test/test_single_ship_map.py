@@ -306,10 +306,10 @@ map_anim = MapAnimator(
     interval_ms=500,
     status_asset_index=0  # flags for own ship
 )
-map_anim.run(fps=120, show=False)
+map_anim.run(fps=120, show=True)
 
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-polar_anim.run(fps=120, show=False)
+polar_anim.run(fps=120, show=True)
 
 # Place windows next to each other, same height, centered
 place_side_by_side(map_anim.fig, polar_anim.fig,
@@ -320,11 +320,11 @@ place_side_by_side(map_anim.fig, polar_anim.fig,
 # Show both together
 plt.show()
 
-# # Plot 1: Trajectory
-# plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)
+# Plot 1: Trajectory
+plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)
 
-# # Plot 2: Status plot
-# plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
+# Plot 2: Status plot
+plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
 
-# # Show Plot
-# plt.show()
+# Show Plot
+plt.show()
