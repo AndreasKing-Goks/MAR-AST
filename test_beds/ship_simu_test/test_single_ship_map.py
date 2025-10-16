@@ -22,7 +22,7 @@ from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfigurat
 ## IMPORT FUNCTIONS
 from utils.get_path import get_ship_route_path, get_map_path
 from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
-from utils.animate import MapAnimator, PolarAnimator, place_side_by_side
+from utils.animate import MapAnimator, PolarAnimator, animate_side_by_side
 from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ### IMPORT TOOLS
@@ -306,19 +306,20 @@ map_anim = MapAnimator(
     interval_ms=500,
     status_asset_index=0  # flags for own ship
 )
-map_anim.run(fps=120, show=True)
+
+repeat=False
+
+map_anim.run(fps=120, show=False, repeat=False)
 
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-polar_anim.run(fps=120, show=True)
+polar_anim.run(fps=120, show=False, repeat=False)
 
 # Place windows next to each other, same height, centered
-place_side_by_side(map_anim.fig, polar_anim.fig,
-                   left_frac=0.68,  # how wide the map window is
-                   height_frac=0.92,
-                   gap_px=16)
-
-# Show both together
-plt.show()
+animate_side_by_side(map_anim.fig, polar_anim.fig,
+                     left_frac=0.68,  # how wide the map window is
+                     height_frac=0.92,
+                     gap_px=16,
+                     show=True)
 
 # Plot 1: Trajectory
 plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)

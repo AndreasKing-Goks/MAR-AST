@@ -98,7 +98,7 @@ def move_figure(fig, x, y, w=None, h=None):
         # Last-ditch: ignore failures silently
         pass
 
-def place_side_by_side(fig_left, fig_right, left_frac=0.68, height_frac=0.92, gap_px=12):
+def animate_side_by_side(fig_left, fig_right, left_frac=0.68, height_frac=0.92, gap_px=12, show=True):
     """Center both windows on screen, same height, side-by-side."""
     sw, sh = get_screen_size(fig_left)
     H = int(sh * height_frac)
@@ -109,6 +109,8 @@ def place_side_by_side(fig_left, fig_right, left_frac=0.68, height_frac=0.92, ga
     y0 = (sh - H) // 2
     move_figure(fig_left,  x0,              y0, W_left,  H)
     move_figure(fig_right, x0 + W_left + gap_px, y0, W_right, H)
+    if show:
+        plt.show()
 
 # =========================
 # 1) MAP-ONLY ANIMATOR (with status strip)
@@ -253,7 +255,11 @@ class MapAnimator:
 # =========================
 
 class PolarAnimator:
-    def __init__(self, focus_asset, interval_ms=500):
+    """
+    Three polar panels (wave/current/wind) for one focus ship.
+    Each axis gets its own rmax based on its own data.
+    """
+    def __init__(self, focus_asset, interval_ms=500, rpad=0.05, rmin=1.0):
         self.a = focus_asset
         self.interval = interval_ms
 
@@ -261,30 +267,42 @@ class PolarAnimator:
         self.t = np.asarray(sim['time [s]'])
         self.hdg_rad = np.radians(np.asarray(sim['yaw angle [deg]']))
 
+        # Wave: from forces (math -> nav)
         dy = np.asarray(sim['wave force north [N]'])
         dx = np.asarray(sim['wave force east [N]'])
         wave_deg_math = np.rad2deg(np.arctan2(dy, dx))
         self.wave_dir_deg = _math_to_nav(wave_deg_math)
         self.wave_mag     = np.sqrt(dx**2 + dy**2)
 
+        # Current & wind (assumed already 0N/CW+; convert here if not)
         self.curr_dir_deg = np.asarray(sim['current dir [deg]'])
         self.curr_speed   = np.asarray(sim['current speed [m/s]'])
         self.wind_dir_deg = np.asarray(sim['wind dir [deg]'])
         self.wind_speed   = np.asarray(sim['wind speed [m/s]'])
 
+        # ----- per-axis rmax (with small padding) -----
+        def _rmax(arr):
+            if hasattr(arr, "size") and arr.size:
+                m = float(np.nanmax(arr))
+                return max(rmin, m * (1.0 + rpad))
+            return rmin
+
+        self.rmax_wave = _rmax(self.wave_mag)
+        self.rmax_curr = _rmax(self.curr_speed)
+        self.rmax_wind = _rmax(self.wind_speed)
+
+        # Figure
         self.fig = plt.figure(figsize=(6.5, 9), constrained_layout=True)
         self.ax_wave  = self.fig.add_subplot(311, projection='polar')
         self.ax_curr  = self.fig.add_subplot(312, projection='polar')
         self.ax_wind  = self.fig.add_subplot(313, projection='polar')
 
-        rmax = max(1.0, np.nanmax([self.wave_mag.max() if self.wave_mag.size else 1,
-                                   self.curr_speed.max() if self.curr_speed.size else 1,
-                                   self.wind_speed.max() if self.wind_speed.size else 1]))
-        for ax, title in [(self.ax_wave, "Wave & heading"),
-                          (self.ax_curr, "Current & heading"),
-                          (self.ax_wind, "Wind & heading")]:
-            setup_nav_polar(ax, rmax); ax.set_title(title)
+        # Apply per-axis nav setup
+        setup_nav_polar(self.ax_wave, self.rmax_wave); self.ax_wave.set_title("Wave & heading")
+        setup_nav_polar(self.ax_curr, self.rmax_curr); self.ax_curr.set_title("Current & heading")
+        setup_nav_polar(self.ax_wind, self.rmax_wind); self.ax_wind.set_title("Wind & heading")
 
+        # Rays + ship icons
         self.wave_ship, = self.ax_wave.plot([], [], lw=2)
         self.wave_vec,  = self.ax_wave.plot([], [], lw=2)
         self.curr_ship, = self.ax_curr.plot([], [], lw=2)
@@ -292,11 +310,15 @@ class PolarAnimator:
         self.wind_ship, = self.ax_wind.plot([], [], lw=2)
         self.wind_vec,  = self.ax_wind.plot([], [], lw=2)
 
-        self.ship_icon_wave = self.ship_icon_curr = self.ship_icon_wind = None
+        self.ship_icon_wave = None
+        self.ship_icon_curr = None
+        self.ship_icon_wind = None
+
         self.time_text = self.fig.text(0.02, 0.98, '', ha='left', va='top')
 
     @staticmethod
-    def _set_ray(line, theta, r): line.set_data([theta, theta], [0, max(0, r)])
+    def _set_ray(line, theta, r):
+        line.set_data([theta, theta], [0, max(0, r)])
 
     def init_animation(self):
         for ln in [self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec]:
@@ -312,33 +334,37 @@ class PolarAnimator:
 
     def animate(self, i):
         hdg = self.hdg_rad[i]
-        # Wave
+
+        # Wave panel
         self._set_ray(self.wave_ship, hdg, 0.8*self.ax_wave.get_rmax())
         if self.wave_mag.size and self.wave_dir_deg.size:
             self._set_ray(self.wave_vec, np.deg2rad(self.wave_dir_deg[i]), self.wave_mag[i])
-        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model, hdg, self.ax_wave, 0.25)
+        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model,
+                                    hdg, self.ax_wave, 0.25)
         if self.ship_icon_wave is None:
             self.ship_icon_wave = Polygon(verts, closed=True, fill=False, lw=1.5)
             self.ship_icon_wave.set_transform(self.ax_wave.transData); self.ax_wave.add_patch(self.ship_icon_wave)
         else:
             self.ship_icon_wave.set_xy(verts)
 
-        # Current
+        # Current panel
         self._set_ray(self.curr_ship, hdg, 0.8*self.ax_curr.get_rmax())
         if self.curr_speed.size and self.curr_dir_deg.size:
             self._set_ray(self.curr_vec, np.deg2rad(self.curr_dir_deg[i]), self.curr_speed[i])
-        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model, hdg, self.ax_curr, 0.25)
+        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model,
+                                    hdg, self.ax_curr, 0.25)
         if self.ship_icon_curr is None:
             self.ship_icon_curr = Polygon(verts, closed=True, fill=False, lw=1.5)
             self.ship_icon_curr.set_transform(self.ax_curr.transData); self.ax_curr.add_patch(self.ship_icon_curr)
         else:
             self.ship_icon_curr.set_xy(verts)
 
-        # Wind
+        # Wind panel
         self._set_ray(self.wind_ship, hdg, 0.8*self.ax_wind.get_rmax())
         if self.wind_speed.size and self.wind_dir_deg.size:
             self._set_ray(self.wind_vec, np.deg2rad(self.wind_dir_deg[i]), self.wind_speed[i])
-        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model, hdg, self.ax_wind, 0.25)
+        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model,
+                                    hdg, self.ax_wind, 0.25)
         if self.ship_icon_wind is None:
             self.ship_icon_wind = Polygon(verts, closed=True, fill=False, lw=1.5)
             self.ship_icon_wind.set_transform(self.ax_wind.transData); self.ax_wind.add_patch(self.ship_icon_wind)
@@ -362,3 +388,4 @@ class PolarAnimator:
                                        interval=self.interval, repeat=False)
         writer = FFMpegWriter(fps=fps)
         self.animation.save(path, writer=writer)
+

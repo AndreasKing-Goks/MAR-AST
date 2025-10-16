@@ -19,7 +19,7 @@ from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConf
 from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
 
 ## IMPORT UTILITIES
-from utils.center_plot import center_plot_window
+from utils.plot_simulation import center_plot_window
 
 ### IMPORT TOOLS
 import argparse
