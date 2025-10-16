@@ -60,22 +60,6 @@ parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
 
 args = parser.parse_args()
 
-# -----------------------
-# GPKG settings (edit if your layer names differ)
-# -----------------------
-GPKG_PATH   = get_map_path(ROOT, "basemap.gpkg")       # <-- put your file here (or absolute path)
-FRAME_LAYER = "frame_3857"
-OCEAN_LAYER = "ocean_3857"
-LAND_LAYER  = "land_3857"
-COAST_LAYER = "coast_3857"               # optional
-WATER_LAYER = "water_3857"               # optional
-
-frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = get_gdf_from_gpkg(GPKG_PATH, FRAME_LAYER, OCEAN_LAYER, LAND_LAYER, COAST_LAYER, WATER_LAYER)
-map_gdfs = frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf
-
-map_data = get_polygon_from_gdf(land_gdf)   # list of exterior rings (E,N)
-map = PolygonObstacle(map_data)              # <-- reuse your existing simulator map type
-
 # Engine configuration
 main_engine_capacity = 2160e3 #4160e3
 diesel_gen_capacity = 510e3 #610e3
@@ -188,17 +172,13 @@ machinery_config = MachinerySystemConfiguration(
 )
 
 ### CONFIGURE THE SHIP SIMULATION MODELS
-## Own ship
-own_ship_route_filename = 'own_ship_route.txt'
-own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
-
-start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
+start_E, start_N = 0.0, 0.0
 
 own_ship_config = SimulationConfiguration(
     initial_north_position_m=start_E,
     initial_east_position_m=start_N,
-    initial_yaw_angle_rad=np.deg2rad(-30.0),
-    initial_forward_speed_m_per_s=4.0,
+    initial_yaw_angle_rad=np.deg2rad(0.0),
+    initial_forward_speed_m_per_s=0.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
@@ -299,33 +279,31 @@ while episode <= args.n_episodes:
 own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
 result_dfs = [own_ship_results_df]
 
-# Build both animations (don’t show yet)
-map_anim = MapAnimator(
-    assets=assets,
-    map_gdfs=(land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf),
-    interval_ms=500,
-    status_asset_index=0  # flags for own ship
-)
+# # Build both animations (don’t show yet)
+# repeat=False
+# map_anim = MapAnimator(
+#     assets=assets,
+#     map_gdfs=(land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf),
+#     interval_ms=500,
+#     status_asset_index=0  # flags for own ship
+# )
+# map_anim.run(fps=120, show=False, repeat=repeat)
 
-repeat=False
+# polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
+# polar_anim.run(fps=120, show=False, repeat=repeat)
 
-map_anim.run(fps=120, show=False, repeat=repeat)
+# # Place windows next to each other, same height, centered
+# animate_side_by_side(map_anim.fig, polar_anim.fig,
+#                      left_frac=0.68,  # how wide the map window is
+#                      height_frac=0.92,
+#                      gap_px=16,
+#                      show=True)
 
-polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-polar_anim.run(fps=120, show=False, repeat=repeat)
-
-# Place windows next to each other, same height, centered
-animate_side_by_side(map_anim.fig, polar_anim.fig,
-                     left_frac=0.68,  # how wide the map window is
-                     height_frac=0.92,
-                     gap_px=16,
-                     show=True)
-
-# Plot 1: Trajectory
-plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)
+# # Plot 1: Trajectory
+# plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)
 
 # Plot 2: Status plot
-plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
+plot_ship_and_real_map(assets, result_dfs, map_gdfs)
 
 # Show Plot
 plt.show()

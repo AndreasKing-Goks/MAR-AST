@@ -71,6 +71,7 @@ COAST_LAYER = "coast_3857"               # optional
 WATER_LAYER = "water_3857"               # optional
 
 frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = get_gdf_from_gpkg(GPKG_PATH, FRAME_LAYER, OCEAN_LAYER, LAND_LAYER, COAST_LAYER, WATER_LAYER)
+map_gdfs = frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf
 
 map_data = get_polygon_from_gdf(land_gdf)   # list of exterior rings (E,N)
 map = PolygonObstacle(map_data)              # <-- reuse your existing simulator map type
@@ -364,15 +365,13 @@ while episode <= args.n_episodes:
 
 ################################## GET RESULTS ##################################
 # Build both animations (don’t show yet)
+repeat=False
 map_anim = MapAnimator(
     assets=assets,
     map_gdfs=(land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf),
     interval_ms=500,
     status_asset_index=0  # flags for own ship
 )
-
-repeat=False
-
 map_anim.run(fps=120, show=False, repeat=repeat)
 
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
@@ -396,7 +395,7 @@ for i, asset in enumerate(assets):
     plot_ship_status(asset, result_df, plot_env_load=plot_env_load[i])
 
 # Plot 1: Ship and Map Plotting
-plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
+plot_ship_and_real_map(assets, result_dfs, map_gdfs)
 
 # Show Plot
 plt.show()

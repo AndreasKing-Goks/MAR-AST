@@ -300,15 +300,13 @@ own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulati
 result_dfs = [own_ship_results_df]
 
 # Build both animations (don’t show yet)
+repeat=False
 map_anim = MapAnimator(
     assets=assets,
     map_gdfs=(land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf),
     interval_ms=500,
     status_asset_index=0  # flags for own ship
 )
-
-repeat=False
-
 map_anim.run(fps=120, show=False, repeat=False)
 
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
@@ -325,7 +323,7 @@ animate_side_by_side(map_anim.fig, polar_anim.fig,
 plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True)
 
 # Plot 2: Status plot
-plot_ship_and_real_map(assets, result_dfs, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf)
+plot_ship_and_real_map(assets, result_dfs, map_gdfs)
 
 # Show Plot
 plt.show()
