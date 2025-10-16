@@ -21,7 +21,7 @@ def draw_real_map(ax, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf):
 
     # Keep the full frame extent (avoid aspect cropping)
     if frame_gdf is not None and not frame_gdf.empty:
-        minx, miny, maxx, maxy = frame_gdf.total_bounds
+        minx, miny, maxx, maxy = land_gdf.total_bounds
         ax.set_xlim(minx, maxx)
         ax.set_ylim(miny, maxy)
 

@@ -20,9 +20,6 @@ from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConf
 from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
 
 ## IMPORT FUNCTIONS
-from utils.get_path import get_ship_route_path, get_map_path
-from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
-from utils.animate import MapAnimator, PolarAnimator, animate_side_by_side
 from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ### IMPORT TOOLS
@@ -182,11 +179,11 @@ own_ship_config = SimulationConfiguration(
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
-    simulation_time=10000,
+    simulation_time=5000,
 )
 
 own_ship_desired_speed = 0.0
-own_ship_cross_track_error_tolerance = np.inf
+own_ship_cross_track_error_tolerance = 1000.0
 own_ship_initial_propeller_shaft_speed = 0.0
 own_ship = ShipModel(
     ship_config=ship_config,
@@ -255,9 +252,13 @@ while episode <= args.n_episodes:
     print("--- EPISODE " + str(episode) + " ---")
     
     ## THIS IS WHERE THE SIMULATION HAPPENS
-    running_time = np.max([asset.ship_model.int.time for asset in assets])
+    running_time = 0
     while running_time < own_ship.int.sim_time and env.stop is False:
+        # Step
         env.step()
+        
+        # Update running time
+        running_time = np.max([asset.ship_model.int.time for asset in assets])
     
     # Increment the episode
     episode += 1
@@ -268,28 +269,8 @@ while episode <= args.n_episodes:
 own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
 result_dfs = [own_ship_results_df]
 
-# # Build both animations (don’t show yet)
-# repeat=False
-# map_anim = MapAnimator(
-#     assets=assets,
-#     map_gdfs=(land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf),
-#     interval_ms=500,
-#     status_asset_index=0  # flags for own ship
-# )
-# map_anim.run(fps=120, show=False, repeat=repeat)
-
-# polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-# polar_anim.run(fps=120, show=False, repeat=repeat)
-
-# # Place windows next to each other, same height, centered
-# animate_side_by_side(map_anim.fig, polar_anim.fig,
-#                      left_frac=0.68,  # how wide the map window is
-#                      height_frac=0.92,
-#                      gap_px=16,
-#                      show=True)
-
-# # Plot 1: Trajectory
-# plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, showt=False)
+# Plot 1: Trajectory
+plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, show=False)
 
 # Plot 2: Status plot
 plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=True)

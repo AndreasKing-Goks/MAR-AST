@@ -186,56 +186,68 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
     if show:
         plt.show()
         
-def plot_ship_and_real_map(assets,
-                           result_dfs,
-                           map_gdfs=None, 
-                           show=False):
+def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
+    fig, ax = plt.subplots(figsize=(16, 9))  # temp; we’ll resize to aspect
     
-    fig, ax = plt.subplots(figsize=(14, 8))
+    if map_gdfs is not None:
+        land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf = map_gdfs
+        if not land_gdf.empty:
+            land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
+        if not ocean_gdf.empty:
+            ocean_gdf.plot(ax=ax, facecolor="#d9f2ff", edgecolor="#bde9ff", linewidth=0.4, alpha=0.95, zorder=2)
+        if not water_gdf.empty:
+            water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
+        if not coast_gdf.empty:
+            coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
 
-    # if map_gdfs is not None:
-    # draw order: land first, then ocean/water, then coast lines, then frame boundary
-    land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf = map_gdfs
-    if not land_gdf.empty:
-        land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
-    if not ocean_gdf.empty:
-        ocean_gdf.plot(ax=ax, facecolor="#d9f2ff", edgecolor="#bde9ff", linewidth=0.4, alpha=0.95, zorder=2)
-    if not water_gdf.empty:
-        water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
-    if not coast_gdf.empty:
-        coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
+        # --- fit to frame & keep aspect ---
+        minx, miny, maxx, maxy = land_gdf.total_bounds
+        dx, dy = (maxx - minx), (maxy - miny)
+        ax.set_xlim(minx, maxx)
+        ax.set_ylim(miny, maxy)
 
-    # fit exactly to frame bounds, remove margins/axes so the basemap fills the figure
-    minx, miny, maxx, maxy = frame_gdf.total_bounds
-    # ax.set_xlim(minx, maxx)
-    # ax.set_ylim(miny, maxy)
-    ax.set_aspect('equal', adjustable='datalim')
-    ax.set_axis_off(); 
-    ax.margins(0)
-    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    # ax.set_title("SIT simulation over real map", fontsize=12)
+        # Resize figure to match map aspect (no letterbox)
+        fig_w = 16.0
+        fig_h = fig_w * (dy / dx) if dx > 0 else 9.0
+        fig.set_size_inches(fig_w, fig_h, forward=True)
 
-    # Plot 1.1: Ship trajectory with sampled route
-    # Test ship
-    color = ['blue', 'red', 'green', 'yellow', 'pink', 'brown', 'black', 'white', 'gray']
+    # Full-bleed canvas
+    ax.set_axis_off()
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    ax.set_position([0, 0, 1, 1])
     
+    # -------- enforce 1:1 scale from DATA --------
+    # If no map was set, autoscale to the plotted data first
+    ax.relim(); ax.autoscale_view()
+    # Now lock aspect so 1 unit in x == 1 unit in y
+    ax.set_aspect('equal', adjustable='box')   # robust when limits come from data
+
+    # --- ships & routes ---
+    palette = ['#1f77b4', '#d62728', '#2ca02c', '#bcbd22', '#e377c2', '#8c564b', '#000000', '#7f7f7f', '#17becf']
     for i, asset in enumerate(assets):
-        plt.plot(result_dfs[i]['east position [m]'].to_numpy(), result_dfs[i]['north position [m]'].to_numpy(), label=asset.info.name_tag) # Trajectories
-        plt.scatter(asset.ship_model.auto_pilot.navigate.east, asset.ship_model.auto_pilot.navigate.north, marker='x', color=color[i])  # Waypoints
-        plt.plot(asset.ship_model.auto_pilot.navigate.east, asset.ship_model.auto_pilot.navigate.north, linestyle='--', color=color[i])  # Waypoints Line
+        c = palette[i % len(palette)]
+        ax.plot(result_dfs[i]['east position [m]'].to_numpy(),
+                result_dfs[i]['north position [m]'].to_numpy(),
+                lw=2, alpha=0.95, label=asset.info.name_tag, zorder=5)
+        if asset.ship_model.auto_pilot is not None:
+            ax.plot(asset.ship_model.auto_pilot.navigate.east,
+                    asset.ship_model.auto_pilot.navigate.north,
+                    linestyle='--', lw=1.2, alpha=0.85, color=c, zorder=5)
+            ax.scatter(asset.ship_model.auto_pilot.navigate.east,
+                    asset.ship_model.auto_pilot.navigate.north,
+                    marker='x', s=28, linewidths=1.2, color=c, zorder=6)
         for x, y in zip(asset.ship_model.ship_drawings[1], asset.ship_model.ship_drawings[0]):
-            plt.plot(x, y, color=color[i])
+            ax.plot(x, y, color=c, lw=1.0, zorder=7)
 
-    plt.title('Ship Trajectory')
-    plt.xlabel('East position (m)')
-    plt.ylabel('North position (m)')
-    plt.legend()
-    plt.gca().set_aspect('equal')
-    plt.grid(color='0.8', linestyle='-', linewidth=0.5)
-
-    # Adjust layout for better spacing
-    plt.tight_layout()
+    lg = ax.legend(loc='upper right', frameon=True)
+    lg.get_frame().set_alpha(0.95)
     
-    # Show plot
+    ax.set_axis_on()
+    fig.subplots_adjust(left=0.06, right=0.99, top=0.96, bottom=0.07)
+    ax.set_title('Ship Trajectory')
+    ax.set_xlabel('East position (m)')
+    ax.set_ylabel('North position (m)')
+    ax.grid(True, linewidth=0.5, alpha=0.4)
+
     if show:
         plt.show()

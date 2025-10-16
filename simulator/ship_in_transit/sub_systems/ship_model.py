@@ -479,8 +479,7 @@ class ShipModel(BaseShipModel):
                  colav_mode=None):
         super().__init__(ship_config, simulation_config, wave_model_config, current_model_config, wind_model_config)
         
-        if map_obj is not None:
-            self.map_obj = map_obj
+        self.map_obj = map_obj
         
         self.ship_machinery_model = ShipMachineryModel(
             machinery_config=machinery_config,
@@ -557,7 +556,6 @@ class ShipModel(BaseShipModel):
             states in the previous time-step.
         '''
         # Environmental conditions
-
         wave_force, wind_force, vel_c = env_loads
 
         # Forces acting (replace zero vectors with suitable functions)
@@ -750,18 +748,19 @@ class ShipModel(BaseShipModel):
                     'experiences navigational failure.')
 
         # --- Reaches endpoint ----------------------------------------------------
-        reached = check_condition.is_reaches_endpoint(
-            route_end=[self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]],
-            pos=[self.north, self.east],
-            arrival_radius=250
+        if self.auto_pilot is not None:
+            reached = check_condition.is_reaches_endpoint(
+                route_end=[self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]],
+                pos=[self.north, self.east],
+                arrival_radius=250
         )
-        # Keep per-tick alignment (add an array if useful)
-        if not hasattr(self, 'reaches_endpoint_array'):
-            self.reaches_endpoint_array = []
-        push_flag('reaches_endpoint', reached, self.reaches_endpoint_array)
-        if reached:
-            print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
-                'mode reaches its final destination.')
+            # Keep per-tick alignment (add an array if useful)
+            if not hasattr(self, 'reaches_endpoint_array'):
+                self.reaches_endpoint_array = []
+            push_flag('reaches_endpoint', reached, self.reaches_endpoint_array)
+            if reached:
+                print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                    'mode reaches its final destination.')
 
         # --- Power overload ------------------------------------------------------
         power_overload = False
@@ -941,7 +940,7 @@ class ShipModel(BaseShipModel):
                 desired_heading_offset=desired_heading_offset
             )
 
-        if throttle is not None:
+        if self.throttle_controller is not None:
             throttle = self.throttle_controller.throttle(
                 speed_set_point = self.desired_speed * speed_factor,
                 measured_speed = measured_speed,
@@ -950,10 +949,20 @@ class ShipModel(BaseShipModel):
         
         
         # Update and integrate differential equations for current time step
+        if self.auto_pilot is None:
+            cross_track_error = 0
+        else:    
+            cross_track_error = self.auto_pilot.get_cross_track_error()
+        
+        if self.throttle_controller is None:
+            heading_error = 0
+        else:
+            heading_error = self.auto_pilot.get_heading_error()
+            
         self.store_simulation_data(throttle, 
                                    rudder_angle,
-                                   self.auto_pilot.get_cross_track_error(),
-                                   self.auto_pilot.get_heading_error())
+                                   cross_track_error,
+                                   heading_error)
         self.update_differentials(engine_throttle=throttle, 
                                   rudder_angle=rudder_angle, 
                                   env_loads=env_loads)
@@ -968,8 +977,10 @@ class ShipModel(BaseShipModel):
         
         # Reset the subsystem
         self.ship_machinery_model.reset()
-        self.throttle_controller.reset()
-        self.auto_pilot.reset()
+        if self.throttle_controller is not None:
+            self.throttle_controller.reset()
+        if self.throttle_controller is not None:
+            self.auto_pilot.reset()
         
         # Reset the desired speed
         self.desired_speed = self.init_desired_speed
