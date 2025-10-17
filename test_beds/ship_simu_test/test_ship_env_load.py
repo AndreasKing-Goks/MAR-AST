@@ -52,7 +52,7 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
                     help='ENV: time delay in second between ship drawing record (default: 30)')
 
 # Add arguments for episodic run
-parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
+parser.add_argument('--n_episodes', type=int, default=2, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
 
 args = parser.parse_args()
@@ -239,7 +239,10 @@ env = MultiShipEnv(
     wave_model_config=wave_model_config,
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
-    args=args)
+    args=args,
+    include_wave=False,
+    include_current=False,
+    include_wind=False)
 
 
 ### THIS IS WHERE THE EPISODE HAPPENS

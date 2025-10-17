@@ -712,6 +712,7 @@ class ShipModel(BaseShipModel):
                 self.stop = True
 
         # --- Map-related checks --------------------------------------------------
+        # Ignored if no map object is placed
         if self.map_obj is not None:
             grounded = check_condition.is_grounding(
                 map_obj=self.map_obj,
@@ -737,6 +738,7 @@ class ShipModel(BaseShipModel):
                     'mode is outside the map horizon.')
 
         # --- Navigation failure --------------------------------------------------
+        # Ignored if the autopilot is inactive
         if self.auto_pilot is not None:
             nav_fail = check_condition.is_ship_navigation_failure(
                 e_ct=self.auto_pilot.navigate.e_ct,
@@ -748,6 +750,7 @@ class ShipModel(BaseShipModel):
                     'experiences navigational failure.')
 
         # --- Reaches endpoint ----------------------------------------------------
+        # Ignored if the autopilot is inactive
         if self.auto_pilot is not None:
             reached = check_condition.is_reaches_endpoint(
                 route_end=[self.auto_pilot.navigate.north[-1], self.auto_pilot.navigate.east[-1]],
@@ -884,17 +887,9 @@ class ShipModel(BaseShipModel):
         
         # Get environment args
         if env_args is None:
-            wind_force = np.array([0.0, 0.0, 0.0])
             wave_force = np.array([0.0, 0.0, 0.0])
+            wind_force = np.array([0.0, 0.0, 0.0])
             vel_c      = np.array([0.0, 0.0, 0.0])
-            
-            self.wave_force_north = wave_force[1]
-            self.wave_force_east  = wave_force[0]
-            self.wave_moment      = wave_force[2]
-            
-            self.wind_force_north = wind_force[1]
-            self.wind_force_east  = wind_force[0]
-            self.wind_moment      = wind_force[2]
             
             self.wind_speed = 0.0
             self.wind_dir   = 0.0
@@ -904,27 +899,27 @@ class ShipModel(BaseShipModel):
         else:
             wave_args, current_args, wind_args = env_args
             
-            wave_force = self.get_wave_force(wave_args)
-            wind_force = self.get_wind_force(wind_args)
-            current_speed, current_dir = current_args
+            wave_force = self.get_wave_force(wave_args) if wave_args else np.array([0.0, 0.0, 0.0])
+            wind_force = self.get_wind_force(wind_args) if wind_args else np.array([0.0, 0.0, 0.0])
+            current_speed, current_dir = (tuple(current_args)) if current_args else (0.0, 0.0)
             vel_c = np.array([
                 current_speed * np.sin(current_dir),
                 current_speed * np.cos(current_dir),
                 0.0])
-            
-            self.wave_force_north = wave_force[1]
-            self.wave_force_east  = wave_force[0]
-            self.wave_moment      = wave_force[2]
                 
-            self.wind_force_north = wind_force[1]
-            self.wind_force_east  = wind_force[0]
-            self.wind_moment      = wind_force[2]
-                
-            self.wind_speed = wind_args[0]
-            self.wind_dir   = wind_args[1]
+            self.wind_speed = wind_args[0] if wind_args else 0.0
+            self.wind_dir   = wind_args[1] if wind_args else 0.0
                 
             self.current_speed = current_speed
             self.current_dir   = current_dir
+            
+        self.wave_force_north = wave_force[1]
+        self.wave_force_east  = wave_force[0]
+        self.wave_moment      = wave_force[2]
+            
+        self.wind_force_north = wind_force[1]
+        self.wind_force_east  = wind_force[0]
+        self.wind_moment      = wind_force[2]
             
         env_loads = wave_force, wind_force, vel_c
         

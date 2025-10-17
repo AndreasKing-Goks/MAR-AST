@@ -63,7 +63,10 @@ class MultiShipEnv:
                  wave_model_config: WaveModelConfiguration,
                  current_model_config: CurrentModelConfiguration,
                  wind_model_config: WindModelConfiguration,
-                 args):
+                 args,
+                 include_wave=True,
+                 include_current=True,
+                 include_wind=True):
         '''
         Arguments:
         - assets    : List of all ship assets. 
@@ -94,9 +97,9 @@ class MultiShipEnv:
         self.wind_model_config = wind_model_config
         
         # Get the environment model based on the config
-        self.wave_model = JONSWAPWaveModel(self.wave_model_config)
-        self.current_model = SurfaceCurrent(self.current_model_config)
-        self.wind_model = NORSOKWindModel(self.wind_model_config)  
+        self.wave_model = JONSWAPWaveModel(self.wave_model_config) if include_wave else None
+        self.current_model = SurfaceCurrent(self.current_model_config) if include_current else None
+        self.wind_model = NORSOKWindModel(self.wind_model_config) if include_wind else None
         
         ## Fixed environment parameter
         # Wave
@@ -128,13 +131,13 @@ class MultiShipEnv:
         '''
         ## GLOBAL ARGS FOR ALL SHIP ASSETS
         # Compile wave_args
-        wave_args = self.wave_model.get_wave_force_params(self.Hs, self.Tp, self.psi_0)
+        wave_args = self.wave_model.get_wave_force_params(self.Hs, self.Tp, self.psi_0) if self.wave_model else None
         
         # Compile current_args
-        current_args = self.current_model.get_current_vel_and_dir(self.vel_mean, self.current_dir_mean)
+        current_args = self.current_model.get_current_vel_and_dir(self.vel_mean, self.current_dir_mean) if self.current_model else None
         
         # Compile wind_args
-        wind_args = self.wind_model.get_wind_vel_and_dir(self.Ubar_mean, self.wind_dir_mean)
+        wind_args = self.wind_model.get_wind_vel_and_dir(self.Ubar_mean, self.wind_dir_mean) if self.wind_model else None
         
         # Compile env_args
         env_args = (wave_args, current_args, wind_args)
@@ -145,7 +148,8 @@ class MultiShipEnv:
         ## Step up all available digital assets
         for i, asset in enumerate(self.assets):
             # Step
-            if asset.ship_model.stop is False: asset.ship_model.step(env_args, asset_infos)   # If all asset is not stopped, step up
+            if asset.ship_model.stop is False: asset.ship_model.step(env_args=env_args, 
+                                                                     asset_infos=asset_infos)   # If all asset is not stopped, step up
             
             # Update asset.info
             asset.info.update(current_north     = asset.ship_model.north,
@@ -191,9 +195,9 @@ class MultiShipEnv:
         self.stop = False
         
         # Reset the environment model
-        self.wave_model.reset()
-        self.current_model.reset()
-        self.wind_model.reset()
+        if self.wave_model: self.wave_model.reset()
+        if self.current_model: self.current_model.reset()
+        if self.wind_model: self.wind_model.reset()
         
         return
        
