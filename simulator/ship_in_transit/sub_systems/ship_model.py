@@ -199,15 +199,14 @@ class BaseShipModel:
         '''
         # Unpack wind_args
         wind_speed, wind_dir = wind_args
-        
-        uw = wind_speed * np.cos(wind_dir - self.yaw_angle)
-        vw = wind_speed * np.sin(wind_dir - self.yaw_angle)
+        uw = wind_speed * np.sin(wind_dir - self.yaw_angle)
+        vw = wind_speed * np.cos(wind_dir - self.yaw_angle)
         u_rw = uw - self.forward_speed
         v_rw = vw - self.sideways_speed
         gamma_rw = -np.arctan2(v_rw, u_rw)
         wind_rw2 = u_rw ** 2 + v_rw ** 2
-        c_x = -self.cx * np.cos(gamma_rw)
-        c_y = self.cy * np.sin(gamma_rw)
+        c_x = -self.cx * np.sin(gamma_rw)
+        c_y = self.cy * np.cos(gamma_rw)
         c_n = self.cn * np.sin(2 * gamma_rw)
         tau_coeff = 0.5 * self.rho_a * wind_rw2
         tau_u = tau_coeff * c_x * self.proj_area_f

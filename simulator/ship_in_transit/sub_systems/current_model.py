@@ -2,6 +2,9 @@ import numpy as np
 import copy
 from typing import NamedTuple
 
+def wrap_pi(a):
+    return (a + np.pi) % (2*np.pi) - np.pi
+
 class CurrentModelConfiguration(NamedTuple):
     initial_current_velocity: float
     current_velocity_standard_deviation: float
@@ -51,14 +54,18 @@ class SurfaceCurrent:
         return self.vel
     
     def compute_current_direction(self, dir_mean):
+        # ensure means live on the same branch
+        dir_mean = wrap_pi(dir_mean)
+        self.dir = wrap_pi(self.dir)        
+        
+        # shortest signed angular error in (-pi, pi]
+        err = wrap_pi(self.dir - dir_mean)       
+
         # Generate Gaussian white noise for direction
         w = np.random.normal(0, self.sigma_dir / np.sqrt(self.dt))  
         
         # Update direction using Euler discretization of: ψdot + mu*ψ = w
-        self.dir = self.dir + self.dt * (-self.mu_dir * (self.dir - dir_mean) + w)
-        
-        # Wrap the direction angle back into [-pi, pi]
-        self.dir = (self.dir + np.pi) % (2*np.pi) - np.pi
+        self.dir = wrap_pi(self.dir + self.dt * (-self.mu_dir * err + w))
         
         return self.dir
     
@@ -69,8 +76,8 @@ class SurfaceCurrent:
         
         dir_mean = action outputed by RL agent.
         '''
-        if vel_mean is None: vel_mean = 0
-        if dir_mean is None: dir_mean = 0
+        if vel_mean is None: vel_mean = 0.0
+        if dir_mean is None: dir_mean = 0.0
         
         # Update both velocity and direction and return them
         U_c = self.compute_current_velocity(vel_mean)

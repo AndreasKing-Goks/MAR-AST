@@ -2,6 +2,9 @@ import numpy as np
 import copy
 from typing import NamedTuple
 
+def wrap_pi(a):
+    return (a + np.pi) % (2*np.pi) - np.pi
+
 class WindModelConfiguration(NamedTuple):
     initial_mean_wind_velocity: float
     mean_wind_velocity_decay_rate: float
@@ -95,11 +98,20 @@ class NORSOKWindModel:
         self.theta += 2*np.pi*self.f*self.dt
         return np.sum(self.a * np.cos(self.theta))
 
-    def compute_wind_direction(self, mean_dir):
+    def compute_wind_direction(self, dir_mean):
+        # ensure means live on the same branch
+        dir_mean = wrap_pi(dir_mean)
+        self.dir = wrap_pi(self.dir) 
+        
+        # shortest signed angular error in (-pi, pi]
+        err = wrap_pi(self.dir - dir_mean)   
+        
+        # Generate Gaussian white noise for direction
         w = np.random.normal(0.0, self.sigma_dir/np.sqrt(self.dt))
-        self.dir += self.dt * (-self.mu_dir * (self.dir - mean_dir) + w)
-        # wrap to [-pi, pi]
-        self.dir = (self.dir + np.pi) % (2*np.pi) - np.pi
+        
+        # Update direction using Euler discretization of: ψdot + mu*ψ = w
+        self.dir = wrap_pi(self.dir + self.dt * (-self.mu_dir * (err) + w))
+        
         return self.dir
 
     def get_wind_vel_and_dir(self, Ubar_mean=None, dir_mean=None):

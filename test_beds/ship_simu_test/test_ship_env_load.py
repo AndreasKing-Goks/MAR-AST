@@ -52,7 +52,7 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
                     help='ENV: time delay in second between ship drawing record (default: 30)')
 
 # Add arguments for episodic run
-parser.add_argument('--n_episodes', type=int, default=2, metavar='N_EPISODES',
+parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
 
 args = parser.parse_args()
@@ -97,7 +97,7 @@ current_model_config = CurrentModelConfiguration(
     initial_current_velocity=5,
     current_velocity_standard_deviation=0.05,
     current_velocity_decay_rate=0.0025,
-    initial_current_direction=np.deg2rad(-45),
+    initial_current_direction=np.deg2rad(0.0),
     current_direction_standard_deviation=0.05,
     current_direction_decay_rate=0.005,
     timestep_size=args.time_step
@@ -106,7 +106,7 @@ wind_model_config = WindModelConfiguration(
     initial_mean_wind_velocity=None,                    # Set to None to use a mean wind component
     mean_wind_velocity_decay_rate=0.001,
     mean_wind_velocity_standard_deviation=0.5,
-    initial_wind_direction=np.deg2rad(45.0),
+    initial_wind_direction=np.deg2rad(-90.0),
     wind_direction_decay_rate=0.001,
     wind_direction_standard_deviation=0.03,
     minimum_mean_wind_velocity=0.0,
@@ -179,7 +179,7 @@ own_ship_config = SimulationConfiguration(
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
-    simulation_time=5000,
+    simulation_time=10000,
 )
 
 own_ship_desired_speed = 0.0
@@ -242,7 +242,7 @@ env = MultiShipEnv(
     args=args,
     include_wave=False,
     include_current=False,
-    include_wind=False)
+    include_wind=True)
 
 
 ### THIS IS WHERE THE EPISODE HAPPENS
