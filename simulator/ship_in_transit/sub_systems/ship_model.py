@@ -347,7 +347,7 @@ class BaseShipModel:
             
             wind_dir, wind_speed = wind_args
             wind_force = self.get_wind_force(wind_dir, 
-                                            wind_speed)
+                                             wind_speed)
 
         # Assembling state vector
         vel = np.array([self.forward_speed, self.sideways_speed, self.yaw_rate])
@@ -361,7 +361,7 @@ class BaseShipModel:
         m_inv = np.linalg.inv(self.mass_matrix())
         dx = np.dot(
             m_inv,
-            -np.dot(self.coriolis_matrix(), vel)
+            - np.dot(self.coriolis_matrix(), vel)
             - np.dot(self.coriolis_added_mass_matrix(u_r=u_r, v_r=v_r), vel - v_c)
             - np.dot(self.linear_damping_matrix() + self.non_linear_damping_matrix(), vel - v_c)
             + wind_force + wave_force
@@ -903,8 +903,8 @@ class ShipModel(BaseShipModel):
             wind_force = self.get_wind_force(wind_args) if wind_args else np.array([0.0, 0.0, 0.0])
             current_speed, current_dir = (tuple(current_args)) if current_args else (0.0, 0.0)
             vel_c = np.array([
-                current_speed * np.sin(current_dir),
                 current_speed * np.cos(current_dir),
+                current_speed * np.sin(current_dir),
                 0.0])
                 
             self.wind_speed = wind_args[0] if wind_args else 0.0

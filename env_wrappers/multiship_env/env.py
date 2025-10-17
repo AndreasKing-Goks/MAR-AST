@@ -109,7 +109,7 @@ class MultiShipEnv:
         
         # Current
         self.vel_mean = 1.0
-        self.current_dir_mean = np.deg2rad(45.0)
+        self.current_dir_mean = np.deg2rad(0.0)
         
         # Wind
         self.Ubar_mean = 1.0
