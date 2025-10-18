@@ -59,7 +59,7 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
     })
 
     # ---------- FIGURE 1: SHIP STATUS ----------
-    fig_1, axes = plt.subplots(nrows=2, ncols=3, figsize=(15, 10), constrained_layout=True)
+    fig_1, axes = plt.subplots(nrows=2, ncols=4, figsize=(15, 8), constrained_layout=True)
     axes = axes.flatten()
     plt.figure(fig_1.number)
 
@@ -80,47 +80,59 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
     _ax_style(axes[0], xlabel=True, ylabel='Speed (m/s)')
     axes[0].legend(loc='upper right', frameon=False)
 
-    # 2. Rudder angle
-    axes[1].plot(t, result_df['rudder angle [deg]'])
+    # 2. Yaw angle
+    axes[1].plot(t, result_df['yaw angle [deg]'])
     axes[1].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
-    axes[1].set_title(f'{nm} Rudder Angle')
-    _ax_style(axes[1], xlabel=True, ylabel='Rudder angle (deg)')
-    axes[1].set_ylim(-np.rad2deg(asset.ship_model.ship_machinery_model.rudder_ang_max), np.rad2deg(asset.ship_model.ship_machinery_model.rudder_ang_max))
+    axes[1].set_title(f'{nm} Yaw Angle')
+    _ax_style(axes[1], xlabel=True, ylabel='Yaw angle (deg)')
+    axes[1].set_ylim(-180.0, 180.0)
 
-    # 3. Cross-track error
-    axes[2].plot(t, result_df['cross track error [m]'])
+    # 3. Rudder angle
+    axes[2].plot(t, result_df['rudder angle [deg]'])
     axes[2].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
-    axes[2].set_title(f'{nm} Cross-Track Error')
-    _ax_style(axes[2], xlabel=True, ylabel='Cross-track error (m)')
-    axes[2].set_ylim(-asset.ship_model.cross_track_error_tolerance, asset.ship_model.cross_track_error_tolerance)
+    axes[2].set_title(f'{nm} Rudder Angle')
+    _ax_style(axes[2], xlabel=True, ylabel='Rudder angle (deg)')
+    axes[2].set_ylim(-np.rad2deg(asset.ship_model.ship_machinery_model.rudder_ang_max), np.rad2deg(asset.ship_model.ship_machinery_model.rudder_ang_max))
 
-    # 4. Propeller shaft speed
-    axes[3].plot(t, result_df['propeller shaft speed [rpm]'])
-    axes[3].set_title(f'{nm} Propeller Shaft Speed')
-    _ax_style(axes[3], xlabel=True, ylabel='Shaft speed (rpm)')
+    # 4. Cross-track error
+    axes[3].plot(t, result_df['cross track error [m]'])
+    axes[3].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
+    axes[3].set_title(f'{nm} Cross-Track Error')
+    _ax_style(axes[3], xlabel=True, ylabel='Cross-track error (m)')
+    axes[3].set_ylim(-asset.ship_model.cross_track_error_tolerance, asset.ship_model.cross_track_error_tolerance)
 
-    # 5. Power vs available power (mode-dependent)
-    ax5 = axes[4]
+    # 5. Propeller shaft speed
+    axes[4].plot(t, result_df['propeller shaft speed [rpm]'])
+    axes[4].set_title(f'{nm} Propeller Shaft Speed')
+    _ax_style(axes[4], xlabel=True, ylabel='Shaft speed (rpm)')
+    
+    # 6. Thrust Force
+    axes[5].plot(t, result_df['thrust force [kN]'])
+    axes[5].set_title(f'{nm} Thrust force')
+    _ax_style(axes[5], xlabel=True, ylabel='Thrust force (kN)')
+
+    # 7. Power vs available power (mode-dependent)
+    ax6 = axes[6]
     mode = asset.ship_model.ship_machinery_model.operating_mode
     if mode in ('PTO', 'MEC'):
-        ax5.plot(t, result_df['power me [kw]'], label='Power')
-        ax5.plot(t, result_df['available power me [kw]'], color='red', linestyle='--', label='Available Power')
-        ax5.set_title(f'{nm} Power vs Available Mechanical Power')
-        _ax_style(ax5, xlabel=True, ylabel='Power (kW)')
-        ax5.legend(frameon=False)
+        ax6.plot(t, result_df['power me [kw]'], label='Power')
+        ax6.plot(t, result_df['available power me [kw]'], color='red', linestyle='--', label='Available Power')
+        ax6.set_title(f'{nm} Power vs Available Mechanical Power')
+        _ax_style(ax6, xlabel=True, ylabel='Power (kW)')
+        ax6.legend(frameon=False)
     elif mode == 'PTI':
-        ax5.plot(t, result_df['power electrical [kw]'], label='Power')
-        ax5.plot(t, result_df['available power electrical [kw]'], color='red', linestyle='--', label='Available Power')
-        ax5.set_title(f'{nm} Power vs Available Electrical Power')
-        _ax_style(ax5, xlabel=True, ylabel='Power (kW)')
-        ax5.legend(frameon=False)
+        ax6.plot(t, result_df['power electrical [kw]'], label='Power')
+        ax6.plot(t, result_df['available power electrical [kw]'], color='red', linestyle='--', label='Available Power')
+        ax6.set_title(f'{nm} Power vs Available Electrical Power')
+        _ax_style(ax6, xlabel=True, ylabel='Power (kW)')
+        ax6.legend(frameon=False)
     else:
-        ax5.set_visible(False)
+        ax6.set_visible(False)
 
-    # 6. Fuel consumption
-    axes[5].plot(t, result_df['fuel consumption [kg]'])
-    axes[5].set_title(f'{nm} Fuel Consumption')
-    _ax_style(axes[5], xlabel=True, ylabel='Fuel (kg)')
+    # 8. Fuel consumption
+    axes[7].plot(t, result_df['fuel consumption [kg]'])
+    axes[7].set_title(f'{nm} Fuel Consumption')
+    _ax_style(axes[7], xlabel=True, ylabel='Fuel (kg)')
 
     # ---------- FIGURES 2–4: ENVIRONMENT LOADS (optional) ----------
     if plot_env_load:

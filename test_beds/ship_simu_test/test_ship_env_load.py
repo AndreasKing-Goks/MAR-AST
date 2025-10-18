@@ -242,7 +242,7 @@ env = MultiShipEnv(
     args=args,
     include_wave=False,
     include_current=False,
-    include_wind=True)
+    include_wind=False)
 
 
 ### THIS IS WHERE THE EPISODE HAPPENS
