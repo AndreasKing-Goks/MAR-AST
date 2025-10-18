@@ -66,7 +66,9 @@ class MultiShipEnv:
                  args,
                  include_wave=True,
                  include_current=True,
-                 include_wind=True):
+                 include_wind=True,
+                 seed=None,
+                 same_noise_each_episode=False):
         '''
         Arguments:
         - assets    : List of all ship assets. 
@@ -97,15 +99,15 @@ class MultiShipEnv:
         self.wind_model_config = wind_model_config
         
         # Get the environment model based on the config
-        self.wave_model = JONSWAPWaveModel(self.wave_model_config) if include_wave else None
-        self.current_model = SurfaceCurrent(self.current_model_config) if include_current else None
-        self.wind_model = NORSOKWindModel(self.wind_model_config) if include_wind else None
+        self.wave_model = JONSWAPWaveModel(self.wave_model_config, seed=seed) if include_wave else None
+        self.current_model = SurfaceCurrent(self.current_model_config, seed=seed) if include_current else None
+        self.wind_model = NORSOKWindModel(self.wind_model_config, seed=seed) if include_wind else None
         
         ## Fixed environment parameter
         # Wave
-        self.Hs = 0.1
-        self.Tp = 7.5
-        self.psi_0 = np.deg2rad(45.0)
+        self.Hs = 1.88 # 0.1
+        self.Tp = 8.8 # 7.5
+        self.psi_0 = np.deg2rad(0.0)
         
         # Current
         self.vel_mean = 1.0
@@ -113,7 +115,7 @@ class MultiShipEnv:
         
         # Wind
         self.Ubar_mean = 1.0
-        self.wind_dir_mean = np.deg2rad(-90.0)
+        self.wind_dir_mean = np.deg2rad(0.0)
         
         # Ship drawing configuration
         self.ship_draw = args.ship_draw
