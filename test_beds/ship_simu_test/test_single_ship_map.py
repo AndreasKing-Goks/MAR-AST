@@ -189,7 +189,7 @@ machinery_config = MachinerySystemConfiguration(
 
 ### CONFIGURE THE SHIP SIMULATION MODELS
 ## Own ship
-own_ship_route_filename = 'own_ship_route.txt'
+own_ship_route_filename = 'own_ship_route2.txt'
 own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
 
 start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
