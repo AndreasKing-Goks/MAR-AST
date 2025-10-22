@@ -74,10 +74,13 @@ def wrap_angle(x):
     return (x + np.pi) % (2*np.pi) - np.pi
 
 # ----- Prior over current-speed MEAN (independent of S) -----
-def logprior_mu_current(mu_c, rng=(0.0, 2.5), center=0.7, sigma_frac=0.5):
+def logprior_mu_current(mu_c, rng=(0.0, 2.5), center=0.7, sigma_frac=0.25):
     """
     Broad truncated-normal prior for current mean speed (m/s).
     Tweak rng/center/sigma_frac to your climatology.
+    
+    center is the previously sampled mean current from the RL-agent
+    mu_c is the newly sampled mean current from the RL-agent
     """
     a, b = rng
     return logpdf_truncnorm(mu_c, a, center, b, sigma_frac=sigma_frac)
@@ -87,6 +90,9 @@ def logprior_mu_direction(mu_dir, clim_mean_dir, kappa0=3.0):
     """
     Von Mises prior for the *mean direction* around some climatological mean.
     If you want 'uninformative', set kappa0 ~ 0 (uniform on circle).
+    
+    clim_mean_dir is the previously sampled mean direction from the RL-agent
+    mu_dir is the newly sampled mean direction from the RL-agent.
     """
     # We score at the exact mean direction value. Von Mises is continuous,
     # so using the pdf at a point is fine in log-domain.
