@@ -1,5 +1,5 @@
 """ 
-This modules provide classes for simple simulation running for one ship
+This module provides classes for simple simulation running for multiple ships
 """
 import numpy as np
 
@@ -8,13 +8,9 @@ from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWaveModel, W
 from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, CurrentModelConfiguration
 from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, WindModelConfiguration
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
-from simulator.ship_in_transit.sub_systems.sbmpc import SBMPC
-
-
-from simulator.ship_in_transit.utils import check_condition
 
 from dataclasses import dataclass, field
-from typing import Union, List
+from typing import List
 
 import copy
 
@@ -54,7 +50,6 @@ class MultiShipEnv:
     
     To turn on collision avoidance on the ship under test:
     - set colav_mode=None         : No collision avoidance is implemented
-    - set colav_mode='simple'     : Simple collision avoidance is implemented
     - set colav_mode='sbmpc'      : SBMPC collision avoidance is implemented
     """
     def __init__(self, 
@@ -67,8 +62,7 @@ class MultiShipEnv:
                  include_wave=True,
                  include_current=True,
                  include_wind=True,
-                 seed=None,
-                 same_noise_each_episode=False):
+                 seed=None):
         '''
         Arguments:
         - assets    : List of all ship assets. 
