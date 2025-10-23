@@ -202,7 +202,7 @@ def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
     fig, ax = plt.subplots(figsize=(16, 9))  # temp; we’ll resize to aspect
     
     if map_gdfs is not None:
-        land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf = map_gdfs
+        frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = map_gdfs
         if not land_gdf.empty:
             land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
         if not ocean_gdf.empty:
@@ -213,7 +213,7 @@ def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
             coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
 
         # --- fit to frame & keep aspect ---
-        minx, miny, maxx, maxy = land_gdf.total_bounds
+        minx, miny, maxx, maxy = frame_gdf.total_bounds
         dx, dy = (maxx - minx), (maxy - miny)
         ax.set_xlim(minx, maxx)
         ax.set_ylim(miny, maxy)

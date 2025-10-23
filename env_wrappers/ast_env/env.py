@@ -3,6 +3,8 @@ This module provides classes for AST-compliant environment wrapper
 """
 import numpy as np
 
+from gymnasium.spaces import Box
+
 from simulator.ship_in_transit.sub_systems.ship_model import ShipModel
 from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWaveModel, WaveModelConfiguration
 from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, CurrentModelConfiguration
@@ -119,7 +121,27 @@ class ASTEnv:
         self.ship_stop_status = [False] * len(self.assets)
         self.stop = False
         
-        ## REINFORCEMENT LEARNING AGENT
+        ### REINFORCEMENT LEARNING AGENT
+        ## Action Space
+        # Significant wave height
+        Hs_min, Hs_max           = [0.1, 15.0] 
+        # Wave peak period
+        Tp_min, Tp_max           = [0.1, 23.7]
+        # Mean wind speed
+        U_w_bar_min, U_w_bar_max = [0.0, 32.9244444] # in m/s. Knot [0, 64] 
+        # Mean wind direction
+        psi_ww_min, psi_ww_max   = [-np.pi, np.pi]
+        # Mean current speed
+        U_c_bar_min, U_c_bar_max = [0.0, 5.0]
+        # Mean current direction
+        psi_c_min, psi_c_max     = [-np.pi, np.pi]
+        
+        self.action_space = Box(
+            low  = np.array([Hs_min, Tp_min, U_w_bar_min, psi_ww_min, U_c_bar_min, psi_c_min]),
+            high = np.array([Hs_max, Tp_max, U_w_bar_max, psi_ww_max, U_c_bar_max, psi_c_max])
+        )
+        
+        ## Observation space
         
         return
     
@@ -130,14 +152,13 @@ class ASTEnv:
             * Action unpcaked
             - Hs                : Significant wave height
             - Tp                : Wave peak period
-            - psi_ww            : Wave and Wind mean direction
             - U_w_bar           : Wind mean speed
-            - psi_c             : Current mean direction
+            - psi_ww            : Wave and Wind mean direction
             - U_c_bar           : Current mean speed
+            - psi_c             : Current mean direction
         '''
         ## Unpack the action
-        Hs, Tp, psi_ww, U_w_bar, psi_c, U_c_bar = action
-        
+        Hs, Tp, U_w_bar, psi_ww, U_c_bar, psi_c = action
         
         ## GLOBAL ARGS FOR ALL SHIP ASSETS
         # Compile wave_args
