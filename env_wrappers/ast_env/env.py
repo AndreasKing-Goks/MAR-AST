@@ -124,7 +124,7 @@ class ASTEnv:
         self.stop = False
         
         ### REINFORCEMENT LEARNING AGENT
-        ## Action Space
+        ## Action Space (6)
         # Significant wave height
         Hs_min, Hs_max           = [0.1, 15.0] 
         # Wave peak period
@@ -153,13 +153,20 @@ class ASTEnv:
         heading_min, heading_max = [-np.pi, np.pi]
         # Ship speed
         speed_min, speed_max = [0.0, 20.0]
-        # LOS guidance ship cross track error 
+        # LOS guidance ship cross track error (absolute)
         e_ct_min, e_ct_max = [0.0, 3000.0]
+        # .... TO BE ADDED actual wind speed and direction, current speed and direction, wave(?) or none of them? 
         
         self.observation_space = Box(
             low  = np.array([north_min, east_min, heading_min, speed_min, e_ct_min]),
             high = np.array([north_max, east_max, heading_max, speed_max, e_ct_max]),
         )
+        
+        self.init_observation = np.array([self.assets[0].ship_model.north, 
+                                          self.assets[0].ship_model.north,
+                                          self.assets[0].ship_model.yaw_angle,
+                                          self.assets[0].ship_model.speed,
+                                          self.assets[0].ship_model.auto_pilot.navigate.e_ct])
     
         return
     

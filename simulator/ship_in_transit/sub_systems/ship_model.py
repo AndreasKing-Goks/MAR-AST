@@ -138,6 +138,8 @@ class BaseShipModel:
         self.forward_speed = np.float64(self.simulation_config.initial_forward_speed_m_per_s)
         self.sideways_speed = np.float64(self.simulation_config.initial_sideways_speed_m_per_s)
         self.yaw_rate = np.float64(self.simulation_config.initial_yaw_rate_rad_per_s)
+        
+        self.speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
 
         # Initialize differentials
         self.d_north = 0
