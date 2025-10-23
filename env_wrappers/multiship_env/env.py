@@ -85,7 +85,9 @@ class MultiShipEnv:
             asset.init_copy=copy.deepcopy(asset)
         
         # Store the map class as attribute
-        self.map = map 
+        if map is not None:
+            self.map = map[0]
+            self.map_frame = map[1]
         
         # Set configuration as an attribute
         self.wave_model_config = wave_model_config

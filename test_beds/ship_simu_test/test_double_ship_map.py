@@ -74,7 +74,7 @@ frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = get_gdf_from_gpkg(GPKG_PA
 map_gdfs = frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf
 
 map_data = get_polygon_from_gdf(land_gdf)   # list of exterior rings (E,N)
-map = PolygonObstacle(map_data)              # <-- reuse your existing simulator map type
+map = [PolygonObstacle(map_data), frame_gdf]              # <-- reuse your existing simulator map type
 
 # Engine configuration
 main_engine_capacity = 2160e3 #4160e3
@@ -235,7 +235,7 @@ own_ship = ShipModel(
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
     desired_speed=own_ship_desired_speed,
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
-    map_obj=map,
+    map_obj=map[0],
     colav_mode=None
 )
 own_ship_info = AssetInfo(
@@ -304,7 +304,7 @@ tar_ship1 = ShipModel(
     initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed1 * np.pi /30,
     desired_speed=tar_ship_desired_speed1,
     cross_track_error_tolerance=tar_ship_cross_track_error_tolerance1,
-    map_obj=map,
+    map_obj=map[0],
     colav_mode=None
 )
 tar_ship_info1 = AssetInfo(

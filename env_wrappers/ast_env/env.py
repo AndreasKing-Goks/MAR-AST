@@ -87,7 +87,9 @@ class ASTEnv:
             asset.init_copy=copy.deepcopy(asset)
         
         # Store the map class as attribute
-        self.map = map 
+        if map is not None:
+            self.map = map[0]
+            self.map_frame = map[1]
         
         # Set configuration as an attribute
         self.wave_model_config = wave_model_config
@@ -142,7 +144,23 @@ class ASTEnv:
         )
         
         ## Observation space
+        minx, miny, maxx, maxy = self.map_frame.total_bounds
+        # North ship position
+        north_min, north_max = [miny, maxy]
+        # East ship position
+        east_min, east_max = [minx, maxx]
+        # Ship heading (in NED)
+        heading_min, heading_max = [-np.pi, np.pi]
+        # Ship speed
+        speed_min, speed_max = [0.0, 20.0]
+        # LOS guidance ship cross track error 
+        e_ct_min, e_ct_max = [0.0, 3000.0]
         
+        self.observation_space = Box(
+            low  = np.array([north_min, east_min, heading_min, speed_min, e_ct_min]),
+            high = np.array([north_max, east_max, heading_max, speed_max, e_ct_max]),
+        )
+    
         return
     
     def step(self, action=None):
