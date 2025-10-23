@@ -1,20 +1,46 @@
 # MAR-AST
 Repository for Adaptive Stress Testing (AST) algorithm for maritime operations
 
-## Conda Environment Setup
+## Conda Environment Setup [Simulator Only]
 
 First clone the repository. Made sure conda is installed. Then, set up the conda environment by running this command in terminal:
 
 ```bash
 conda env create -f mar-ast.yml
 ```
+
+## Dependencies for Adaptive Stress Testing
+### PyTorch
+First we want to install `pytorch`. We use `pytorch` to build the multi-layer perceptron network related with Reinforcement Learning (RL) implementaion for the AST. Please consult to [PyTorch official website](https://pytorch.org/get-started/locally/) for local installation guide. This model is developed on Windows OS, using CUDA 12.6-compliant NVIDA GPU. Install this package by running:
+
+```bash
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+```
+
+For non-NVIDIA GPU device, use
+```bash
+pip3 install torch torchvision
+```
+
+### Gymnasium
+We also use `gymnasium` to define the RL observation and action space. Install this package by running:
+```bash
+pip install gymnasium
+```
+
+### Stable-Baselines 3
+`stable-baselines3` is a `pytorch`-compliant version for RL algorithms implementation. This package will be used as the core for our AST algorithm. Install this package by running:
+```bash
+pip install 'stable-baselines3[extra]'
+```
+
 ---
 
 ##  Improved Ship in Transit Simulator
 
 The **ship-in-transit-simulator** is a modular Python-based simulation framework for modeling and running transit scenarios of a marine vessel. It includes ship dynamics, machinery system behaviors, navigation logic, and environmental effects. 
 
-This simulator is developed based on Ship in Transit Simulator created by Børge Rokseth (**borge.rokseth@ntnu.no**). Original simulator can be found at: https://github.com/BorgeRokseth/ship_in_transit_simulator.git
+This simulator is developed based on Ship in Transit Simulator created by Børge Rokseth (**borge.rokseth@ntnu.no**). Original simulator can be found [here](https://github.com/BorgeRokseth/ship_in_transit_simulator.git).
 
 
 ### Ship Dynamics
