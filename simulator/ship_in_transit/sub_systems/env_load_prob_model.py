@@ -74,7 +74,7 @@ def wrap_angle(x):
     return (x + np.pi) % (2*np.pi) - np.pi
 
 # ----- Prior over current-speed MEAN (independent of S) -----
-def logprior_mu_current(mu_c, rng=(0.0, 2.5), center=0.7, sigma_frac=0.25):
+def logprior_mu_current(mu_c, range=(0.0, 2.5), center=0.7, sigma_frac=0.25):
     """
     Broad truncated-normal prior for current mean speed (m/s).
     Tweak rng/center/sigma_frac to your climatology.
@@ -82,7 +82,7 @@ def logprior_mu_current(mu_c, rng=(0.0, 2.5), center=0.7, sigma_frac=0.25):
     center is the previously sampled mean current from the RL-agent
     mu_c is the newly sampled mean current from the RL-agent
     """
-    a, b = rng
+    a, b = range
     return logpdf_truncnorm(mu_c, a, center, b, sigma_frac=sigma_frac)
 
 # ----- Prior over MEAN directions (wind/wave/current) -----

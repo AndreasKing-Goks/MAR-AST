@@ -37,7 +37,7 @@ def setup_nav_polar(ax, rmax):
     ax.set_theta_zero_location('N')   # 0° at North
     ax.set_theta_direction(-1)        # CW positive
     ax.set_thetagrids([0,45,90,135,180,225,270,315],
-                      labels=['0','45','90','135','180','-135','-90','-45'])
+                      labels=['0','45°','90°','135°','180°','-135°','-90°','-45°'])
     ax.set_rlabel_position(225)
     ax.grid(alpha=0.3)
 
