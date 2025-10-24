@@ -30,7 +30,9 @@ class NORSOKWindModel:
     Direction:  ψ̇ + μψ ψ = wψ   (Gauss–Markov)
     """
     def __init__(self, config:WindModelConfiguration, seed=None):
-
+        # Config
+        self.config = config
+        
         # stochastic/mean params
         self.mu_Ubar = config.mean_wind_velocity_decay_rate
         self.mu_dir = config.wind_direction_decay_rate
@@ -56,8 +58,10 @@ class NORSOKWindModel:
         if config.initial_mean_wind_velocity is None:
             z0 = 10.0 * np.exp(-2.0/(5.0*np.sqrt(self.kappa)))
             self.Ubar = self.U10 * (2.5*np.sqrt(self.kappa)) * np.log(self.z / z0)
+            self.init_Ubar = self.Ubar
         else:
             self.Ubar = float(config.initial_mean_wind_velocity)
+            self.init_Ubar = self.Ubar
 
         # direction state
         self.dir = float(config.initial_wind_direction)

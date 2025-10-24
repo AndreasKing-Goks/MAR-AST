@@ -52,6 +52,8 @@ class JONSWAPWaveModel:
         dt: float
             Time step size for time integration.
         '''
+        # Config
+        self.config = config
         
         # Self parameters
         self.g = 9.81

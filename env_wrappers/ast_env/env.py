@@ -126,47 +126,59 @@ class ASTEnv:
         ### REINFORCEMENT LEARNING AGENT
         ## Action Space (6)
         # Significant wave height
-        Hs_min, Hs_max           = [0.1, 15.0] 
+        Hs_min, Hs_max                   = [0.1, 15.0] 
         # Wave peak period
-        Tp_min, Tp_max           = [0.1, 23.7]
+        Tp_min, Tp_max                   = [0.1, 23.7]
         # Mean wind speed
-        U_w_bar_min, U_w_bar_max = [0.0, 32.9244444] # in m/s. Knot [0, 64] 
+        U_w_bar_min, U_w_bar_max         = [0.0, 32.9244444] # in m/s. Knot [0, 64] 
         # Mean wind direction
-        psi_ww_min, psi_ww_max   = [-np.pi, np.pi]
+        psi_ww_bar_min, psi_ww_bar_max   = [-np.pi, np.pi]
         # Mean current speed
-        U_c_bar_min, U_c_bar_max = [0.0, 5.0]
+        U_c_bar_min, U_c_bar_max         = [0.0, 5.0]
         # Mean current direction
-        psi_c_min, psi_c_max     = [-np.pi, np.pi]
+        psi_c_bar_min, psi_c_bar_max     = [-np.pi, np.pi]
         
         self.action_space = Box(
-            low  = np.array([Hs_min, Tp_min, U_w_bar_min, psi_ww_min, U_c_bar_min, psi_c_min]),
-            high = np.array([Hs_max, Tp_max, U_w_bar_max, psi_ww_max, U_c_bar_max, psi_c_max])
+            low  = np.array([Hs_min, Tp_min, U_w_bar_min, psi_ww_bar_min, U_c_bar_min, psi_c_bar_min]),
+            high = np.array([Hs_max, Tp_max, U_w_bar_max, psi_ww_bar_max, U_c_bar_max, psi_c_bar_max])
         )
         
         ## Observation space
-        minx, miny, maxx, maxy = self.map_frame.total_bounds
+        minx, miny, maxx, maxy           = self.map_frame.total_bounds
         # North ship position
-        north_min, north_max = [miny, maxy]
+        north_min, north_max             = [miny, maxy]
         # East ship position
-        east_min, east_max = [minx, maxx]
+        east_min, east_max               = [minx, maxx]
         # Ship heading (in NED)
-        heading_min, heading_max = [-np.pi, np.pi]
+        heading_min, heading_max         = [-np.pi, np.pi]
         # Ship speed
-        speed_min, speed_max = [0.0, 20.0]
+        speed_min, speed_max             = [0.0, 20.0]
         # LOS guidance ship cross track error (absolute)
-        e_ct_min, e_ct_max = [0.0, 3000.0]
+        e_ct_min, e_ct_max               = [0.0, 3000.0]
+        # Wind speed
+        U_w_min, U_w_max                 = [0.0, 32.9244444]
+        # Wind and Wave direction
+        psi_ww_min, psi_ww_max           = [-np.pi, np.pi]
+        # Current speed
+        U_c_min, U_c_max                 = [0.0, 5.0]
+        # Current direction
+        psi_c_min, psi_c_max             = [-np.pi, np.pi]
         # .... TO BE ADDED actual wind speed and direction, current speed and direction, wave(?) or none of them? 
         
         self.observation_space = Box(
-            low  = np.array([north_min, east_min, heading_min, speed_min, e_ct_min]),
-            high = np.array([north_max, east_max, heading_max, speed_max, e_ct_max]),
+            low  = np.array([north_min, east_min, heading_min, speed_min, e_ct_min, U_w_min, psi_ww_min, U_c_min, psi_c_min]),
+            high = np.array([north_max, east_max, heading_max, speed_max, e_ct_max, U_w_max, psi_ww_max, U_c_max, psi_c_max]),
         )
         
         self.init_observation = np.array([self.assets[0].ship_model.north, 
                                           self.assets[0].ship_model.north,
                                           self.assets[0].ship_model.yaw_angle,
                                           self.assets[0].ship_model.speed,
-                                          self.assets[0].ship_model.auto_pilot.navigate.e_ct])
+                                          self.assets[0].ship_model.auto_pilot.navigate.e_ct,
+                                          self.wind_model.init_Ubar,                                # Directly use init_Ubar
+                                          self.wind_model.config.initial_wind_direction,
+                                          self.current_model.config.initial_current_velocity,
+                                          self.current_model.config.initial_current_direction])    
     
         return
     

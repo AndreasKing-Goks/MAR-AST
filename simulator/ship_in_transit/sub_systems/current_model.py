@@ -19,6 +19,9 @@ class SurfaceCurrent:
         '''
         Small mu value means a slow varying process. While large mu_value meas a fast-decaying fluctuations.
         '''
+        # Config
+        self.config = config
+        
         # Initialize state variables (velocity magnitude and direction)
         self.vel = config.initial_current_velocity                    # mean current velocity magnitude [m/s]
         self.mu_vel = config.current_velocity_decay_rate              # decay rate for velocity (Gauss–Markov)
