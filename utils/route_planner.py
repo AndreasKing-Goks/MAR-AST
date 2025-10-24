@@ -19,7 +19,7 @@ POINT_MARKER_SIZE = 160           # big for visibility
 LABEL_FONTSIZE = 10
 
 # GPKG layers
-GPKG_PATH   = get_map_path(ROOT, "basemap.gpkg")
+GPKG_PATH   = get_map_path(ROOT, "Stangvik.gpkg")
 FRAME_LAYER = "frame_3857"
 OCEAN_LAYER = "ocean_3857"
 LAND_LAYER  = "land_3857"

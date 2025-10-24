@@ -226,10 +226,6 @@ own_ship_asset = ShipAsset(
 # Package the assets for reinforcement learning agent
 assets: List[ShipAsset] = [own_ship_asset]
 
-# Timer for drawing the ship
-ship_draw = True
-time_since_last_ship_drawing = 30
-
 ################################### ENV SPACE ###################################
 
 # Initiate Multi-Ship Reinforcement Learning Environment Class Wrapper

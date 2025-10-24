@@ -398,10 +398,6 @@ tar_ship_asset2 = ShipAsset(
 # Package the assets for reinforcement learning agent
 assets: List[ShipAsset] = [own_ship_asset, tar_ship_asset1, tar_ship_asset2]
 
-# Timer for drawing the ship
-ship_draw = True
-time_since_last_ship_drawing = 30
-
 ################################### ENV SPACE ###################################
 
 # Initiate Multi-Ship Reinforcement Learning Environment Class Wrapper
@@ -424,9 +420,12 @@ while episode <= args.n_episodes:
     print("--- EPISODE " + str(episode) + " ---")
     
     ## THIS IS WHERE THE SIMULATION HAPPENS
-    running_time = np.max([asset.ship_model.int.time for asset in assets])
+    running_time = 0
     while running_time < own_ship.int.sim_time and env.stop is False:
         env.step()
+        
+        # Update running time
+        running_time = np.max([asset.ship_model.int.time for asset in assets])
     
     # Increment the episode
     episode += 1
@@ -437,7 +436,7 @@ while episode <= args.n_episodes:
 repeat=False
 map_anim = MapAnimator(
     assets=assets,
-    map_gdfs=(land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf),
+    map_gdfs=map_gdfs,
     interval_ms=500,
     status_asset_index=0  # flags for own ship
 )

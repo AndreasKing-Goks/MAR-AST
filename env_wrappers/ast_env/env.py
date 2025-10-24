@@ -163,7 +163,6 @@ class ASTEnv:
         U_c_min, U_c_max                 = [0.0, 5.0]
         # Current direction
         psi_c_min, psi_c_max             = [-np.pi, np.pi]
-        # .... TO BE ADDED actual wind speed and direction, current speed and direction, wave(?) or none of them? 
         
         self.observation_space = Box(
             low  = np.array([north_min, east_min, heading_min, speed_min, e_ct_min, U_w_min, psi_ww_min, U_c_min, psi_c_min]),

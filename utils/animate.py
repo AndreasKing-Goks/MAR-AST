@@ -125,7 +125,7 @@ class MapAnimator:
         self.interval = interval_ms
         self.focus_idx = status_asset_index
         self.stop_requested = False
-        land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf = map_gdfs
+        frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = map_gdfs
 
         def sr(a, k): return np.asarray(a.ship_model.simulation_results[k])
         self.t = sr(self.assets[0], 'time [s]')  # assume aligned
