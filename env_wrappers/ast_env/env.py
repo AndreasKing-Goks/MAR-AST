@@ -3,6 +3,7 @@ This module provides classes for AST-compliant environment wrapper
 """
 import numpy as np
 
+import gymnasium as gym
 from gymnasium.spaces import Box
 
 from simulator.ship_in_transit.sub_systems.ship_model import ShipModel
@@ -12,7 +13,7 @@ from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, Wi
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Dict, Optional, Tuple, Literal
 
 import copy
 
@@ -46,7 +47,7 @@ class ShipAsset:
     init_copy: 'ShipAsset' = field(default=None, repr=False, compare=False)
 
 
-class ASTEnv:
+class ASTEnv(gym.Env):
     """
     This class is the main class for AST-compliant environment wrapper the Ship-Transit Simulator for multiple ships. It handles:
     
@@ -101,20 +102,6 @@ class ASTEnv:
         self.current_model = SurfaceCurrent(self.current_model_config, seed=seed) if include_current else None
         self.wind_model = NORSOKWindModel(self.wind_model_config, seed=seed) if include_wind else None
         
-        ## Fixed environment parameter
-        # Wave
-        self.Hs = 0.88
-        self.Tp = 7.5
-        self.psi_0 = np.deg2rad(0.0)
-        
-        # Current
-        self.vel_mean = 1.0
-        self.current_dir_mean = np.deg2rad(0.0)
-        
-        # Wind
-        self.Ubar_mean = 1.0
-        self.wind_dir_mean = np.deg2rad(0.0)
-        
         # Ship drawing configuration
         self.ship_draw = args.ship_draw
         self.time_since_last_ship_drawing = args.time_since_last_ship_drawing
@@ -124,6 +111,47 @@ class ASTEnv:
         self.stop = False
         
         ### REINFORCEMENT LEARNING AGENT
+        ## Observation space
+        minx, miny, maxx, maxy           = self.map_frame.total_bounds
+        # North ship position
+        north_min, north_max             = np.array([miny, maxy], dtype=np.float32)
+        # East ship position
+        east_min, east_max               = np.array([minx, maxx], dtype=np.float32)
+        # Ship heading (in NED)
+        heading_min, heading_max         = np.array([-np.pi, np.pi], dtype=np.float32)
+        # Ship speed
+        speed_min, speed_max             = np.array([0.0, 20.0], dtype=np.float32)
+        # LOS guidance cross track error
+        e_ct_min, e_ct_max               = np.array([0.0, 3000.0], dtype=np.float32)
+        # Wind speed
+        U_w_min, U_w_max                 = np.array([0.0, 32.9244444], dtype=np.float32)
+        # Wind and Wave direction
+        psi_ww_min, psi_ww_max           = np.array([-np.pi, np.pi], dtype=np.float32)
+        # Current speed
+        U_c_min, U_c_max                 = np.array([0.0, 5.0], dtype=np.float32)
+        # Current direction
+        psi_c_min, psi_c_max             = np.array([-np.pi, np.pi], dtype=np.float32)
+        
+        # Range for normalization
+        self.position_range          = {"min": np.array([north_min, east_min, heading_min], dtype=np.float32), "max": np.array([north_max, east_max, heading_max], dtype=np.float32)}
+        self.speed_range             = {"min": np.array([speed_min], dtype=np.float32), "max": np.array([speed_max], dtype=np.float32)}
+        self.cross_track_error_range = {"min": np.array([e_ct_min], dtype=np.float32), "max": np.array([e_ct_max], dtype=np.float32)}
+        self.wind_range              = {"min": np.array([U_w_min, psi_ww_min], dtype=np.float32), "max": np.array([U_w_max, psi_ww_max], dtype=np.float32)}
+        self.wave_range              = {"min": np.array([U_c_min, psi_c_min], dtype=np.float32), "max": np.array([U_w_max, psi_c_max], dtype=np.float32)}
+        
+        # Initialize action space
+        self.init_action_space()
+        
+        # Initialize observation space
+        self.init_observation_space()
+
+        return
+    
+    def _normalize(self, x, min_val, max_val):
+        """Normalize x from [min_val, max_val] to [-1, 1]."""
+        return 2 * (x - min_val) / (max_val - min_val) - 1
+    
+    def init_action_space(self):
         ## Action Space (6)
         # Significant wave height
         Hs_min, Hs_max                   = [0.1, 15.0] 
@@ -139,47 +167,54 @@ class ASTEnv:
         psi_c_bar_min, psi_c_bar_max     = [-np.pi, np.pi]
         
         self.action_space = Box(
-            low  = np.array([Hs_min, Tp_min, U_w_bar_min, psi_ww_bar_min, U_c_bar_min, psi_c_bar_min]),
-            high = np.array([Hs_max, Tp_max, U_w_bar_max, psi_ww_bar_max, U_c_bar_max, psi_c_bar_max])
+            low  = np.array([Hs_min, Tp_min, U_w_bar_min, psi_ww_bar_min, U_c_bar_min, psi_c_bar_min], dtype=np.float32),
+            high = np.array([Hs_max, Tp_max, U_w_bar_max, psi_ww_bar_max, U_c_bar_max, psi_c_bar_max], dtype=np.float32)
         )
         
-        ## Observation space
-        minx, miny, maxx, maxy           = self.map_frame.total_bounds
-        # North ship position
-        north_min, north_max             = [miny, maxy]
-        # East ship position
-        east_min, east_max               = [minx, maxx]
-        # Ship heading (in NED)
-        heading_min, heading_max         = [-np.pi, np.pi]
-        # Ship speed
-        speed_min, speed_max             = [0.0, 20.0]
-        # LOS guidance ship cross track error (absolute)
-        e_ct_min, e_ct_max               = [0.0, 3000.0]
-        # Wind speed
-        U_w_min, U_w_max                 = [0.0, 32.9244444]
-        # Wind and Wave direction
-        psi_ww_min, psi_ww_max           = [-np.pi, np.pi]
-        # Current speed
-        U_c_min, U_c_max                 = [0.0, 5.0]
-        # Current direction
-        psi_c_min, psi_c_max             = [-np.pi, np.pi]
-        
-        self.observation_space = Box(
-            low  = np.array([north_min, east_min, heading_min, speed_min, e_ct_min, U_w_min, psi_ww_min, U_c_min, psi_c_min]),
-            high = np.array([north_max, east_max, heading_max, speed_max, e_ct_max, U_w_max, psi_ww_max, U_c_max, psi_c_max]),
+    def init_observation_space(self):
+        self.observation_space = gym.spaces.Dict(
+            {
+                "position"          : Box(-1.0, 1.0, shape=(3,)),
+                "speed"             : Box(-1.0, 1.0, shape=(1,)),
+                "cross_track_error" : Box(-1.0, 1.0, shape=(1,)),
+                "wind"              : Box(-1.0, 1.0, shape=(2,)),
+                "wave"              : Box(-1.0, 1.0, shape=(2,))
+            }
         )
         
-        self.init_observation = np.array([self.assets[0].ship_model.north, 
-                                          self.assets[0].ship_model.north,
-                                          self.assets[0].ship_model.yaw_angle,
-                                          self.assets[0].ship_model.speed,
-                                          self.assets[0].ship_model.auto_pilot.navigate.e_ct,
-                                          self.wind_model.init_Ubar,                                # Directly use init_Ubar
-                                          self.wind_model.config.initial_wind_direction,
-                                          self.current_model.config.initial_current_velocity,
-                                          self.current_model.config.initial_current_direction])    
+    def _get_obs(self):    
+        # Get raw values
+        position                = np.array([self.assets[0].ship_model.north, self.assets[0].ship_model.east, self.assets[0].ship_model.yaw_angle], dtype=np.float32)
+        speed                   = np.array([self.assets[0].ship_model.speed], dtype=np.float32)
+        cross_track_error       = np.array([self.assets[0].ship_model.auto_pilot.navigate.e_ct], dtype=np.float32)
+        wind                    = np.array([self.wind_model.init_Ubar, self.wind_model.config.initial_wind_direction], dtype=np.float32)
+        wave                    = np.array([self.current_model.config.initial_current_velocity, self.current_model.config.initial_current_direction], dtype=np.float32)
+        
+        position_norm           = self._normalize(position, self.position_range["min"], self.position_range["max"])
+        speed_norm              = self._normalize(speed, self.speed_range["min"], self.speed_range["max"])
+        cross_track_error_norm  = self._normalize(cross_track_error, self.cross_track_error_range["min"], self.cross_track_error_range["max"])
+        wind_norm               = self._normalize(wind, self.wind_range["min"], self.wind_range["max"])
+        wave_norm               = self._normalize(wave, self.wave_range["min"], self.wave_range["max"])
+
+        observation         = {
+            "position"          : position_norm,
+            "speed"             : speed_norm,
+            "cross_track_error" : cross_track_error_norm,
+            "wind"              : wind_norm,
+            "wave"              : wave_norm
+        }
+        
+        return observation
     
-        return
+    def _get_info(self):
+        """Compute auxiliary information for debugging.
+
+        Returns:
+            dict: Info with distance between agent and target
+        """
+        return {
+
+        }
     
     def step(self, action=None):
         ''' 
@@ -230,7 +265,14 @@ class ASTEnv:
         
         if np.all(self.ship_stop_status):
             self.stop = True
-            return
+            
+            observation = self._get_obs()
+            reward      = 0.0
+            terminated  = True
+            truncated   = False
+            info        = {}
+            
+            return observation, reward, terminated, truncated, info
         
         ## Apply ship drawing (set as optional function) after stepping
         if self.ship_draw:
@@ -239,13 +281,23 @@ class ASTEnv:
                     ship.ship_model.ship_snap_shot()
                 self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
             self.time_since_last_ship_drawing += self.args.time_step
+            
+        observation = self._get_obs()
+        reward      = 0.0
+        terminated  = False
+        truncated   = False
+        info        = {}
         
-        return
+        return observation, reward, terminated, truncated, info
 
-    def reset(self):
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         ''' 
             Reset all of the ship environment inside the assets container.
         '''
+        # IMPORTANT: Must call this first to seed the random number generator
+        super().reset(seed=seed)
+        self.np_random, _ = gym.utils.seeding.np_random(seed)
+        
         # Reset the assets
         for i, asset in enumerate(self.assets):
             # Call upon the copied initial values
@@ -266,5 +318,10 @@ class ASTEnv:
         if self.current_model: self.current_model.reset()
         if self.wind_model: self.wind_model.reset()
         
-        return
-       
+        # Reset the observation
+        observation = self._get_obs()
+        
+        # Reset the info
+        info = self._get_info()
+        
+        return observation, info

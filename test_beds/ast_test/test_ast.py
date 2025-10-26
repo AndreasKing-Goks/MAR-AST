@@ -8,22 +8,16 @@ sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
 from test_beds.ast_test.setup import get_env_assets
-from env_wrappers.multiship_env.env import AssetInfo, ShipAsset, MultiShipEnv
-
-from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, SimulationConfiguration, ShipModel
-from simulator.ship_in_transit.sub_systems.ship_engine import MachinerySystemConfiguration, MachineryMode, MachineryModeParams, MachineryModes, SpecificFuelConsumptionBaudouin6M26Dot3, SpecificFuelConsumptionWartila6L26, RudderConfiguration
-from simulator.ship_in_transit.sub_systems.LOS_guidance import LosParameters
-from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
-from simulator.ship_in_transit.sub_systems.controllers import ThrottleControllerGains, HeadingControllerGains   
-from simulator.ship_in_transit.sub_systems.wave_model import WaveModelConfiguration
-from simulator.ship_in_transit.sub_systems.current_model import CurrentModelConfiguration
-from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfiguration
 
 ## IMPORT FUNCTIONS
-from utils.get_path import get_ship_route_path, get_map_path
-from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
 from utils.animate import MapAnimator, PolarAnimator, animate_side_by_side
 from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
+
+## IMPORT AST RELATED TOOLS
+from stable_baselines3 import SAC
+from stable_baselines3.sac import MlpPolicy, MultiInputPolicy
+from gymnasium.wrappers import RescaleAction
+from gymnasium.utils.env_checker import check_env
 
 ### IMPORT TOOLS
 import argparse
@@ -32,6 +26,7 @@ import numpy as np
 import pandas as pd
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 
 def parse_cli_args():
     # Argument Parser
@@ -62,6 +57,7 @@ def parse_cli_args():
     
     return args
 
+
 if __name__ == "__main__":
     
     # Get the args
@@ -69,58 +65,78 @@ if __name__ == "__main__":
     
     # Get the assets and AST Environment Wrapper
     env, assets, map_gdfs = get_env_assets(args=args)
+    
+    # Get RL model
+    ast_model = SAC("MultiInputPolicy",
+                    env=env,
+                    verbose=1,
+                    device='cuda')
+    ast_model.learn(total_timesteps=1000)
+    
+    vec_env = ast_model.get_env()
+    obs = vec_env.reset()
+    
+    # action, _states = ast_model.predict(obs, deterministic=True)
+    
+    # try:
+    #     check_env(env)
+    #     print("Environment passes all chekcs!")
+    # except Exception as e:
+    #     print(f"Environment has issues: {e}")
 
-    ### THIS IS WHERE THE EPISODE HAPPENS
-    episode = 1
-    while episode <= args.n_episodes:
-        # Reset the environment at the beginning of episode
-        env.reset()
+    # ### THIS IS WHERE THE EPISODE HAPPENS
+    # episode = 1
+    # while episode <= args.n_episodes:
+    #     # Reset the environment at the beginning of episode
+    #     env.reset()
         
-        # Print message
-        print("--- EPISODE " + str(episode) + " ---")
+    #     # Print message
+    #     print("--- EPISODE " + str(episode) + " ---")
         
-        ## THIS IS WHERE THE SIMULATION HAPPENS
-        running_time = 0
-        while running_time < assets[0].ship_model.int.sim_time and env.stop is False:
-            env.step()
+    #     ## THIS IS WHERE THE SIMULATION HAPPENS
+    #     running_time = 0
+    #     while running_time < assets[0].ship_model.int.sim_time and env.stop is False:
+    #         env.step()
             
-            # Update running time
-            running_time = np.max([asset.ship_model.int.time for asset in assets])
+    #         # Update running time
+    #         running_time = np.max([asset.ship_model.int.time for asset in assets])
         
-        # Increment the episode
-        episode += 1
+    #     # Increment the episode
+    #     episode += 1
 
-    ################################## GET RESULTS ##################################
+    # ################################## GET RESULTS ##################################
 
-    # Build both animations (don’t show yet)
-    repeat=False
-    map_anim = MapAnimator(
-        assets=assets,
-        map_gdfs=map_gdfs,
-        interval_ms=500,
-        status_asset_index=0  # flags for own ship
-    )
-    map_anim.run(fps=120, show=False, repeat=repeat)
+    # # Build both animations (don’t show yet)
+    # repeat=False
+    # map_anim = MapAnimator(
+    #     assets=assets,
+    #     map_gdfs=map_gdfs,
+    #     interval_ms=500,
+    #     status_asset_index=0  # flags for own ship
+    # )
+    # map_anim.run(fps=120, show=False, repeat=repeat)
 
-    polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-    polar_anim.run(fps=120, show=False, repeat=repeat)
+    # polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
+    # polar_anim.run(fps=120, show=False, repeat=repeat)
 
-    # Place windows next to each other, same height, centered
-    animate_side_by_side(map_anim.fig, polar_anim.fig,
-                        left_frac=0.68,  # how wide the map window is
-                        height_frac=0.92,
-                        gap_px=16,
-                        show=True)
+    # # Place windows next to each other, same height, centered
+    # animate_side_by_side(map_anim.fig, polar_anim.fig,
+    #                     left_frac=0.68,  # how wide the map window is
+    #                     height_frac=0.92,
+    #                     gap_px=16,
+    #                     show=True)
 
-    ## Get the simulation results for all assets, and plot the asset simulation results
-    result_dfs = []
-    plot_env_load = [True, False, False] # Own ship, Target ship 1, Target ship 2
-    for i, asset in enumerate(assets):
-        result_df = pd.DataFrame().from_dict(env.assets[i].ship_model.simulation_results)
-        result_dfs.append(result_df)
+    # ## Get the simulation results for all assets, and plot the asset simulation results
+    # result_dfs = []
+    # plot_env_load = [True, False, False] # Own ship, Target ship 1, Target ship 2
+    # for i, asset in enumerate(assets):
+    #     result_df = pd.DataFrame().from_dict(env.assets[i].ship_model.simulation_results)
+    #     result_dfs.append(result_df)
         
-        # Plot 1: Status plot
-        plot_ship_status(asset, result_df, plot_env_load=plot_env_load[i], show=False)
+    #     # Plot 1: Status plot
+    #     plot_ship_status(asset, result_df, plot_env_load=plot_env_load[i], show=False)
 
-    # Plot 2: Ship and Map Plotting
-    plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True)
+    # # Plot 2: Ship and Map Plotting
+    # plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True)
+    
+    

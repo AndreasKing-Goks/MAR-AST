@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
-from env_wrappers.multiship_env.env import AssetInfo, ShipAsset, MultiShipEnv
+from env_wrappers.ast_env.env import AssetInfo, ShipAsset, ASTEnv
 
 from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, SimulationConfiguration, ShipModel
 from simulator.ship_in_transit.sub_systems.ship_engine import MachinerySystemConfiguration, MachineryMode, MachineryModeParams, MachineryModes, SpecificFuelConsumptionBaudouin6M26Dot3, SpecificFuelConsumptionWartila6L26, RudderConfiguration
@@ -21,17 +21,12 @@ from simulator.ship_in_transit.sub_systems.wind_model import WindModelConfigurat
 ## IMPORT FUNCTIONS
 from utils.get_path import get_ship_route_path, get_map_path
 from utils.prepare_map import get_gdf_from_gpkg, get_polygon_from_gdf
-from utils.animate import MapAnimator, PolarAnimator, animate_side_by_side
-from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ### IMPORT TOOLS
-import argparse
 from typing import List
 import numpy as np
-import pandas as pd
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-
 
 def get_env_assets(args):
 
@@ -238,7 +233,7 @@ def get_env_assets(args):
     ################################### ENV SPACE ###################################
 
     # Initiate Multi-Ship Reinforcement Learning Environment Class Wrapper
-    env = MultiShipEnv(
+    env = ASTEnv(
         assets=assets,
         map=map,
         wave_model_config=wave_model_config,
