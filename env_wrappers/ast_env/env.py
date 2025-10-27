@@ -151,6 +151,11 @@ class ASTEnv(gym.Env):
         """Normalize x from [min_val, max_val] to [-1, 1]."""
         return 2 * (x - min_val) / (max_val - min_val) - 1
     
+    def _denormalize(self, x_norm, min_val, max_val):
+        """Denormalize x from [-1, 1] back to [min_val, max_val]."""
+        return (x_norm + 1) * 0.5 * (max_val - min_val) + min_val
+
+    
     def init_action_space(self):
         ## Action Space (6)
         # Significant wave height
@@ -166,10 +171,18 @@ class ASTEnv(gym.Env):
         # Mean current direction
         psi_c_bar_min, psi_c_bar_max     = [-np.pi, np.pi]
         
+        # Range for normalization
+        self.Hs_range           = np.array([Hs_min, Hs_max], dtype=np.float32)
+        self.Tp_range           = np.array([Tp_min, Tp_max], dtype=np.float32)
+        self.U_w_bar_range      = np.array([U_w_bar_min, U_w_bar_max], dtype=np.float32)
+        self.psi_ww_bar_range   = np.array([psi_ww_bar_min, psi_ww_bar_max], dtype=np.float32)
+        self.U_c_bar_range      = np.array([U_c_bar_min, U_c_bar_max], dtype=np.float32)
+        self.psi_c_bar_range    = np.array([psi_c_bar_min, psi_c_bar_max], dtype=np.float32)
+        
         self.action_space = Box(
-            low  = np.array([Hs_min, Tp_min, U_w_bar_min, psi_ww_bar_min, U_c_bar_min, psi_c_bar_min], dtype=np.float32),
-            high = np.array([Hs_max, Tp_max, U_w_bar_max, psi_ww_bar_max, U_c_bar_max, psi_c_bar_max], dtype=np.float32)
-        )
+            low  = np.array([-1, -1, -1, -1, -1, -1], dtype=np.float32),
+            high = np.array([ 1,  1,  1,  1,  1,  1], dtype=np.float32)
+        ) # In order -> [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar]
         
     def init_observation_space(self):
         self.observation_space = gym.spaces.Dict(
@@ -182,7 +195,10 @@ class ASTEnv(gym.Env):
             }
         )
         
-    def _get_obs(self):    
+    def _get_obs(self, normalized=True): 
+        """
+        Automatically normalized the observation.
+        """   
         # Get raw values
         position                = np.array([self.assets[0].ship_model.north, self.assets[0].ship_model.east, self.assets[0].ship_model.yaw_angle], dtype=np.float32)
         speed                   = np.array([self.assets[0].ship_model.speed], dtype=np.float32)
@@ -196,13 +212,22 @@ class ASTEnv(gym.Env):
         wind_norm               = self._normalize(wind, self.wind_range["min"], self.wind_range["max"])
         wave_norm               = self._normalize(wave, self.wave_range["min"], self.wave_range["max"])
 
-        observation         = {
-            "position"          : position_norm,
-            "speed"             : speed_norm,
-            "cross_track_error" : cross_track_error_norm,
-            "wind"              : wind_norm,
-            "wave"              : wave_norm
-        }
+        if normalized:
+            observation         = {
+                "position"          : position_norm,
+                "speed"             : speed_norm,
+                "cross_track_error" : cross_track_error_norm,
+                "wind"              : wind_norm,
+                "wave"              : wave_norm
+            }
+        else:
+            observation         = {
+                "position"          : position,
+                "speed"             : speed,
+                "cross_track_error" : cross_track_error,
+                "wind"              : wind,
+                "wave"              : wave
+            }
         
         return observation
     
@@ -216,7 +241,41 @@ class ASTEnv(gym.Env):
 
         }
     
-    def step(self, action=None):
+    def _denormalize_action(self, action_norm):
+        """
+        Directly unpacks and denormalize the action from the RL agent
+        """
+        ## Unpack the action
+        Hs_norm, Tp_norm, U_w_bar_norm, psi_ww_bar_norm, U_c_bar_norm, psi_c_bar_norm = action_norm # -> The action is nested
+        
+        ## Denormalize the action
+        Hs = self._denormalize(Hs_norm, self.Hs_range[0], self.Hs_range[1])
+        Tp = self._denormalize(Tp_norm, self.Tp_range[0], self.Tp_range[1])
+        U_w_bar = self._denormalize(U_w_bar_norm, self.U_w_bar_range[0], self.U_w_bar_range[1])
+        psi_ww_bar = self._denormalize(psi_ww_bar_norm, self.psi_ww_bar_range[0], self.psi_ww_bar_range[1])
+        U_c_bar = self._denormalize(U_c_bar_norm, self.U_c_bar_range[0], self.U_c_bar_range[1])
+        psi_c_bar = self._denormalize(psi_c_bar_norm, self.psi_c_bar_range[0], self.psi_c_bar_range[1])
+        
+        # Return action
+        action = Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar
+        
+        return action
+    
+    def _denormalize_observation(self, observation_norm):
+        """
+        Directly unpacks and denormalize the observation from the environment
+        """    
+        observation = {
+            "position"              : self._denormalize(observation_norm["position"], self.position_range["min"], self.position_range["max"]),
+            "speed"                 : self._denormalize(observation_norm["speed"], self.speed_range["min"], self.speed_range["max"]),
+            "cross_track_error"     : self._denormalize(observation_norm["cross_track_error"], self.cross_track_error_range["min"], self.cross_track_error_range["max"]),
+            "wind"                  : self._denormalize(observation_norm["wind"], self.wind_range["min"], self.wind_range["max"]),
+            "wave"                  : self._denormalize(observation_norm["wave"], self.wave_range["min"], self.wave_range["max"])
+        }
+        
+        return observation    
+    
+    def step(self, action_norm):
         ''' 
             The method is used for stepping up the simulator for the ship assets
             
@@ -224,22 +283,25 @@ class ASTEnv(gym.Env):
             - Hs                : Significant wave height
             - Tp                : Wave peak period
             - U_w_bar           : Wind mean speed
-            - psi_ww            : Wave and Wind mean direction
+            - psi_ww_bar        : Wave and Wind mean direction
             - U_c_bar           : Current mean speed
-            - psi_c             : Current mean direction
+            - psi_c_bar         : Current mean direction
         '''
+        # Denormalize action
+        action = self._denormalize_action(action_norm)
+        
         ## Unpack the action
-        Hs, Tp, U_w_bar, psi_ww, U_c_bar, psi_c = action
+        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
         
         ## GLOBAL ARGS FOR ALL SHIP ASSETS
         # Compile wave_args
-        wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww) if self.wave_model else None
+        wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww_bar) if self.wave_model else None
         
         # Compile current_args
-        current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c) if self.current_model else None
+        current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c_bar) if self.current_model else None
         
         # Compile wind_args
-        wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww) if self.wind_model else None
+        wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww_bar) if self.wind_model else None
         
         # Compile env_args
         env_args = (wave_args, current_args, wind_args)

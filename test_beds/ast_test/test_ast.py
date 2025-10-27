@@ -16,7 +16,7 @@ from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 ## IMPORT AST RELATED TOOLS
 from stable_baselines3 import SAC
 from stable_baselines3.sac import MlpPolicy, MultiInputPolicy
-from gymnasium.wrappers import RescaleAction
+from gymnasium.wrappers import FlattenObservation, RescaleAction
 from gymnasium.utils.env_checker import check_env
 
 ### IMPORT TOOLS
@@ -71,12 +71,17 @@ if __name__ == "__main__":
                     env=env,
                     verbose=1,
                     device='cuda')
-    ast_model.learn(total_timesteps=1000)
+    ast_model.learn(total_timesteps=1_000)
     
-    vec_env = ast_model.get_env()
-    obs = vec_env.reset()
+    # Get the trained agent to predict action
+    ast_env = ast_model.get_env()
+    obs = ast_env.reset()
     
-    # action, _states = ast_model.predict(obs, deterministic=True)
+    action, _ = ast_model.predict(obs, deterministic=True)
+
+        
+    # print(env._denormalize_action(action))
+    # print(env._denormalize_observation(obs))
     
     # try:
     #     check_env(env)

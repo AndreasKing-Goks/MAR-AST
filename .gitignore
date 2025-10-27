@@ -26,6 +26,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 run/logs/
+0_artifact/
 0_reference/
 
 
