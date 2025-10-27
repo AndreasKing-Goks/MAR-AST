@@ -16,7 +16,7 @@ from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, 
 # -------------------------------
 
 current_model_config = CurrentModelConfiguration(
-    initial_current_velocity=5,
+    initial_current_velocity=1,
     current_velocity_standard_deviation=0.05,
     current_velocity_decay_rate=0.0025,
     initial_current_direction=np.deg2rad(-45),

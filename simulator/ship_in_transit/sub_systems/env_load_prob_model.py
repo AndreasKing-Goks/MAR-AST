@@ -74,7 +74,7 @@ def wrap_angle(x):
     return (x + np.pi) % (2*np.pi) - np.pi
 
 # ----- Prior over current-speed MEAN (independent of S) -----
-def logprior_mu_current(mu_c, range=(0.0, 2.5), center=0.7, sigma_frac=0.25):
+def logprior_mu_speed(mu_c, range=(0.0, 2.5), center=0.7, sigma_frac=0.25):
     """
     Broad truncated-normal prior for current mean speed (m/s).
     Tweak rng/center/sigma_frac to your climatology.

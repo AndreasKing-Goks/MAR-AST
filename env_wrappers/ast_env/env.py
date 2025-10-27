@@ -11,6 +11,7 @@ from simulator.ship_in_transit.sub_systems.wave_model import JONSWAPWaveModel, W
 from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, CurrentModelConfiguration
 from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, WindModelConfiguration
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
+from simulator.ship_in_transit.sub_systems.env_load_prob_model import SeaStateMixture, logprior_mu_speed, logprior_mu_direction
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Literal
@@ -98,9 +99,15 @@ class ASTEnv(gym.Env):
         self.wind_model_config = wind_model_config
         
         # Get the environment model based on the config
-        self.wave_model = JONSWAPWaveModel(self.wave_model_config, seed=seed) if include_wave else None
-        self.current_model = SurfaceCurrent(self.current_model_config, seed=seed) if include_current else None
-        self.wind_model = NORSOKWindModel(self.wind_model_config, seed=seed) if include_wind else None
+        self.wave_model         = JONSWAPWaveModel(self.wave_model_config, seed=seed) if include_wave else None
+        self.current_model      = SurfaceCurrent(self.current_model_config, seed=seed) if include_current else None
+        self.wind_model         = NORSOKWindModel(self.wind_model_config, seed=seed) if include_wind else None
+        self.sea_state_mixture  = SeaStateMixture()
+        
+        # Previous sampled mean current speed, mean current direction, and mean wind-wave direction
+        self.U_c_bar_prev       = self.current_model_config.initial_current_velocity
+        self.psi_c_bar_prev     = self.current_model_config.initial_current_direction
+        self.psi_ww_bar_prev    = self.wind_model_config.initial_wind_direction
         
         # Ship drawing configuration
         self.ship_draw = args.ship_draw
@@ -124,7 +131,7 @@ class ASTEnv(gym.Env):
         # LOS guidance cross track error
         e_ct_min, e_ct_max               = np.array([0.0, 3000.0], dtype=np.float32)
         # Wind speed
-        U_w_min, U_w_max                 = np.array([0.0, 32.9244444], dtype=np.float32)
+        U_w_min, U_w_max                 = np.array([0.0, 42.0], dtype=np.float32) # in m/s. Knot [0, ~80] 
         # Wind and Wave direction
         psi_ww_min, psi_ww_max           = np.array([-np.pi, np.pi], dtype=np.float32)
         # Current speed
@@ -137,7 +144,7 @@ class ASTEnv(gym.Env):
         self.speed_range             = {"min": np.array([speed_min], dtype=np.float32), "max": np.array([speed_max], dtype=np.float32)}
         self.cross_track_error_range = {"min": np.array([e_ct_min], dtype=np.float32), "max": np.array([e_ct_max], dtype=np.float32)}
         self.wind_range              = {"min": np.array([U_w_min, psi_ww_min], dtype=np.float32), "max": np.array([U_w_max, psi_ww_max], dtype=np.float32)}
-        self.wave_range              = {"min": np.array([U_c_min, psi_c_min], dtype=np.float32), "max": np.array([U_w_max, psi_c_max], dtype=np.float32)}
+        self.current_range           = {"min": np.array([U_c_min, psi_c_min], dtype=np.float32), "max": np.array([U_c_max, psi_c_max], dtype=np.float32)}
         
         # Initialize action space
         self.init_action_space()
@@ -163,7 +170,7 @@ class ASTEnv(gym.Env):
         # Wave peak period
         Tp_min, Tp_max                   = [0.1, 23.7]
         # Mean wind speed
-        U_w_bar_min, U_w_bar_max         = [0.0, 32.9244444] # in m/s. Knot [0, 64] 
+        U_w_bar_min, U_w_bar_max         = [0.0, 42.0] # in m/s. Knot [0, ~80] 
         # Mean wind direction
         psi_ww_bar_min, psi_ww_bar_max   = [-np.pi, np.pi]
         # Mean current speed
@@ -191,7 +198,7 @@ class ASTEnv(gym.Env):
                 "speed"             : Box(-1.0, 1.0, shape=(1,)),
                 "cross_track_error" : Box(-1.0, 1.0, shape=(1,)),
                 "wind"              : Box(-1.0, 1.0, shape=(2,)),
-                "wave"              : Box(-1.0, 1.0, shape=(2,))
+                "current"           : Box(-1.0, 1.0, shape=(2,))
             }
         )
         
@@ -204,13 +211,13 @@ class ASTEnv(gym.Env):
         speed                   = np.array([self.assets[0].ship_model.speed], dtype=np.float32)
         cross_track_error       = np.array([self.assets[0].ship_model.auto_pilot.navigate.e_ct], dtype=np.float32)
         wind                    = np.array([self.wind_model.init_Ubar, self.wind_model.config.initial_wind_direction], dtype=np.float32)
-        wave                    = np.array([self.current_model.config.initial_current_velocity, self.current_model.config.initial_current_direction], dtype=np.float32)
+        current                 = np.array([self.current_model.config.initial_current_velocity, self.current_model.config.initial_current_direction], dtype=np.float32)
         
         position_norm           = self._normalize(position, self.position_range["min"], self.position_range["max"])
         speed_norm              = self._normalize(speed, self.speed_range["min"], self.speed_range["max"])
         cross_track_error_norm  = self._normalize(cross_track_error, self.cross_track_error_range["min"], self.cross_track_error_range["max"])
         wind_norm               = self._normalize(wind, self.wind_range["min"], self.wind_range["max"])
-        wave_norm               = self._normalize(wave, self.wave_range["min"], self.wave_range["max"])
+        current_norm            = self._normalize(current, self.current_range["min"], self.current_range["max"])
 
         if normalized:
             observation         = {
@@ -218,7 +225,7 @@ class ASTEnv(gym.Env):
                 "speed"             : speed_norm,
                 "cross_track_error" : cross_track_error_norm,
                 "wind"              : wind_norm,
-                "wave"              : wave_norm
+                "current"           : current_norm
             }
         else:
             observation         = {
@@ -226,7 +233,7 @@ class ASTEnv(gym.Env):
                 "speed"             : speed,
                 "cross_track_error" : cross_track_error,
                 "wind"              : wind,
-                "wave"              : wave
+                "current"           : current
             }
         
         return observation
@@ -270,10 +277,56 @@ class ASTEnv(gym.Env):
             "speed"                 : self._denormalize(observation_norm["speed"], self.speed_range["min"], self.speed_range["max"]),
             "cross_track_error"     : self._denormalize(observation_norm["cross_track_error"], self.cross_track_error_range["min"], self.cross_track_error_range["max"]),
             "wind"                  : self._denormalize(observation_norm["wind"], self.wind_range["min"], self.wind_range["max"]),
-            "wave"                  : self._denormalize(observation_norm["wave"], self.wave_range["min"], self.wave_range["max"])
+            "current"               : self._denormalize(observation_norm["current"], self.current_range["min"], self.current_range["max"])
         }
         
         return observation    
+    
+    def reward_function(self, action, logp_floor=-60.0):
+        """
+        For this reward function, we only take into account the own_ship
+        """
+        ## Unpack action
+        [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar] = action
+        
+        ## Base reward
+        reward = 0.0
+        
+        ## Get the termination info of the own ship
+        collision           = self.assets[0].ship_model.stop_info['collision']
+        grounding_failure   = self.assets[0].ship_model.stop_info['grounding_failure']
+        navigation_failure  = self.assets[0].ship_model.stop_info['navigation_failure']
+        reaches_endpoint    = self.assets[0].ship_model.stop_info['reaches_endpoint']
+        outside_horizon     = self.assets[0].ship_model.stop_info['outside_horizon']
+        power_overload      = self.assets[0].ship_model.stop_info['power_overload']
+        
+        ## Get reward from the environmental load log probability
+        # Sea state marginal log likelihood (clip to floor if we encounter log prob of negative infinity)
+        sea_state_ll            = max(self.sea_state_mixture.logpdf_marginal(Hs, U_w_bar, Tp), logp_floor)
+        
+        # Current speed direction (clip to floor if we encounter log prob of negative infinity)
+        current_speed_ll        = max(logprior_mu_speed(U_c_bar, range=(self.current_range["min"][0], self.current_range["max"][0]), center=self.U_c_bar_prev),
+                                  logp_floor)
+        
+        # Current speed direction
+        current_direction_ll    = logprior_mu_direction(psi_c_bar, clim_mean_dir=self.psi_c_bar_prev)
+        
+        # Wind speed direction
+        wind_direction_ll       = logprior_mu_direction(psi_ww_bar, clim_mean_dir=self.psi_ww_bar_prev)
+        
+        # Sum all the log likelihood to get the reward_signal
+        reward_env_ll = sea_state_ll + current_speed_ll + current_direction_ll + wind_direction_ll 
+        
+        # Add to the base reward
+        reward += reward_env_ll
+        
+        ## Get reward from termination status
+        if collision or grounding_failure or navigation_failure or power_overload:
+            reward += 50.0
+        elif reaches_endpoint or outside_horizon:
+            reward += -50.0
+        
+        return reward
     
     def step(self, action_norm):
         ''' 
@@ -326,13 +379,19 @@ class ASTEnv(gym.Env):
             self.ship_stop_status[i] = asset.ship_model.stop
         
         if np.all(self.ship_stop_status):
+            # Set the environment model stop flag as True if all the ship assets are stop
             self.stop = True
             
             observation = self._get_obs()
-            reward      = 0.0
+            reward      = self.reward_function(action)
             terminated  = True
-            truncated   = False
+            truncated   = False # For now we don't have truncated case
             info        = {}
+            
+            # Update the environmental load memory
+            self.U_c_bar_prev       = U_c_bar
+            self.psi_c_bar_prev     = psi_c_bar
+            self.psi_ww_bar_prev    = psi_ww_bar
             
             return observation, reward, terminated, truncated, info
         
@@ -345,10 +404,15 @@ class ASTEnv(gym.Env):
             self.time_since_last_ship_drawing += self.args.time_step
             
         observation = self._get_obs()
-        reward      = 0.0
+        reward      = self.reward_function(action)
         terminated  = False
-        truncated   = False
+        truncated   = False # For now we don't have truncated case
         info        = {}
+        
+        # Update the environmental load memory
+        self.U_c_bar_prev       = U_c_bar
+        self.psi_c_bar_prev     = psi_c_bar
+        self.psi_ww_bar_prev    = psi_ww_bar
         
         return observation, reward, terminated, truncated, info
 
@@ -379,6 +443,11 @@ class ASTEnv(gym.Env):
         if self.wave_model: self.wave_model.reset()
         if self.current_model: self.current_model.reset()
         if self.wind_model: self.wind_model.reset()
+        
+        # Reset the environmental load memory
+        self.U_c_bar_prev       = self.current_model_config.initial_current_velocity
+        self.psi_c_bar_prev     = self.current_model_config.initial_current_direction
+        self.psi_ww_bar_prev    = self.wind_model_config.initial_wind_direction
         
         # Reset the observation
         observation = self._get_obs()
