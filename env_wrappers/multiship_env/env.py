@@ -159,10 +159,6 @@ class MultiShipEnv:
             # Update stop list
             self.ship_stop_status[i] = asset.ship_model.stop
         
-        if np.all(self.ship_stop_status):
-            self.stop = True
-            return
-        
         ## Apply ship drawing (set as optional function) after stepping
         if self.ship_draw:
             if self.time_since_last_ship_drawing > 30:
@@ -170,6 +166,11 @@ class MultiShipEnv:
                     ship.ship_model.ship_snap_shot()
                 self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
             self.time_since_last_ship_drawing += self.args.time_step
+        
+        # Stop the environment when all ships stops
+        if np.all(self.ship_stop_status):
+            self.stop = True
+            return
         
         return
 

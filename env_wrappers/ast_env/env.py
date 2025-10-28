@@ -162,7 +162,6 @@ class ASTEnv(gym.Env):
         """Denormalize x from [-1, 1] back to [min_val, max_val]."""
         return (x_norm + 1) * 0.5 * (max_val - min_val) + min_val
 
-    
     def init_action_space(self):
         ## Action Space (6)
         # Significant wave height
@@ -378,10 +377,20 @@ class ASTEnv(gym.Env):
             # Update stop list
             self.ship_stop_status[i] = asset.ship_model.stop
         
+        ## Apply ship drawing (set as optional function) after stepping
+        if self.ship_draw:
+            if self.time_since_last_ship_drawing > 30:
+                for ship in self.assets:
+                    ship.ship_model.ship_snap_shot()
+                self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
+            self.time_since_last_ship_drawing += self.args.time_step
+        
+        # Stop the environment when all ships stops
         if np.all(self.ship_stop_status):
             # Set the environment model stop flag as True if all the ship assets are stop
             self.stop = True
             
+            # Get the RL step output
             observation = self._get_obs()
             reward      = self.reward_function(action)
             terminated  = True
@@ -395,14 +404,7 @@ class ASTEnv(gym.Env):
             
             return observation, reward, terminated, truncated, info
         
-        ## Apply ship drawing (set as optional function) after stepping
-        if self.ship_draw:
-            if self.time_since_last_ship_drawing > 30:
-                for ship in self.assets:
-                    ship.ship_model.ship_snap_shot()
-                self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
-            self.time_since_last_ship_drawing += self.args.time_step
-            
+        # Get the RL step output
         observation = self._get_obs()
         reward      = self.reward_function(action)
         terminated  = False

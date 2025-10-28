@@ -236,9 +236,9 @@ env = MultiShipEnv(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args,
-    include_wave=False,
-    include_current=False,
-    include_wind=False)
+    include_wave=True,
+    include_current=True,
+    include_wind=True)
 
 
 ### THIS IS WHERE THE EPISODE HAPPENS
