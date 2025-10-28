@@ -943,7 +943,6 @@ class ShipModel(BaseShipModel):
                 measured_shaft_speed = measured_shaft_speed,
             )
         
-        
         # Update and integrate differential equations for current time step
         if self.auto_pilot is None:
             cross_track_error = 0
@@ -966,6 +965,8 @@ class ShipModel(BaseShipModel):
         
         # Step up the simulator
         self.int.next_time()
+        
+        return
     
     def reset(self):
         # Call the reset method from the parent class

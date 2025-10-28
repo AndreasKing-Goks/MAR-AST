@@ -48,7 +48,7 @@ class ShipAsset:
     init_copy: 'ShipAsset' = field(default=None, repr=False, compare=False)
 
 
-class ASTEnv(gym.Env):
+class SeaEnvAST(gym.Env):
     """
     This class is the main class for AST-compliant environment wrapper the Ship-Transit Simulator for multiple ships. It handles:
     
@@ -327,6 +327,33 @@ class ASTEnv(gym.Env):
         
         return reward
     
+    def _step(self, env_args=None, asset_infos=None):
+        ## Step up all available digital assets
+        for i, asset in enumerate(self.assets):
+            # Step
+            if asset.ship_model.stop is False: asset.ship_model.step(env_args=env_args, 
+                                                                     asset_infos=asset_infos)   # If all asset is not stopped, step up
+            
+            # Update asset.info
+            asset.info.update(current_north     = asset.ship_model.north,
+                              current_east      = asset.ship_model.east,
+                              current_yaw_angle = asset.ship_model.yaw_angle,
+                              forward_speed     = asset.ship_model.forward_speed,
+                              sideways_speed    = asset.ship_model.sideways_speed)
+            
+            # Update stop list
+            self.ship_stop_status[i] = asset.ship_model.stop
+        
+        ## Apply ship drawing (set as optional function) after stepping
+        if self.ship_draw:
+            if self.time_since_last_ship_drawing > 30:
+                for ship in self.assets:
+                    ship.ship_model.ship_snap_shot()
+                self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
+            self.time_since_last_ship_drawing += self.args.time_step
+        
+        return
+    
     def step(self, action_norm):
         ''' 
             The method is used for stepping up the simulator for the ship assets
@@ -361,29 +388,8 @@ class ASTEnv(gym.Env):
         # Collect assets_info
         asset_infos = [asset.info for asset in self.assets]
         
-        ## Step up all available digital assets
-        for i, asset in enumerate(self.assets):
-            # Step
-            if asset.ship_model.stop is False: asset.ship_model.step(env_args=env_args, 
-                                                                     asset_infos=asset_infos)   # If all asset is not stopped, step up
-            
-            # Update asset.info
-            asset.info.update(current_north     = asset.ship_model.north,
-                              current_east      = asset.ship_model.east,
-                              current_yaw_angle = asset.ship_model.yaw_angle,
-                              forward_speed     = asset.ship_model.forward_speed,
-                              sideways_speed    = asset.ship_model.sideways_speed)
-            
-            # Update stop list
-            self.ship_stop_status[i] = asset.ship_model.stop
-        
-        ## Apply ship drawing (set as optional function) after stepping
-        if self.ship_draw:
-            if self.time_since_last_ship_drawing > 30:
-                for ship in self.assets:
-                    ship.ship_model.ship_snap_shot()
-                self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
-            self.time_since_last_ship_drawing += self.args.time_step
+        # Step the simulator
+        self._step(env_args, asset_infos)
         
         # Stop the environment when all ships stops
         if np.all(self.ship_stop_status):

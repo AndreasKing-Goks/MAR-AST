@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
-from env_wrappers.ast_env.env import AssetInfo, ShipAsset, ASTEnv
+from env_wrappers.ast_env.env import AssetInfo, ShipAsset, SeaEnvAST
 
 from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, SimulationConfiguration, ShipModel
 from simulator.ship_in_transit.sub_systems.ship_engine import MachinerySystemConfiguration, MachineryMode, MachineryModeParams, MachineryModes, SpecificFuelConsumptionBaudouin6M26Dot3, SpecificFuelConsumptionWartila6L26, RudderConfiguration
@@ -233,7 +233,7 @@ def get_env_assets(args):
     ################################### ENV SPACE ###################################
 
     # Initiate Multi-Ship Reinforcement Learning Environment Class Wrapper
-    env = ASTEnv(
+    env = SeaEnvAST(
         assets=assets,
         map=map,
         wave_model_config=wave_model_config,
