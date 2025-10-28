@@ -217,7 +217,7 @@ own_ship_los_guidance_parameters = LosParameters(
     integral_gain=0.002,
     integrator_windup_limit=4000
 )
-own_ship_desired_speed = 4.0
+own_ship_desired_speed = 4.5
 own_ship_cross_track_error_tolerance = 750
 own_ship_initial_propeller_shaft_speed = 420
 own_ship = ShipModel(
