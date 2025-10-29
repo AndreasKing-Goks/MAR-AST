@@ -10,28 +10,32 @@ conda env create -f mar-ast.yml
 ```
 
 ## Dependencies for Adaptive Stress Testing
-### PyTorch
-First we want to install `pytorch`. We use `pytorch` to build the multi-layer perceptron network related with Reinforcement Learning (RL) implementaion for the AST. Please consult to [PyTorch official website](https://pytorch.org/get-started/locally/) for local installation guide. This model is developed on Windows OS, using CUDA 12.6-compliant NVIDA GPU. Install this package by running:
 
-```bash
-pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
-```
-
-For non-NVIDIA GPU device, use
-```bash
-pip3 install torch torchvision
-```
+Recommended to do these steps in order.
 
 ### Gymnasium
-We also use `gymnasium` to define the RL observation and action space. Install this package by running:
+First, we need to install `gymnasium` to define the RL observation and action space, and wraps our custom RL-environment wrapper to comply with `stable-baselines3` package. Install this package by running:
 ```bash
 pip install gymnasium
 ```
 
 ### Stable-Baselines 3
-`stable-baselines3` is a `pytorch`-compliant version for RL algorithms implementation. This package will be used as the core for our AST algorithm. Install this package by running:
+We also use `stable-baselines3`, which is a `pytorch`-compliant version for RL algorithms implementation. This package will be used as the core for our AST algorithm. Install this package by running:
 ```bash
 pip install 'stable-baselines3[extra]'
+```
+
+### PyTorch [Optional]
+ We use `pytorch` to build the multi-layer perceptron network related with Reinforcement Learning (RL) implementaion for the AST. The installed `pytorch` only supports `cpu`-device. We need to reinstall the `pytorch` with `cuda` support to enable `cuda` acceleration for the training process. Please consult to [PyTorch official website](https://pytorch.org/get-started/locally/) for local installation guide. 
+ 
+ Generally we need to uinstall the onboard `pytorch` from the previous `stable-baselines3` installation by running:
+```bash
+pip3 uninstall torch torchvision
+```
+ 
+ This model is developed on Windows OS, using CUDA 12.6-compliant NVIDA GPU. Install this package by running:
+```bash
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
 
 ---
@@ -224,6 +228,15 @@ Generally, building this simulator is done by doing these steps:
 
 In `test_beds`, we provide several example scripts to better understand how the simulator and environment work:
 
+### `ast_test`
+Scripts for testing the AST training scripts.
+
+| Script | Description |
+|--------|-------------|
+| `run_ast_env.py` | Run the stress-testing simulation environment without the actual AST process.  |
+| `setup.py` | A script for setting the configuration of `ship_model` and the environment wrapper class. |
+| `test_ast.py` | Main script for running the AST training process. |
+
 ### `env_load_model`
 Scripts for testing environmental models.  
 See [here](https://github.com/AndreasKing-Goks/MAR-AST/tree/main/test_beds/env_load_model).
@@ -249,8 +262,7 @@ See [here](https://github.com/AndreasKing-Goks/MAR-AST/tree/main/test_beds).
 
 | Script | Description |
 |--------|-------------|
+| `test_single_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating single ship asset. |
 | `test_double_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating two ship asset. Used to check the COLAV system. |
 | `test_multi_ship_map.py` | Run `MultiShipEnv()` class on a real-world map with multiple ship asset simulated together. |
-| `test_multi_ship.py` | Run `MultiShipEnv()` class on a simple map with multiple ship asset simulated together. |
-| `test_single_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating single ship asset. |
-| `test_single_ship.py` | Run `SingleShipEnv()` class for single-ship cases. |
+| `test_ship_env_load.py` | Run `MultiShipEnv()` class for single-ship cases without running machinery system to test environment load effects on the ship. |
