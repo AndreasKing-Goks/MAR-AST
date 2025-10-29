@@ -474,6 +474,9 @@ class ShipModel(BaseShipModel):
                  route_name,
                  engine_steps_per_time_step,
                  initial_propeller_shaft_speed_rad_per_s,
+                 initial_propeller_shaft_acc_rad_per_sec2,
+                 init_throttle=None,
+                 init_throttle_period=0,
                  desired_speed=8.0,
                  cross_track_error_tolerance=500,
                  map_obj=None,
@@ -485,6 +488,7 @@ class ShipModel(BaseShipModel):
         self.ship_machinery_model = ShipMachineryModel(
             machinery_config=machinery_config,
             initial_propeller_shaft_speed_rad_per_sec=initial_propeller_shaft_speed_rad_per_s,
+            initial_propeller_shaft_acc_rad_per_sec2=initial_propeller_shaft_acc_rad_per_sec2,
             time_step=self.int.dt/engine_steps_per_time_step
         )
         
@@ -504,7 +508,7 @@ class ShipModel(BaseShipModel):
                 heading_controller_gains=heading_controller_gain,
                 los_parameters=los_parameters,
                 time_step=self.int.dt,
-                max_rudder_angle=np.rad2deg(machinery_config.max_rudder_angle_degrees)
+                max_rudder_angle=np.deg2rad(machinery_config.max_rudder_angle_degrees)
             )
         else:
             self.auto_pilot = None
@@ -516,6 +520,10 @@ class ShipModel(BaseShipModel):
         # Cross track error tolerance
         self.cross_track_error_tolerance = cross_track_error_tolerance
         self.init_cross_track_error_tolerance = self.cross_track_error_tolerance
+        
+        # Initial throttle 
+        self.init_throttle = init_throttle
+        self.init_throttle_period = init_throttle_period
         
         # Get stop_info
         self.stop_info = {

@@ -181,7 +181,6 @@ class EngineThrottleFromSpeedSetPoint:
         desired_shaft_speed = self.ship_speed_controller.sat(val=desired_shaft_speed, low=0, hi=self.max_shaft_speed)
         throttle = self.shaft_speed_controller.pi_ctrl(setpoint=desired_shaft_speed, measurement=measured_shaft_speed)
         return self.shaft_speed_controller.sat(val=throttle, low=0, hi=1.1)
-        # return throttle
     
     def record_initial_parameters(self):
         '''
@@ -246,6 +245,7 @@ class HeadingByReferenceController:
             heading reference signal.
         '''
         rudder_angle = -self.ship_heading_controller.pid_ctrl(setpoint=heading_ref, measurement=measured_heading)
+        
         return self.ship_heading_controller.sat(rudder_angle, -self.max_rudder_angle, self.max_rudder_angle)
     
     def record_initial_parameters(self):
@@ -294,6 +294,12 @@ class HeadingByRouteController:
         
         # Record initial parameters for reset purposes
         self.record_initial_parameters()
+        
+    def sat(self, val, low, hi):
+        ''' Saturate the input val such that it remains
+        between "low" and "hi"
+        '''
+        return max(low, min(val, hi))
         
     def rudder_angle_from_route(self, north_position, east_position, heading):
         ''' This method finds a suitable rudder angle for the ship to follow

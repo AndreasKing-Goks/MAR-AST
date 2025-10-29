@@ -83,29 +83,29 @@ def get_env_assets(args):
         timestep_size=args.time_step
     )
     current_model_config = CurrentModelConfiguration(
-        initial_current_velocity=1.0,
-        current_velocity_standard_deviation=0.05,
-        current_velocity_decay_rate=0.0025,
-        initial_current_direction=np.deg2rad(-90),
-        current_direction_standard_deviation=0.05,
-        current_direction_decay_rate=0.005,
+        initial_current_velocity=0.01,
+        current_velocity_standard_deviation=0.0075,
+        current_velocity_decay_rate=0.025,
+        initial_current_direction=np.deg2rad(0.0),
+        current_direction_standard_deviation=0.025,
+        current_direction_decay_rate=0.025,
         timestep_size=args.time_step
     )
     wind_model_config = WindModelConfiguration(
         initial_mean_wind_velocity=None,                    # Set to None to use a mean wind component
-        mean_wind_velocity_decay_rate=0.001,
-        mean_wind_velocity_standard_deviation=0.5,
-        initial_wind_direction=np.deg2rad(90.0),
-        wind_direction_decay_rate=0.001,
-        wind_direction_standard_deviation=0.03,
+        mean_wind_velocity_decay_rate=0.025,
+        mean_wind_velocity_standard_deviation=0.005,
+        initial_wind_direction=np.deg2rad(0.0),
+        wind_direction_decay_rate=0.025,
+        wind_direction_standard_deviation=0.025,
         minimum_mean_wind_velocity=0.0,
-        maximum_mean_wind_velocity=32.9244444,
+        maximum_mean_wind_velocity=42.0,
         minimum_wind_gust_frequency=0.06,
         maximum_wind_gust_frequency=0.4,
         wind_gust_frequency_discrete_unit_count=100,
         clip_speed_nonnegative=True,
         kappa_parameter=0.0026,
-        U10=2.5,
+        U10=10.0,
         wind_evaluation_height=5.0,
         timestep_size=args.time_step
     )
@@ -152,7 +152,7 @@ def get_env_assets(args):
         rated_speed_main_engine_rpm=1000,
         rudder_angle_to_sway_force_coefficient=50e3,
         rudder_angle_to_yaw_force_coefficient=500e3,
-        max_rudder_angle_degrees=30,
+        max_rudder_angle_degrees=45,
         specific_fuel_consumption_coefficients_me=fuel_spec_me.fuel_consumption_coefficients(),
         specific_fuel_consumption_coefficients_dg=fuel_spec_dg.fuel_consumption_coefficients()
     )
@@ -168,27 +168,28 @@ def get_env_assets(args):
         initial_north_position_m=start_E,
         initial_east_position_m=start_N,
         initial_yaw_angle_rad=np.deg2rad(-30.0),
-        initial_forward_speed_m_per_s=2.0,
+        initial_forward_speed_m_per_s=6.0,
         initial_sideways_speed_m_per_s=0.0,
         initial_yaw_rate_rad_per_s=0.0,
         integration_step=args.time_step,
-        simulation_time=10000,
+        simulation_time=20000,
     )
     # Set the throttle and autopilot controllers for the own ship
     own_ship_throttle_controller_gains = ThrottleControllerGains(
-        kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005 #kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+        kp_ship_speed=2.50, ki_ship_speed=0.025, kp_shaft_speed=0.05, ki_shaft_speed=0.0001
     )
 
-    own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
+    own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=75, ki=0.005)
     own_ship_los_guidance_parameters = LosParameters(
         radius_of_acceptance=args.radius_of_acceptance,
         lookahead_distance=args.lookahead_distance,
         integral_gain=0.002,
         integrator_windup_limit=4000
     )
-    own_ship_desired_speed = 4.5
+    own_ship_desired_speed = 8.0
     own_ship_cross_track_error_tolerance = 750
-    own_ship_initial_propeller_shaft_speed = 420
+    own_ship_initial_propeller_shaft_speed = 500
+    own_ship_initial_propeller_shaft_acceleration = 10
     own_ship = ShipModel(
         ship_config=ship_config,
         simulation_config=own_ship_config,
@@ -203,6 +204,7 @@ def get_env_assets(args):
         route_name=own_ship_route_name,
         engine_steps_per_time_step=args.engine_step_count,
         initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
+        initial_propeller_shaft_acc_rad_per_sec2=own_ship_initial_propeller_shaft_acceleration * np.pi / 30,
         desired_speed=own_ship_desired_speed,
         cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
         map_obj=map[0],

@@ -389,7 +389,12 @@ class SeaEnvAST(gym.Env):
         asset_infos = [asset.info for asset in self.assets]
         
         # Step the simulator
-        self._step(env_args, asset_infos)
+        running_time = 0
+        while running_time < self.assets[0].ship_model.int.sim_time and self.stop is False:
+            self._step(env_args, asset_infos)
+            
+            # Update running time
+            running_time = np.max([asset.ship_model.int.time for asset in self.assets])
         
         # Stop the environment when all ships stops
         if np.all(self.ship_stop_status):

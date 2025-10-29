@@ -381,6 +381,7 @@ class ShipMachineryModel(BaseMachineryModel):
     def __init__(self,
                  machinery_config: MachinerySystemConfiguration,
                  initial_propeller_shaft_speed_rad_per_sec: float,
+                 initial_propeller_shaft_acc_rad_per_sec2: float,
                  time_step: float,
                  ):
         super().__init__(
@@ -407,7 +408,7 @@ class ShipMachineryModel(BaseMachineryModel):
         self.shaft_speed_max = 1.1 * self.w_rated_me * self.r_me
 
         self.omega = initial_propeller_shaft_speed_rad_per_sec
-        self.d_omega = 0
+        self.d_omega = initial_propeller_shaft_acc_rad_per_sec2
 
         # OPERATING MODES NAME TAG
         self.operating_mode = machinery_config.machinery_modes.list_of_modes[machinery_config.machinery_operating_mode].name_tag
@@ -449,6 +450,11 @@ class ShipMachineryModel(BaseMachineryModel):
         eq_me = (torque_main_engine - self.d_me * self.omega) / self.r_me
         eq_hsg = (torque_hsg - self.d_hsg * self.omega) / self.r_hsg
         self.d_omega = (eq_me + eq_hsg - self.kp * self.omega ** 2) / self.jp
+        
+        # print('eq_me :', eq_me)
+        # print('eq_hsg:', eq_hsg)
+        # print('top   :', eq_me + eq_hsg - self.kp * self.omega ** 2)
+        # print('rad/s2:', self.d_omega)
 
     def thrust(self):
         ''' Updates the thrust force based on the shaft speed (self.omega)
@@ -476,6 +482,8 @@ class ShipMachineryModel(BaseMachineryModel):
     def integrate_differentials(self):
         ''' Integrates the differential equation one time step ahead
         '''
+        # print('omega  :', self.omega)
+        # print('d_omega:', self.d_omega)
         self.omega = self.int.integrate(x=self.omega, dx=self.d_omega)
 
     def update_shaft_equation(self, load_percentage):

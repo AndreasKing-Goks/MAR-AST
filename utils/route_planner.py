@@ -147,7 +147,7 @@ class RoutePicker:
         # Save as:
         # Y/East, X/North
         # <E> <N>
-        header = "#Y/East, X/North"
+        header = "#X/North, Y/East"
         np.savetxt(out_path, arr, fmt="%.3f %.3f", header=header, comments='')
         print(f"Saved {len(self.points)} waypoints to: {out_path}")
 

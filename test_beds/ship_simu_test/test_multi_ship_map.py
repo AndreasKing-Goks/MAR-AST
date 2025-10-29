@@ -41,10 +41,10 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 
 ## Add arguments for environments
-parser.add_argument('--time_step', type=int, default=4, metavar='TIMESTEP',
-                    help='ENV: time step size in second for ship transit simulator (default: 30)')
+parser.add_argument('--time_step', type=int, default=5, metavar='TIMESTEP',
+                    help='ENV: time step size in second for ship transit simulator (default: 5)')
 parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
-                    help='ENV: engine integration step count in between simulation timestep (default: 300)')
+                    help='ENV: engine integration step count in between simulation timestep (default: 10)')
 parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
                     help='ENV: radius of acceptance for LOS algorithm (default: 300)')
 parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
@@ -113,29 +113,29 @@ wave_model_config = WaveModelConfiguration(
     timestep_size=args.time_step
 )
 current_model_config = CurrentModelConfiguration(
-    initial_current_velocity=1.0,
-    current_velocity_standard_deviation=0.05,
-    current_velocity_decay_rate=0.0025,
-    initial_current_direction=np.deg2rad(-90),
-    current_direction_standard_deviation=0.05,
-    current_direction_decay_rate=0.005,
+    initial_current_velocity=0.01,
+    current_velocity_standard_deviation=0.0075,
+    current_velocity_decay_rate=0.025,
+    initial_current_direction=np.deg2rad(0.0),
+    current_direction_standard_deviation=0.025,
+    current_direction_decay_rate=0.025,
     timestep_size=args.time_step
 )
 wind_model_config = WindModelConfiguration(
     initial_mean_wind_velocity=None,                    # Set to None to use a mean wind component
-    mean_wind_velocity_decay_rate=0.001,
-    mean_wind_velocity_standard_deviation=0.5,
-    initial_wind_direction=np.deg2rad(90.0),
-    wind_direction_decay_rate=0.001,
-    wind_direction_standard_deviation=0.03,
+    mean_wind_velocity_decay_rate=0.025,
+    mean_wind_velocity_standard_deviation=0.005,
+    initial_wind_direction=np.deg2rad(0.0),
+    wind_direction_decay_rate=0.025,
+    wind_direction_standard_deviation=0.025,
     minimum_mean_wind_velocity=0.0,
-    maximum_mean_wind_velocity=32.9244444,
+    maximum_mean_wind_velocity=42.0,
     minimum_wind_gust_frequency=0.06,
     maximum_wind_gust_frequency=0.4,
     wind_gust_frequency_discrete_unit_count=100,
     clip_speed_nonnegative=True,
     kappa_parameter=0.0026,
-    U10=2.5,
+    U10=10.0,
     wind_evaluation_height=5.0,
     timestep_size=args.time_step
 )
@@ -182,14 +182,14 @@ machinery_config = MachinerySystemConfiguration(
     rated_speed_main_engine_rpm=1000,
     rudder_angle_to_sway_force_coefficient=50e3,
     rudder_angle_to_yaw_force_coefficient=500e3,
-    max_rudder_angle_degrees=30,
+    max_rudder_angle_degrees=45,
     specific_fuel_consumption_coefficients_me=fuel_spec_me.fuel_consumption_coefficients(),
     specific_fuel_consumption_coefficients_dg=fuel_spec_dg.fuel_consumption_coefficients()
 )
 
 ### CONFIGURE THE SHIP SIMULATION MODELS
 ## Own ship
-own_ship_route_filename = 'own_ship_route2.txt'
+own_ship_route_filename = 'own_ship_route.txt'
 own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
 
 start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
@@ -197,19 +197,19 @@ start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: 
 own_ship_config = SimulationConfiguration(
     initial_north_position_m=start_E,
     initial_east_position_m=start_N,
-    initial_yaw_angle_rad=np.deg2rad(-30.0),
-    initial_forward_speed_m_per_s=4.0,
+    initial_yaw_angle_rad=np.deg2rad(-60.0),
+    initial_forward_speed_m_per_s=6.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
-    simulation_time=10000,
+    simulation_time=20000,
 )
 # Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005 #kp_ship_speed=5, ki_ship_speed=0.13, kp_shaft_speed=0.04, ki_shaft_speed=0.001
+    kp_ship_speed=2.50, ki_ship_speed=0.025, kp_shaft_speed=0.05, ki_shaft_speed=0.0001
 )
 
-own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
+own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=75, ki=0.005)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -218,7 +218,8 @@ own_ship_los_guidance_parameters = LosParameters(
 )
 own_ship_desired_speed = 8.0
 own_ship_cross_track_error_tolerance = 750
-own_ship_initial_propeller_shaft_speed = 420
+own_ship_initial_propeller_shaft_speed = 500
+own_ship_initial_propeller_shaft_acceleration = 10
 own_ship = ShipModel(
     ship_config=ship_config,
     simulation_config=own_ship_config,
@@ -233,6 +234,7 @@ own_ship = ShipModel(
     route_name=own_ship_route_name,
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
+    initial_propeller_shaft_acc_rad_per_sec2=own_ship_initial_propeller_shaft_acceleration * np.pi / 30,
     desired_speed=own_ship_desired_speed,
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=map[0],
@@ -267,18 +269,18 @@ tar_ship_config1 = SimulationConfiguration(
     initial_north_position_m=start_E1,
     initial_east_position_m=start_N1,
     initial_yaw_angle_rad=np.deg2rad(30.0),
-    initial_forward_speed_m_per_s=4.0,
+    initial_forward_speed_m_per_s=6.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
-    simulation_time=10000,
+    simulation_time=20000,
 )
 # Set the throttle and autopilot controllers for the own ship
 tar_ship_throttle_controller_gains1 = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005
+    kp_ship_speed=2.50, ki_ship_speed=0.025, kp_shaft_speed=0.05, ki_shaft_speed=0.0001
 )
 
-tar_ship_heading_controller_gains1 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
+tar_ship_heading_controller_gains1 = HeadingControllerGains(kp=1.5, kd=75, ki=0.005)
 tar_ship_los_guidance_parameters1 = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -287,7 +289,8 @@ tar_ship_los_guidance_parameters1 = LosParameters(
 )
 tar_ship_desired_speed1 = 8.0
 tar_ship_cross_track_error_tolerance1 = 750
-tar_ship_initial_propeller_shaft_speed1 = 420
+tar_ship_initial_propeller_shaft_speed1 = 500
+tar_ship_initial_propeller_shaft_acceleration1 = 10
 tar_ship1 = ShipModel(
     ship_config=ship_config,
     simulation_config=tar_ship_config1,
@@ -302,6 +305,7 @@ tar_ship1 = ShipModel(
     route_name=tar_ship_route_name1,
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed1 * np.pi /30,
+    initial_propeller_shaft_acc_rad_per_sec2=tar_ship_initial_propeller_shaft_acceleration1 * np.pi / 30,
     desired_speed=tar_ship_desired_speed1,
     cross_track_error_tolerance=tar_ship_cross_track_error_tolerance1,
     map_obj=map[0],
@@ -336,18 +340,18 @@ tar_ship_config2 = SimulationConfiguration(
     initial_north_position_m=start_E2,
     initial_east_position_m=start_N2,
     initial_yaw_angle_rad=np.deg2rad(-90.0),
-    initial_forward_speed_m_per_s=4.0,
+    initial_forward_speed_m_per_s=6.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
-    simulation_time=10000,
+    simulation_time=20000,
 )
 # Set the throttle and autopilot controllers for the own ship
 tar_ship_throttle_controller_gains2 = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005
+    kp_ship_speed=2.50, ki_ship_speed=0.025, kp_shaft_speed=0.05, ki_shaft_speed=0.0001
 )
 
-tar_ship_heading_controller_gains2 = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
+tar_ship_heading_controller_gains2 = HeadingControllerGains(kp=1.5, kd=75, ki=0.005)
 tar_ship_los_guidance_parameters2 = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,
@@ -356,7 +360,8 @@ tar_ship_los_guidance_parameters2 = LosParameters(
 )
 tar_ship_desired_speed2 =8.0
 tar_ship_cross_track_error_tolerance2 = 750
-tar_ship_initial_propeller_shaft_speed2 = 420
+tar_ship_initial_propeller_shaft_speed2 = 500
+tar_ship_initial_propeller_shaft_acceleration2 = 10
 tar_ship2 = ShipModel(
     ship_config=ship_config,
     simulation_config=tar_ship_config2,
@@ -371,6 +376,7 @@ tar_ship2 = ShipModel(
     route_name=tar_ship_route_name2,
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=tar_ship_initial_propeller_shaft_speed2 * np.pi /30,
+    initial_propeller_shaft_acc_rad_per_sec2=tar_ship_initial_propeller_shaft_acceleration2 * np.pi / 30,
     desired_speed=tar_ship_desired_speed2,
     cross_track_error_tolerance=tar_ship_cross_track_error_tolerance2,
     map_obj=map[0],

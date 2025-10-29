@@ -106,7 +106,7 @@ class MultiShipEnv:
         self.psi_0 = np.deg2rad(0.0)
         
         # Current
-        self.vel_mean = 1.0
+        self.vel_mean = 0.25
         self.current_dir_mean = np.deg2rad(0.0)
         
         # Wind

@@ -13,19 +13,19 @@ from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, Wi
 
 wind_model_config = WindModelConfiguration(
     initial_mean_wind_velocity=None,                    # Set to None to use a mean wind component
-    mean_wind_velocity_decay_rate=0.001,
-    mean_wind_velocity_standard_deviation=0.5,
+    mean_wind_velocity_decay_rate=0.025,
+    mean_wind_velocity_standard_deviation=0.005,
     initial_wind_direction=np.deg2rad(45.0),
-    wind_direction_decay_rate=0.001,
-    wind_direction_standard_deviation=0.03,
+    wind_direction_decay_rate=0.025,
+    wind_direction_standard_deviation=0.025,
     minimum_mean_wind_velocity=0.0,
-    maximum_mean_wind_velocity=100.0,
+    maximum_mean_wind_velocity=42.0,
     minimum_wind_gust_frequency=0.06,
     maximum_wind_gust_frequency=0.4,
     wind_gust_frequency_discrete_unit_count=100,
     clip_speed_nonnegative=True,
     kappa_parameter=0.0026,
-    U10=2.5,
+    U10=10.0,
     wind_evaluation_height=5.0,
     timestep_size=0.5
 )
@@ -33,7 +33,7 @@ wind_model_config = WindModelConfiguration(
 # NORSOK gust, z=20 m, U10=12 m/s
 wind_model = NORSOKWindModel(wind_model_config)
 
-T = 3600
+T = 1000
 Nt = int(T/wind_model.dt)
 t  = np.arange(Nt)*wind_model.dt
 U_w  = np.zeros(Nt); psi_w = np.zeros(Nt)
@@ -41,7 +41,7 @@ U_w  = np.zeros(Nt); psi_w = np.zeros(Nt)
 Ubar_mean = None
 dir_mean = None
 
-Ubar_mean = 1.0
+Ubar_mean = 5.0
 dir_mean = np.deg2rad(-90)
 
 for k in range(Nt):

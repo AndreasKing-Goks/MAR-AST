@@ -16,25 +16,25 @@ from simulator.ship_in_transit.sub_systems.current_model import SurfaceCurrent, 
 # -------------------------------
 
 current_model_config = CurrentModelConfiguration(
-    initial_current_velocity=1,
-    current_velocity_standard_deviation=0.05,
-    current_velocity_decay_rate=0.0025,
+    initial_current_velocity=0.01,
+    current_velocity_standard_deviation=0.0075,
+    current_velocity_decay_rate=0.025,
     initial_current_direction=np.deg2rad(-45),
-    current_direction_standard_deviation=0.05,
-    current_direction_decay_rate=0.005,
+    current_direction_standard_deviation=0.025,
+    current_direction_decay_rate=0.025,
     timestep_size=0.5
 )
 
 current_model = SurfaceCurrent(current_model_config)
 
-T = 6000                       # total simulation time [s]
+T = 1000                       # total simulation time [s]
 Nt = int(T/current_model.dt)   # number of steps
 
 t = np.arange(Nt) * current_model.dt   # time vector
 U_c = np.zeros(Nt)                     # store velocity time history
 psi_c = np.zeros(Nt)                     # store direction time history
 
-vel_mean, dir_mean = 2, np.deg2rad(45)
+vel_mean, dir_mean = 0.5, np.deg2rad(45)
 
 # Time stepping loop: update current model at each timestep
 for k in range(Nt):

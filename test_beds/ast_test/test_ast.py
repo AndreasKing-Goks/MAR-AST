@@ -33,10 +33,10 @@ def parse_cli_args():
     parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 
     ## Add arguments for environments
-    parser.add_argument('--time_step', type=int, default=4, metavar='TIMESTEP',
-                        help='ENV: time step size in second for ship transit simulator (default: 30)')
+    parser.add_argument('--time_step', type=int, default=5, metavar='TIMESTEP',
+                        help='ENV: time step size in second for ship transit simulator (default: 5)')
     parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
-                        help='ENV: engine integration step count in between simulation timestep (default: 300)')
+                        help='ENV: engine integration step count in between simulation timestep (default: 10)')
     parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
                         help='ENV: radius of acceptance for LOS algorithm (default: 300)')
     parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
