@@ -238,7 +238,8 @@ own_ship = ShipModel(
     desired_speed=own_ship_desired_speed,
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=map[0],
-    colav_mode='sbmpc'
+    colav_mode='sbmpc',
+    print_status=True
 )
 own_ship_info = AssetInfo(
     # dynamic state (mutable)

@@ -52,6 +52,9 @@ class JONSWAPWaveModel:
         dt: float
             Time step size for time integration.
         '''
+        # Random seed
+        self.rng = np.random.default_rng(seed)  # private RNG
+        
         # Config
         self.config = config
         
@@ -79,15 +82,14 @@ class JONSWAPWaveModel:
         self.dpsi = self.psi_vec[1] - self.psi_vec[0]
         
         # Vector for randp, phases for each wave across all frequencies
-        self.theta = 2.0 * np.pi * np.random.rand(self.N_omega, self.N_psi)    # (Nw, Nd)
-        
-        # Random seed
-        self.seed = seed
-        if self.seed is not None:
-            np.random.seed(self.seed)
+        self.theta = 2.0 * np.pi * self.rng.random((self.N_omega, self.N_psi))    # (Nw, Nd)
             
         # Record of the initial parameters
         self.record_initial_parameters()
+        
+    def set_seed(self, seed: int | None):
+        # Allow reseeding at any time
+        self.rng = np.random.default_rng(seed)
         
     def jonswap_spectrum(self, Hs, Tp, omega_vec):
         '''
@@ -133,7 +135,6 @@ class JONSWAPWaveModel:
         
         spread_factor = (2**(2*s - 1) * factorial(s) * factorial(s-1)) / (np.pi * factorial(2*s - 1))
 
-        
         # Core definition
         D = np.where(
             np.abs(delta_psi) < np.pi/2,
@@ -254,10 +255,18 @@ class JONSWAPWaveModel:
             key: copy.deepcopy(self.__dict__[key])
             for key in ['g', 's', 'w_min', 'w_max', 'N_omega',
                         'psi_min', 'psi_max', 'N_psi', 'dt', 
-                        'omega_vec', 'domega', 'k_vec', 'psi_vec', 'dpsi',
-                        'seed']
+                        'omega_vec', 'domega', 'k_vec', 'psi_vec', 'dpsi']
             }
 
-    def reset(self):
+    def _reset_params_to_initial(self):
         for key, value in self._initial_parameters.items():
             setattr(self, key, copy.deepcopy(value))
+            
+        # Resample Vector for randp, phases for each wave across all frequencies
+        self.theta = 2.0 * np.pi * self.rng.random((self.N_omega, self.N_psi))    # (Nw, Nd)
+            
+    # Gym-style reset that can accept a seed
+    def reset(self, seed: int | None = None):
+        if seed is not None:
+            self.set_seed(seed)
+        self._reset_params_to_initial()

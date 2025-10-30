@@ -115,7 +115,8 @@ class SeaEnvAST(gym.Env):
         
         # Environment termination flag
         self.ship_stop_status = [False] * len(self.assets)
-        self.stop = False
+        self.terminated = False
+        self.truncated  = False
         
         ### REINFORCEMENT LEARNING AGENT
         ## Observation space
@@ -173,7 +174,7 @@ class SeaEnvAST(gym.Env):
         # Mean wind direction
         psi_ww_bar_min, psi_ww_bar_max   = [-np.pi, np.pi]
         # Mean current speed
-        U_c_bar_min, U_c_bar_max         = [0.0, 5.0]
+        U_c_bar_min, U_c_bar_max         = [0.0, 1.0]
         # Mean current direction
         psi_c_bar_min, psi_c_bar_max     = [-np.pi, np.pi]
         
@@ -186,21 +187,28 @@ class SeaEnvAST(gym.Env):
         self.psi_c_bar_range    = np.array([psi_c_bar_min, psi_c_bar_max], dtype=np.float32)
         
         self.action_space = Box(
-            low  = np.array([-1, -1, -1, -1, -1, -1], dtype=np.float32),
-            high = np.array([ 1,  1,  1,  1,  1,  1], dtype=np.float32)
+            low  = np.array([-1.0, -1.0, -1.0, -1.0, -1.0, -1.0], dtype=np.float32),
+            high = np.array([ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0], dtype=np.float32)
         ) # In order -> [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar]
         
     def init_observation_space(self):
         self.observation_space = gym.spaces.Dict(
             {
-                "position"          : Box(-1.0, 1.0, shape=(3,)),
-                "speed"             : Box(-1.0, 1.0, shape=(1,)),
-                "cross_track_error" : Box(-1.0, 1.0, shape=(1,)),
-                "wind"              : Box(-1.0, 1.0, shape=(2,)),
-                "current"           : Box(-1.0, 1.0, shape=(2,))
+                "position"          : Box(-1.0, 1.0, shape=(3,), dtype=np.float32),
+                "speed"             : Box(-1.0, 1.0, shape=(1,), dtype=np.float32),
+                "cross_track_error" : Box(-1.0, 1.0, shape=(1,), dtype=np.float32),
+                "wind"              : Box(-1.0, 1.0, shape=(2,), dtype=np.float32),
+                "current"           : Box(-1.0, 1.0, shape=(2,), dtype=np.float32)
             }
         )
-        
+    
+    def _safe_clip(self, x, low=-1.0, high=1.0):
+        # Prevent observation to go out of declared space's bound
+        x = np.asarray(x, dtype=np.float32)
+        x = np.nan_to_num(x, nan=0.0, posinf=high, neginf=low)
+        return np.clip(x, low, high, dtype=np.float32)
+
+    
     def _get_obs(self, normalized=True): 
         """
         Automatically normalized the observation.
@@ -219,20 +227,21 @@ class SeaEnvAST(gym.Env):
         current_norm            = self._normalize(current, self.current_range["min"], self.current_range["max"])
 
         if normalized:
+            # CLip the normalized observation within bound
             observation         = {
-                "position"          : position_norm,
-                "speed"             : speed_norm,
-                "cross_track_error" : cross_track_error_norm,
-                "wind"              : wind_norm,
-                "current"           : current_norm
+                "position"          : self._safe_clip(position_norm),
+                "speed"             : self._safe_clip(speed_norm),
+                "cross_track_error" : self._safe_clip(cross_track_error_norm),
+                "wind"              : self._safe_clip(wind_norm),
+                "current"           : self._safe_clip(current_norm)
             }
         else:
             observation         = {
-                "position"          : position,
-                "speed"             : speed,
-                "cross_track_error" : cross_track_error,
-                "wind"              : wind,
-                "current"           : current
+                "position"          : position.astype(np.float32),
+                "speed"             : speed.astype(np.float32),
+                "cross_track_error" : cross_track_error.astype(np.float32),
+                "wind"              : wind.astype(np.float32),
+                "current"           : current.astype(np.float32)
             }
         
         return observation
@@ -281,6 +290,103 @@ class SeaEnvAST(gym.Env):
         
         return observation    
     
+    def _step(self, env_args=None, asset_infos=None):
+        ## Step up all available digital assets
+        for i, asset in enumerate(self.assets):
+            # Step
+            if asset.ship_model.stop is False: asset.ship_model.step(env_args=env_args, 
+                                                                     asset_infos=asset_infos)   # If all asset is not stopped, step up
+            
+            # Update asset.info
+            asset.info.update(current_north     = asset.ship_model.north,
+                              current_east      = asset.ship_model.east,
+                              current_yaw_angle = asset.ship_model.yaw_angle,
+                              forward_speed     = asset.ship_model.forward_speed,
+                              sideways_speed    = asset.ship_model.sideways_speed)
+            
+            # Update stop list
+            self.ship_stop_status[i] = asset.ship_model.stop
+        
+        ## Apply ship drawing (set as optional function) after stepping
+        if self.ship_draw:
+            if self.time_since_last_ship_drawing > 30:
+                for ship in self.assets:
+                    ship.ship_model.ship_snap_shot()
+                self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
+            self.time_since_last_ship_drawing += self.args.time_step
+        
+        return
+    
+    def step(self, action_norm, action_sampling_period=1000):
+        ''' 
+            The method is used for stepping up the simulator for the ship assets
+            
+            * Action unpcaked
+            - Hs                : Significant wave height
+            - Tp                : Wave peak period
+            - U_w_bar           : Wind mean speed
+            - psi_ww_bar        : Wave and Wind mean direction
+            - U_c_bar           : Current mean speed
+            - psi_c_bar         : Current mean direction
+        '''
+        # Denormalize action
+        action = self._denormalize_action(action_norm)
+        
+        ## Unpack the action
+        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
+        
+        ## GLOBAL ARGS FOR ALL SHIP ASSETS
+        # Compile wave_args
+        wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww_bar) if self.wave_model else None
+        
+        # Compile current_args
+        current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c_bar) if self.current_model else None
+        
+        # Compile wind_args
+        wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww_bar) if self.wind_model else None
+        
+        # Compile env_args
+        env_args = (wave_args, current_args, wind_args)
+        
+        # Collect assets_info
+        asset_infos = [asset.info for asset in self.assets]
+        
+        #------------------------------ Step the simulator ------------------------------#
+        running_time = 0
+        # Run the simulator within the action sampling period or until the own ship stopped.
+        while running_time <= action_sampling_period:
+            self._step(env_args, asset_infos)
+            
+            # Update running time using simulator time step
+            running_time += self.assets[0].ship_model.int.dt 
+            
+            # Check if all the ship assets has stopped
+            if np.all(self.ship_stop_status):
+                # Set the environment model termination flag as True if all the ship assets are stop
+                self.terminated = True
+                break
+            
+            # Check if the simulator still within the maximum simulation time
+            if self.assets[0].ship_model.int.time > self.assets[0].ship_model.simulation_config.simulation_time:
+                # Set the environment model truncated flag as True if all the ship assets not stoping within time limit
+                self.truncated  = True
+                break
+        #--------------------------------------------------------------------------------#
+        
+        # Get the RL stepping outputs
+        observation = self._get_obs()
+        reward      = self.reward_function(action)
+        terminated  = self.terminated
+        truncated   = self.truncated
+        info        = {}
+        
+        # Update the environmental load memory
+        self.U_c_bar_prev       = U_c_bar
+        self.psi_c_bar_prev     = psi_c_bar
+        self.psi_ww_bar_prev    = psi_ww_bar
+        
+        return observation, reward, terminated, truncated, info
+    
     def reward_function(self, action, logp_floor=-60.0):
         """
         For this reward function, we only take into account the own_ship
@@ -326,108 +432,6 @@ class SeaEnvAST(gym.Env):
             reward += -50.0
         
         return reward
-    
-    def _step(self, env_args=None, asset_infos=None):
-        ## Step up all available digital assets
-        for i, asset in enumerate(self.assets):
-            # Step
-            if asset.ship_model.stop is False: asset.ship_model.step(env_args=env_args, 
-                                                                     asset_infos=asset_infos)   # If all asset is not stopped, step up
-            
-            # Update asset.info
-            asset.info.update(current_north     = asset.ship_model.north,
-                              current_east      = asset.ship_model.east,
-                              current_yaw_angle = asset.ship_model.yaw_angle,
-                              forward_speed     = asset.ship_model.forward_speed,
-                              sideways_speed    = asset.ship_model.sideways_speed)
-            
-            # Update stop list
-            self.ship_stop_status[i] = asset.ship_model.stop
-        
-        ## Apply ship drawing (set as optional function) after stepping
-        if self.ship_draw:
-            if self.time_since_last_ship_drawing > 30:
-                for ship in self.assets:
-                    ship.ship_model.ship_snap_shot()
-                self.time_since_last_ship_drawing = 0 # The ship draw timer is reset here
-            self.time_since_last_ship_drawing += self.args.time_step
-        
-        return
-    
-    def step(self, action_norm):
-        ''' 
-            The method is used for stepping up the simulator for the ship assets
-            
-            * Action unpcaked
-            - Hs                : Significant wave height
-            - Tp                : Wave peak period
-            - U_w_bar           : Wind mean speed
-            - psi_ww_bar        : Wave and Wind mean direction
-            - U_c_bar           : Current mean speed
-            - psi_c_bar         : Current mean direction
-        '''
-        # Denormalize action
-        action = self._denormalize_action(action_norm)
-        
-        ## Unpack the action
-        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
-        
-        ## GLOBAL ARGS FOR ALL SHIP ASSETS
-        # Compile wave_args
-        wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww_bar) if self.wave_model else None
-        
-        # Compile current_args
-        current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c_bar) if self.current_model else None
-        
-        # Compile wind_args
-        wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww_bar) if self.wind_model else None
-        
-        # Compile env_args
-        env_args = (wave_args, current_args, wind_args)
-        
-        # Collect assets_info
-        asset_infos = [asset.info for asset in self.assets]
-        
-        # Step the simulator
-        running_time = 0
-        while running_time < self.assets[0].ship_model.int.sim_time and self.stop is False:
-            self._step(env_args, asset_infos)
-            
-            # Update running time
-            running_time = np.max([asset.ship_model.int.time for asset in self.assets])
-        
-        # Stop the environment when all ships stops
-        if np.all(self.ship_stop_status):
-            # Set the environment model stop flag as True if all the ship assets are stop
-            self.stop = True
-            
-            # Get the RL step output
-            observation = self._get_obs()
-            reward      = self.reward_function(action)
-            terminated  = True
-            truncated   = False # For now we don't have truncated case
-            info        = {}
-            
-            # Update the environmental load memory
-            self.U_c_bar_prev       = U_c_bar
-            self.psi_c_bar_prev     = psi_c_bar
-            self.psi_ww_bar_prev    = psi_ww_bar
-            
-            return observation, reward, terminated, truncated, info
-        
-        # Get the RL step output
-        observation = self._get_obs()
-        reward      = self.reward_function(action)
-        terminated  = False
-        truncated   = False # For now we don't have truncated case
-        info        = {}
-        
-        # Update the environmental load memory
-        self.U_c_bar_prev       = U_c_bar
-        self.psi_c_bar_prev     = psi_c_bar
-        self.psi_ww_bar_prev    = psi_ww_bar
-        
-        return observation, reward, terminated, truncated, info
 
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         ''' 
@@ -437,25 +441,30 @@ class SeaEnvAST(gym.Env):
         super().reset(seed=seed)
         self.np_random, _ = gym.utils.seeding.np_random(seed)
         
-        # Reset the assets
-        for i, asset in enumerate(self.assets):
-            # Call upon the copied initial values
+        # Deterministically seed sub-models (use their own rng if they have one)
+        if self.wave_model:
+            self.wave_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+        if self.current_model:
+            self.current_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+        if self.wind_model:
+            self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+
+        # reset ships; pass seeds if supported
+        for asset in self.assets:
+            if hasattr(asset.ship_model, "reset"):
+                try:
+                    asset.ship_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+                except TypeError:
+                    asset.ship_model.reset()
+
+            # restore info to initial values (deep-copied)
             init = asset.init_copy
-            
-            #  Reset the ship simulator
-            asset.ship_model.reset()
-            
-            # Reset the asset info
-            asset.info = init.info
+            asset.info = copy.deepcopy(init.info)
         
         # Reset the stop status
         self.ship_stop_status = [False] * len(self.assets)
-        self.stop = False
-        
-        # Reset the environment model
-        if self.wave_model: self.wave_model.reset()
-        if self.current_model: self.current_model.reset()
-        if self.wind_model: self.wind_model.reset()
+        self.terminated = False
+        self.truncated  = False
         
         # Reset the environmental load memory
         self.U_c_bar_prev       = self.current_model_config.initial_current_velocity

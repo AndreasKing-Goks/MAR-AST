@@ -480,7 +480,8 @@ class ShipModel(BaseShipModel):
                  desired_speed=8.0,
                  cross_track_error_tolerance=500,
                  map_obj=None,
-                 colav_mode=None):
+                 colav_mode=None,
+                 print_status=True):
         super().__init__(ship_config, simulation_config, wave_model_config, current_model_config, wind_model_config)
         
         self.map_obj = map_obj
@@ -543,6 +544,9 @@ class ShipModel(BaseShipModel):
         
         # Ship name
         self.name_tag = name_tag
+        
+        # Print status flag
+        self.print_status = print_status
         
         # Ship statuses time series
         self.colav_active_array     = []
@@ -729,7 +733,7 @@ class ShipModel(BaseShipModel):
                 ship_length=self.l_ship
             )
             push_flag('grounding_failure', grounded, self.grounding_array)
-            if grounded:
+            if grounded and self.print_status:
                 print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                     'mode experiences grounding.')
 
@@ -742,7 +746,7 @@ class ShipModel(BaseShipModel):
             if not hasattr(self, 'outside_horizon_array'):
                 self.outside_horizon_array = []
             push_flag('outside_horizon', outside, self.outside_horizon_array)
-            if outside:
+            if outside and self.print_status:
                 print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                     'mode is outside the map horizon.')
 
@@ -754,7 +758,7 @@ class ShipModel(BaseShipModel):
                 e_tol=self.cross_track_error_tolerance
             )
             push_flag('navigation_failure', nav_fail, self.nav_failure_array)
-            if nav_fail:
+            if nav_fail and self.print_status:
                 print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                     'experiences navigational failure.')
 
@@ -770,7 +774,7 @@ class ShipModel(BaseShipModel):
             if not hasattr(self, 'reaches_endpoint_array'):
                 self.reaches_endpoint_array = []
             push_flag('reaches_endpoint', reached, self.reaches_endpoint_array)
-            if reached:
+            if reached and self.print_status:
                 print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                     'mode reaches its final destination.')
 
@@ -792,7 +796,7 @@ class ShipModel(BaseShipModel):
                     power_overload = check_condition.is_power_overload(power=power, available_power=available)
 
         push_flag('power_overload', power_overload, self.power_overload_array)
-        if power_overload:
+        if power_overload and self.print_status:
             print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                 'mode experiences power overloading.')
 
@@ -811,7 +815,7 @@ class ShipModel(BaseShipModel):
 
         collision = bool(colliders)
         push_flag('collision', collision, self.collision_array, detail=(colliders if colliders else None))
-        if collision:
+        if collision and self.print_status:
             print(f"{self.name_tag} in {self.ship_machinery_model.operating_mode} "
                 f"collides with {', '.join(colliders)}")
 

@@ -30,6 +30,9 @@ class NORSOKWindModel:
     Direction:  ψ̇ + μψ ψ = wψ   (Gauss–Markov)
     """
     def __init__(self, config:WindModelConfiguration, seed=None):
+        # Random seed
+        self.rng = np.random.default_rng(seed)  # private RNG
+        
         # Config
         self.config = config
         
@@ -69,18 +72,17 @@ class NORSOKWindModel:
         # ---- precompute gust amplitudes & phases (fixed), keep running angles ----
         S = self._norsok(self.f)
         self.a = np.sqrt(2.0 * S * self.df)                  # (N_f,)
-        self.phi0 = 2*np.pi*np.random.rand(self.N_f)              # fixed phases
+        self.phi0 = 2*np.pi*self.rng.random(self.N_f)        # fixed phases
         self.theta = self.phi0.copy()                        # running angles
 
         self.clip_speed_nonnegative =  config.clip_speed_nonnegative
-        
-        # Random seed
-        self.seed = seed
-        if self.seed is not None:
-            np.random.seed(self.seed)
             
         # Record of the initial parameters
         self.record_initial_parameters()
+
+    def set_seed(self, seed: int | None):
+        # Allow reseeding at any time
+        self.rng = np.random.default_rng(seed)
 
     # ----- spectra -----
     def _norsok(self, f):
@@ -92,7 +94,7 @@ class NORSOKWindModel:
 
     def compute_wind_mean_velocity(self, Ubar_mean):
         # Ȗ_{k+1} = Ȗ_k + dt(-μ Ȗ_k + w), w ~ N(0, σ^2/dt)
-        w = np.random.normal(0.0, self.sigma_Ubar/np.sqrt(self.dt))
+        w = self.rng.normal(0.0, self.sigma_Ubar/np.sqrt(self.dt))
         self.Ubar += self.dt * (-self.mu_Ubar * (self.Ubar - Ubar_mean) + w)
         self.Ubar = np.clip(self.Ubar, self.U_min, self.U_max)
         return self.Ubar
@@ -111,7 +113,7 @@ class NORSOKWindModel:
         err = wrap_pi(self.dir - dir_mean)   
         
         # Generate Gaussian white noise for direction
-        w = np.random.normal(0.0, self.sigma_dir/np.sqrt(self.dt))
+        w = self.rng.normal(0.0, self.sigma_dir/np.sqrt(self.dt))
         
         # Update direction using Euler discretization of: ψdot + mu*ψ = w
         self.dir = wrap_pi(self.dir + self.dt * (-self.mu_dir * (err) + w))
@@ -138,16 +140,22 @@ class NORSOKWindModel:
         '''
         self._initial_parameters = {
             key: copy.deepcopy(self.__dict__[key])
-            for key in ['Ubar', 'mu_Ubar', 'mu_dir', 'sigma_Ubar', 
+            for key in ['Ubar', 'dir', 'mu_Ubar', 'mu_dir', 'sigma_Ubar', 
                         'sigma_dir', 'U_min', 'U_max', 'dt', 'U10', 'z', 
                         'kappa', 'f_min', 'f_max', 'N_f', 'f', 'df', 'a',
-                        'seed']
+                        'clip_speed_nonnegative']
             }
 
-    def reset(self):
+    def _reset_params_to_initial(self):
         for key, value in self._initial_parameters.items():
             setattr(self, key, copy.deepcopy(value))
-        self.phi0 = 2*np.pi*np.random.rand(self.N_f)         # fixed phases
-        self.theta = self.phi0.copy()                        # running angles
+                
+        # Fresh phases from RNG
+        self.phi0 = 2*np.pi*self.rng.random(self.N_f)         # fixed phases
+        self.theta = self.phi0.copy()                         # running angles
         
-        
+    # Gym-style reset that can accept a seed
+    def reset(self, seed: int | None = None):
+        if seed is not None:
+            self.set_seed(seed)
+        self._reset_params_to_initial()

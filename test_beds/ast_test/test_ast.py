@@ -47,6 +47,7 @@ def parse_cli_args():
                         help='ENV: time delay in second between ship drawing record (default: 30)')
     parser.add_argument('--map_gpkg_filename', type=str, default='Stangvik.gpkg', metavar='MAP_FILENAME',
                         help="ENV: a string filename for the map file in gkpg format (default: 'Stangvik.gpkg')")
+    
 
     # Add arguments for episodic run
     parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
@@ -71,23 +72,28 @@ if __name__ == "__main__":
                     env=env,
                     verbose=1,
                     device='cuda')
-    ast_model.learn(total_timesteps=1_000)
-    
+    # ast_model.learn(total_timesteps=1_000)
+        
     # Get the trained agent to predict action
     ast_env = ast_model.get_env()
     obs = ast_env.reset()
     
-    action, _ = ast_model.predict(obs, deterministic=True)
+    try:
+        check_env(env)
+        print("Environment passes all chekcs!")
+    except Exception as e:
+        print(f"Environment has issues: {e}")
 
-        
-    # print(env._denormalize_action(action))
-    # print(env._denormalize_observation(obs))
     
-    # try:
-    #     check_env(env)
-    #     print("Environment passes all chekcs!")
-    # except Exception as e:
-    #     print(f"Environment has issues: {e}")
+    # action, _ = ast_model.predict(obs, deterministic=True)
+    
+    # observation, reward, terminated, truncated, info = env.step(action[0])
+    
+    # print('obs          :', obs)
+    # print('observation  :', observation)
+    # print('reward       :', reward)
+    # print('terminated   :', terminated)
+    # print('truncated    :', truncated)
 
     # ### THIS IS WHERE THE EPISODE HAPPENS
     # episode = 1

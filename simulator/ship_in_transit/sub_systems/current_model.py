@@ -19,6 +19,9 @@ class SurfaceCurrent:
         '''
         Small mu value means a slow varying process. While large mu_value meas a fast-decaying fluctuations.
         '''
+        # Random seed
+        self.rng = np.random.default_rng(seed)  # private RNG
+        
         # Config
         self.config = config
         
@@ -35,21 +38,20 @@ class SurfaceCurrent:
 
         self.dt = config.timestep_size                                # timestep size [s]
         
-        # Random seed
-        self.seed = seed
-        if self.seed is not None:
-            np.random.seed(self.seed)
-        
         # Clip negative speed
         self.clip_speed_nonnegative= clip_speed_nonnegative
         
         # Record of the initial parameters
         self.record_initial_parameters()
+    
+    def set_seed(self, seed: int | None):
+        # Allow reseeding at any time
+        self.rng = np.random.default_rng(seed)
         
     def compute_current_velocity(self, vel_mean):
         # Generate Gaussian white noise for velocity.
         # Scale by 1/sqrt(dt) so variance is consistent with continuous-time noise
-        w = np.random.normal(0, self.sigma_vel / np.sqrt(self.dt))  
+        w = self.rng.normal(0, self.sigma_vel / np.sqrt(self.dt))  
         
         # Update velocity using Euler discretization of: Vdot + mu*V = w
         self.vel = self.vel + self.dt * (-self.mu_vel * (self.vel - np.abs(vel_mean)) + w)
@@ -65,7 +67,7 @@ class SurfaceCurrent:
         err = wrap_pi(self.dir - dir_mean)       
 
         # Generate Gaussian white noise for direction
-        w = np.random.normal(0, self.sigma_dir / np.sqrt(self.dt))  
+        w = self.rng.normal(0, self.sigma_dir / np.sqrt(self.dt))  
         
         # Update direction using Euler discretization of: ψdot + mu*ψ = w
         self.dir = wrap_pi(self.dir + self.dt * (-self.mu_dir * err + w))
@@ -99,9 +101,15 @@ class SurfaceCurrent:
             key: copy.deepcopy(self.__dict__[key])
             for key in ['vel', 'mu_vel', 'dir', 'mu_dir',
                         'sigma_vel', 'sigma_dir', 'dt',
-                        'seed']
+                        'clip_speed_nonnegative']
             }
 
-    def reset(self):
+    def _reset_params_to_initial(self):
         for key, value in self._initial_parameters.items():
             setattr(self, key, copy.deepcopy(value))
+            
+    # Gym-style reset that can accept a seed
+    def reset(self, seed: int | None = None):
+        if seed is not None:
+            self.set_seed(seed)
+        self._reset_params_to_initial()

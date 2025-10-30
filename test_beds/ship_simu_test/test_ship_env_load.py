@@ -185,6 +185,7 @@ own_ship_config = SimulationConfiguration(
 own_ship_desired_speed = 0.0
 own_ship_cross_track_error_tolerance = 1000.0
 own_ship_initial_propeller_shaft_speed = 0.0
+own_ship_initial_propeller_shaft_acceleration = 0.0
 own_ship = ShipModel(
     ship_config=ship_config,
     simulation_config=own_ship_config,
@@ -199,10 +200,12 @@ own_ship = ShipModel(
     route_name=None,                            # Ship is free-floating
     engine_steps_per_time_step=args.engine_step_count,
     initial_propeller_shaft_speed_rad_per_s=own_ship_initial_propeller_shaft_speed * np.pi /30,
+    initial_propeller_shaft_acc_rad_per_sec2=own_ship_initial_propeller_shaft_acceleration * np.pi / 30,
     desired_speed=own_ship_desired_speed,
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=None,
-    colav_mode='sbmpc'
+    colav_mode='sbmpc',
+    print_status=True
 )
 own_ship_info = AssetInfo(
     # dynamic state (mutable)
@@ -236,9 +239,9 @@ env = MultiShipEnv(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args,
-    include_wave=True,
-    include_current=True,
-    include_wind=True)
+    include_wave=False,
+    include_current=False,
+    include_wind=False)
 
 
 ### THIS IS WHERE THE EPISODE HAPPENS
