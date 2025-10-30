@@ -207,10 +207,10 @@ own_ship_config = SimulationConfiguration(
 )
 # Set the throttle and autopilot controllers for the own ship
 own_ship_throttle_controller_gains = ThrottleControllerGains(
-    kp_ship_speed=5, ki_ship_speed=0.025, kp_shaft_speed=0.025, ki_shaft_speed=0.0005
+    kp_ship_speed=2.50, ki_ship_speed=0.025, kp_shaft_speed=0.05, ki_shaft_speed=0.0001
 )
 
-own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=70, ki=0.001)
+own_ship_heading_controller_gains = HeadingControllerGains(kp=1.5, kd=75, ki=0.005)
 own_ship_los_guidance_parameters = LosParameters(
     radius_of_acceptance=args.radius_of_acceptance,
     lookahead_distance=args.lookahead_distance,

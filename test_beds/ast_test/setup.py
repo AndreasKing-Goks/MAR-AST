@@ -167,8 +167,8 @@ def get_env_assets(args):
     own_ship_config = SimulationConfiguration(
         initial_north_position_m=start_E,
         initial_east_position_m=start_N,
-        initial_yaw_angle_rad=np.deg2rad(-30.0),
-        initial_forward_speed_m_per_s=6.0,
+        initial_yaw_angle_rad=np.deg2rad(45.0),
+        initial_forward_speed_m_per_s=4.0,
         initial_sideways_speed_m_per_s=0.0,
         initial_yaw_rate_rad_per_s=0.0,
         integration_step=args.time_step,
