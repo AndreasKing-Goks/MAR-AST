@@ -106,11 +106,11 @@ class MultiShipEnv:
         self.psi_0 = np.deg2rad(0.0)
         
         # Current
-        self.vel_mean = 0.25
+        self.vel_mean = 1.0
         self.current_dir_mean = np.deg2rad(0.0)
         
         # Wind
-        self.Ubar_mean = 1.0
+        self.Ubar_mean = 10.0
         self.wind_dir_mean = np.deg2rad(0.0)
         
         # Ship drawing configuration

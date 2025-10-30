@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
-from env_wrappers.ast_env.env import AssetInfo, ShipAsset, SeaEnvAST
+from env_wrappers.multiship_env.env import AssetInfo, ShipAsset, MultiShipEnv
 
 from simulator.ship_in_transit.sub_systems.ship_model import  ShipConfiguration, SimulationConfiguration, ShipModel
 from simulator.ship_in_transit.sub_systems.ship_engine import MachinerySystemConfiguration, MachineryMode, MachineryModeParams, MachineryModes, SpecificFuelConsumptionBaudouin6M26Dot3, SpecificFuelConsumptionWartila6L26, RudderConfiguration
@@ -41,7 +41,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 
 ## Add arguments for environments
-parser.add_argument('--time_step', type=int, default=.5, metavar='TIMESTEP',
+parser.add_argument('--time_step', type=int, default=5, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 5)')
 parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
                     help='ENV: engine integration step count in between simulation timestep (default: 10)')
@@ -239,7 +239,7 @@ own_ship = ShipModel(
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=map[0],
     colav_mode='sbmpc',
-    print_status=True
+    print_status=False
 )
 own_ship_info = AssetInfo(
     # dynamic state (mutable)
@@ -266,7 +266,7 @@ assets: List[ShipAsset] = [own_ship_asset]
 ################################### ENV SPACE ###################################
 
 # Initiate Multi-Ship Reinforcement Learning Environment Class Wrapper
-env = SeaEnvAST(
+env = MultiShipEnv(
     assets=assets,
     map=map,
     wave_model_config=wave_model_config,
@@ -277,53 +277,28 @@ env = SeaEnvAST(
     include_wind=True,
     include_current=True)
 
+
 ### THIS IS WHERE THE EPISODE HAPPENS
 episode = 1
 while episode <= args.n_episodes:
-    # Print message
-    print("--- EPISODE " + str(episode) + " ---")
-    
-    # Increment the episode count
-    episode += 1
-    
-    # Container
-    action_list         = []
-    terminated_list     = []
-    truncated_list      = []
-    reward_list         = []
-    
-    # Termination status
-    terminated = False
-    truncated  = False
-    
     # Reset the environment at the beginning of episode
     env.reset()
     
+    # Print message
+    print("--- EPISODE " + str(episode) + " ---")
+    
     ## THIS IS WHERE THE SIMULATION HAPPENS
-    while not (terminated or truncated):
-        # Sample action
-        action = env.action_space.sample()
+    running_time = 0
+    while running_time < own_ship.int.sim_time and env.stop is False:
+        env.step()
         
-        # Step the env
-        _, reward, terminated, truncated, _ = env.step(action)
-        
-        action_list.append(env._denormalize_action(action))
-        terminated_list.append(terminated)
-        truncated_list.append(truncated)
-        reward_list.append(reward)
+        # Update running time
+        running_time = np.max([asset.ship_model.int.time for asset in assets])
     
-    # Break the loop if terminated or truncated
-    if not (terminated or truncated):
-        break
-    
+    # Increment the episode
+    episode += 1
 
 ################################## GET RESULTS ##################################
-
-# Print container
-print('Action       :', action_list)
-print('Terminated   :', terminated_list)
-print('Truncated    :', truncated_list)
-print('Reward       :', reward_list)
 
 ## Get the simulation results for all assets, and plot the asset simulation results
 own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)

@@ -83,7 +83,6 @@ if __name__ == "__main__":
     #     print("Environment passes all chekcs!")
     # except Exception as e:
     #     print(f"Environment has issues: {e}")
-
     
     action, _ = ast_model.predict(obs, deterministic=True)
     
