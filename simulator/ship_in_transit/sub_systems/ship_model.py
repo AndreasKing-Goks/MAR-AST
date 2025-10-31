@@ -278,7 +278,7 @@ class BaseShipModel:
         Fx_t = np.sum(Fx_ij, axis=(0, 1))
         Fy_t = np.sum(Fy_ij, axis=(0, 1))
 
-        return np.array([Fx_t, Fy_t, Mz_t])
+        return np.array([Fx_t, Fy_t, Mz_t]) / 5
 
     def three_dof_kinematics(self):
         ''' Updates the time differientials of the north position, east
@@ -509,7 +509,8 @@ class ShipModel(BaseShipModel):
                 heading_controller_gains=heading_controller_gain,
                 los_parameters=los_parameters,
                 time_step=self.int.dt,
-                max_rudder_angle=np.deg2rad(machinery_config.max_rudder_angle_degrees)
+                max_rudder_angle=np.deg2rad(machinery_config.max_rudder_angle_degrees),
+                max_rudder_rate=np.deg2rad(machinery_config.max_rudder_rate_degree_per_s)
             )
         else:
             self.auto_pilot = None

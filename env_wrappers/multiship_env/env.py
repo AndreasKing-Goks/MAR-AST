@@ -10,7 +10,7 @@ from simulator.ship_in_transit.sub_systems.wind_model import NORSOKWindModel, Wi
 from simulator.ship_in_transit.sub_systems.obstacle import PolygonObstacle
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Dict, Optional, Tuple, Literal
 
 import copy
 
@@ -174,7 +174,7 @@ class MultiShipEnv:
         
         return
 
-    def reset(self):
+    def reset(self, seed: Optional[int] = None,):
         ''' 
             Reset all of the ship environment inside the assets container.
         '''
@@ -194,9 +194,9 @@ class MultiShipEnv:
         self.stop = False
         
         # Reset the environment model
-        if self.wave_model: self.wave_model.reset()
-        if self.current_model: self.current_model.reset()
-        if self.wind_model: self.wind_model.reset()
+        if self.wave_model: self.wave_model.reset(seed=seed)
+        if self.current_model: self.current_model.reset(seed=seed)
+        if self.wind_model: self.wind_model.reset(seed=seed)
         
         return
        

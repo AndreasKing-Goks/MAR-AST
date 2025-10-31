@@ -55,7 +55,7 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
                     help='ENV: time delay in second between ship drawing record (default: 30)')
 
 # Add arguments for episodic run
-parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
+parser.add_argument('--n_episodes', type=int, default=2, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
 
 args = parser.parse_args()
@@ -182,7 +182,8 @@ machinery_config = MachinerySystemConfiguration(
     rated_speed_main_engine_rpm=1000,
     rudder_angle_to_sway_force_coefficient=50e3,
     rudder_angle_to_yaw_force_coefficient=500e3,
-    max_rudder_angle_degrees=45,
+    max_rudder_angle_degrees=35,
+    max_rudder_rate_degree_per_s=2.3,
     specific_fuel_consumption_coefficients_me=fuel_spec_me.fuel_consumption_coefficients(),
     specific_fuel_consumption_coefficients_dg=fuel_spec_dg.fuel_consumption_coefficients()
 )

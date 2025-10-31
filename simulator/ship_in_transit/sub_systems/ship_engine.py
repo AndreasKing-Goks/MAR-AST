@@ -136,6 +136,7 @@ class MachinerySystemConfiguration(NamedTuple):
     rudder_angle_to_sway_force_coefficient: float
     rudder_angle_to_yaw_force_coefficient: float
     max_rudder_angle_degrees: float
+    max_rudder_rate_degree_per_s: float
     specific_fuel_consumption_coefficients_me: FuelConsumptionCoefficients
     specific_fuel_consumption_coefficients_dg: FuelConsumptionCoefficients
 

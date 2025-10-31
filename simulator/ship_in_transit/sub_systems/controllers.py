@@ -224,36 +224,68 @@ class ThrottleFromSpeedSetPointSimplifiedPropulsion:
     
     
 class HeadingByReferenceController:
-    def __init__(self, gains: HeadingControllerGains, time_step, max_rudder_angle):
+    def __init__(self, gains: HeadingControllerGains, time_step, max_rudder_angle, max_rudder_rate):
         self.gains = gains
         self.time_step = time_step
         self.ship_heading_controller = PidController(kp=self.gains.kp, 
                                                      kd=self.gains.kd, 
                                                      ki=self.gains.ki, 
                                                      time_step=self.time_step)
+        # Limiter
         self.max_rudder_angle = max_rudder_angle
+        self.max_rudder_rate  = float(max_rudder_rate)
+        
+        # Internal state: previously sent (post-limiter) command
+        self.rudder_angle_cmd_prev = 0.0
         
         # Record initial parameters for reset purposes
         self.record_initial_parameters()
-
+        
+    def _apply_slew_limit(self, u_des, u_prev):
+        """Limit |Δu| ≤ max_rudder_rate * dt, then hard-limit angle."""
+        # Compute the maximum rudder angle displacement based on the maximum rudder angle rate
+        max_delta = self.max_rudder_rate * self.time_step
+        
+        # Saturate the command input (desired - previous rudder angle command) w.r.t. the max_delta
+        delta = self.ship_heading_controller.sat(u_des - u_prev, -max_delta, +max_delta)
+        
+        # Add the delta to the previous rudder angle command
+        u_cmd = u_prev + delta
+        
+        # Final angle saturation
+        return self.ship_heading_controller.sat(u_cmd, -self.max_rudder_angle, +self.max_rudder_angle)    
+    
     def rudder_angle_from_heading_setpoint(self, heading_ref: float, measured_heading: float):
-        ''' This method finds a suitable rudder angle for the ship to
+        '''
+            PID -> desired rudder -> rate limit -> angle limit.
+            IMPORTANT: keep units consistent (all deg or all rad).
+            
+            This method finds a suitable rudder angle for the ship to
             sail with the heading specified by "heading_ref" by using
             PID-controller. The rudder angle is saturated according to
-            |self.rudder_ang_max|. The mathod should be called from within
+            |self.rudder_ang_max|. The method should be called from within
             simulation loop if the user want the ship to follow a specified
             heading reference signal.
         '''
-        rudder_angle = -self.ship_heading_controller.pid_ctrl(setpoint=heading_ref, measurement=measured_heading)
         
-        return self.ship_heading_controller.sat(rudder_angle, -self.max_rudder_angle, self.max_rudder_angle)
+        rudder_angle_des = -self.ship_heading_controller.pid_ctrl(setpoint=heading_ref, measurement=measured_heading)
+        
+        # Apply slew limiter around the *previous sent* command
+        rudder_angle_cmd = self._apply_slew_limit(rudder_angle_des, self.rudder_angle_cmd_prev)
+        
+        # store and return
+        self.rudder_angle_cmd_prev = rudder_angle_cmd
+        
+        return rudder_angle_cmd
     
     def record_initial_parameters(self):
         '''
         Stores a deep copy of heading controller for reset.
         '''
         self._initial_state = {
-            'max_rudder_angle': copy.deepcopy(self.max_rudder_angle),  
+            'max_rudder_angle': copy.deepcopy(self.max_rudder_angle),
+            'max_rudder_rate': copy.deepcopy(self.max_rudder_rate),  
+            'rudder_angle_cmd_prev': 0.0,
         }
     
     def reset(self):
@@ -262,6 +294,8 @@ class HeadingByReferenceController:
             its initial values
         '''
         self.max_rudder_angle = copy.deepcopy(self._initial_state['max_rudder_angle'])
+        self.max_rudder_rate  = copy.deepcopy(self._initial_state['max_rudder_rate'])
+        self.rudder_angle_cmd_prev = copy.deepcopy(self._initial_state['rudder_angle_cmd_prev'])
         
         # Reset the heading controller
         self.ship_heading_controller.reset()
@@ -294,12 +328,6 @@ class HeadingByRouteController:
         
         # Record initial parameters for reset purposes
         self.record_initial_parameters()
-        
-    def sat(self, val, low, hi):
-        ''' Saturate the input val such that it remains
-        between "low" and "hi"
-        '''
-        return max(low, min(val, hi))
         
     def rudder_angle_from_route(self, north_position, east_position, heading):
         ''' This method finds a suitable rudder angle for the ship to follow
@@ -348,10 +376,11 @@ class HeadingBySampledRouteController:
             los_parameters: LosParameters,
             time_step: float,
             max_rudder_angle: float,
+            max_rudder_rate:float
     ):
         
         self.heading_controller = HeadingByReferenceController(
-            gains=heading_controller_gains, time_step=time_step, max_rudder_angle=max_rudder_angle
+            gains=heading_controller_gains, time_step=time_step, max_rudder_angle=max_rudder_angle, max_rudder_rate=max_rudder_rate
         )
         self.navigate = NavigationSystem(
             route=route_name,

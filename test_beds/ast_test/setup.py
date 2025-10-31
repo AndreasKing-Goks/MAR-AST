@@ -152,7 +152,8 @@ def get_env_assets(args):
         rated_speed_main_engine_rpm=1000,
         rudder_angle_to_sway_force_coefficient=50e3,
         rudder_angle_to_yaw_force_coefficient=500e3,
-        max_rudder_angle_degrees=45,
+        max_rudder_angle_degrees=35,
+        max_rudder_rate_degree_per_s=2.3,
         specific_fuel_consumption_coefficients_me=fuel_spec_me.fuel_consumption_coefficients(),
         specific_fuel_consumption_coefficients_dg=fuel_spec_dg.fuel_consumption_coefficients()
     )
@@ -242,6 +243,9 @@ def get_env_assets(args):
         wave_model_config=wave_model_config,
         current_model_config=current_model_config,
         wind_model_config=wind_model_config,
-        args=args)
+        args=args
+        include_wave=True,
+        include_wind=True,
+        include_current=True)
     
     return env, assets, map_gdfs

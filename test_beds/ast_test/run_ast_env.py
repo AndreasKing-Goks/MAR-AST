@@ -41,7 +41,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 parser = argparse.ArgumentParser(description='Ship in Transit Simulation')
 
 ## Add arguments for environments
-parser.add_argument('--time_step', type=int, default=.5, metavar='TIMESTEP',
+parser.add_argument('--time_step', type=int, default=5, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 5)')
 parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
                     help='ENV: engine integration step count in between simulation timestep (default: 10)')
@@ -182,7 +182,8 @@ machinery_config = MachinerySystemConfiguration(
     rated_speed_main_engine_rpm=1000,
     rudder_angle_to_sway_force_coefficient=50e3,
     rudder_angle_to_yaw_force_coefficient=500e3,
-    max_rudder_angle_degrees=45,
+    max_rudder_angle_degrees=35,
+    max_rudder_rate_degree_per_s=2.3,
     specific_fuel_consumption_coefficients_me=fuel_spec_me.fuel_consumption_coefficients(),
     specific_fuel_consumption_coefficients_dg=fuel_spec_dg.fuel_consumption_coefficients()
 )
