@@ -18,6 +18,8 @@ class LosParameters(NamedTuple):
     integral_gain: float
     integrator_windup_limit: float
 
+def _wrap_to_pi(a):
+    return (a + math.pi) % (2*math.pi) - math.pi
 
 ###################################################################################################################
 ###################################################################################################################
@@ -108,13 +110,13 @@ class NavigationSystem:
         e_ct = -(x - self.north[k - 1]) * math.sin(alpha_k) + (y - self.east[k - 1]) * math.cos(alpha_k) # Cross-track error
         self.e_ct = e_ct
         if e_ct ** 2 >= self.r ** 2:
-            e_ct = 0.99 * self.r
+            e_ct = math.copysign(0.99*self.r, e_ct)
             self.e_ct = e_ct
         delta = max(1e-6, math.sqrt(self.r ** 2 - e_ct ** 2))
         if abs(self.e_ct_int + e_ct / delta) <= self.integrator_limit:
             self.e_ct_int += e_ct / delta
-        chi_r = math.atan(-e_ct / delta - self.e_ct_int*self.ki)
-        return alpha_k + chi_r
+        chi_r = math.atan2(-e_ct, delta - self.e_ct_int*self.ki)
+        return _wrap_to_pi(alpha_k + chi_r)
     
     def record_initial_parameters(self):
         '''

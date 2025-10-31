@@ -351,7 +351,7 @@ class SeaEnvAST(gym.Env):
         
         return
     
-    def step(self, action_norm, action_sampling_period=2000):
+    def step(self, action_norm, action_sampling_period=1000):
         ''' 
             The method is used to step up the Reinforcement Learning step.
         '''

@@ -240,6 +240,13 @@ class JONSWAPWaveModel:
         # Compute wave spectrum and the spreading function
         S_w = self.jonswap_spectrum(Hs, Tp, omega_vec)      # (Nw,)
         D_psi = self.spreading_function(psi_0, s, psi_vec)  # (Nd,)
+        
+        # Check if spectrum is consistent with Hs
+        target_m0 = Hs**2 / 16.0
+        m0_num = np.sum(S_w) * self.domega
+        if m0_num > 0:
+            S_w *= (target_m0 / m0_num)  # scale to match Hs
+        
         # Normalize the D to integrate to 1 over psi
         # So that the sum over D(psi) dpsi = 1
         D_psi = D_psi / (D_psi.sum() * self.dpsi)           # (Nd,)

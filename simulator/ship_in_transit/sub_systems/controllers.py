@@ -30,7 +30,10 @@ class LosParameters(NamedTuple):
     lookahead_distance: float
     integral_gain: float
     integrator_windup_limit: float
-    
+
+def _wrap_pi(a):
+    import math
+    return (a + math.pi) % (2*math.pi) - math.pi
 
 ###################################################################################################################
 ###################################################################################################################
@@ -97,12 +100,15 @@ class PidController:
         # Record initial parameters for reset purposes
         self.record_initial_parameters()
 
-    def pid_ctrl(self, setpoint, measurement, *args):
+    def pid_ctrl(self, setpoint, measurement, for_angle=False, *args):
         ''' Uses a proportional-derivative-integral control law to calculate
             a control output. The optional argument is a 2x1 array and will
             specify lower and upper [lower, upper] limit for error integration
         '''
-        error = setpoint - measurement
+        if for_angle is True:
+            error = _wrap_pi(setpoint - measurement)
+        else:
+            error = setpoint - measurement
         d_error = (error - self.prev_error) / self.time_step
         error_i = self.error_i + error * self.time_step
         if args:
@@ -268,7 +274,8 @@ class HeadingByReferenceController:
             heading reference signal.
         '''
         
-        rudder_angle_des = -self.ship_heading_controller.pid_ctrl(setpoint=heading_ref, measurement=measured_heading)
+        rudder_angle_des = -self.ship_heading_controller.pid_ctrl(setpoint=heading_ref, measurement=measured_heading,
+                                                                  for_angle=True)
         
         # Apply slew limiter around the *previous sent* command
         rudder_angle_cmd = self._apply_slew_limit(rudder_angle_des, self.rudder_angle_cmd_prev)

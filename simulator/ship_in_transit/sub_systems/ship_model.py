@@ -232,27 +232,32 @@ class BaseShipModel:
         omega_e = self.omega_vec[:, None] - self.k_vec[:, None] * ship_speed * np.cos(beta)     # (Nw, 1) - (Nw, 1)*(1, Nd) = (Nw, Nd)
         
         # Approximation of oblique wave
-        beta_0 = psi_0 - psi_ship
-        A_proj = (self.w_ship * np.cos(beta_0) + self.l_ship * np.sin(beta_0)) * self.t_ship
+        # beta_0 = psi_0 - psi_ship
+        # A_proj = (self.w_ship * np.cos(beta_0) + self.l_ship * np.sin(beta_0)) * self.t_ship
+        A_proj = (self.w_ship * np.cos(beta) + self.l_ship * np.sin(beta)) * self.t_ship
+        depth_decay = np.exp(- self.k_vec[:, None] * (self.t_ship/2.0))    
         
         # Froude-Krylov flat-plate force amplitude
-        F0 = self.rho * self.g * a_eta * A_proj
+        F0 = self.rho * self.g * a_eta * A_proj * depth_decay
         
         # Direction unit vectors
         cx = np.cos(beta)  # (1, Nd)
         cy = np.sin(beta)  # (1, Nd)
         
-        # Fx(t) = sum_{i,j} F0[i,j] * cos(omega_e[i,j]*t + phi[i,j]) * cos(theta_j)
-        arg    = omega_e * self.int.dt + self.theta
-        cosarg = np.cos(arg)                                                      # (Nw, Nd)
+        # # Fx(t) = sum_{i,j} F0[i,j] * cos(omega_e[i,j]*t + phi[i,j]) * cos(theta_j)
+        # arg    = omega_e * self.int.dt + self.theta
+        # cosarg = np.cos(arg)                                                      # (Nw, Nd)
         
-        # advance phases by Δt
+        # # advance phases by Δt
+        # self.theta = (self.theta + omega_e * self.int.dt) % (2*np.pi)
+        # # eta = A cos(omega_e*dt + psi0) = A cos(theta)
+        # # Discrete step t_k = k * dt
+        # # Instead of tracking the k, we can advances the theta by:
+        # # Adding the theta with another omega_e*dt, divide by a full sinusoidal cycle of 2*pi,
+        # # then get the remain. This remain is the advances of theta within the [0, 2*pi)
+        
+        cosarg   = np.cos(self.theta)                 # (Nw,Nd) at current time
         self.theta = (self.theta + omega_e * self.int.dt) % (2*np.pi)
-        # eta = A cos(omega_e*dt + psi0) = A cos(theta)
-        # Discrete step t_k = k * dt
-        # Instead of tracking the k, we can advances the theta by:
-        # Adding the theta with another omega_e*dt, divide by a full sinusoidal cycle of 2*pi,
-        # then get the remain. This remain is the advances of theta within the [0, 2*pi)
 
         # Component forces along x,y per (i,j)
         Fx_ij = F0 * cosarg * cx   # (Nw, Nd)
@@ -278,7 +283,7 @@ class BaseShipModel:
         Fx_t = np.sum(Fx_ij, axis=(0, 1))
         Fy_t = np.sum(Fy_ij, axis=(0, 1))
 
-        return np.array([Fx_t, Fy_t, Mz_t]) / 20
+        return np.array([Fx_t, Fy_t, Mz_t]) / 5
 
     def three_dof_kinematics(self):
         ''' Updates the time differientials of the north position, east

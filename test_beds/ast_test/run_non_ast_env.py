@@ -55,7 +55,7 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
                     help='ENV: time delay in second between ship drawing record (default: 30)')
 
 # Add arguments for episodic run
-parser.add_argument('--n_episodes', type=int, default=2, metavar='N_EPISODES',
+parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
 
 args = parser.parse_args()
@@ -190,7 +190,7 @@ machinery_config = MachinerySystemConfiguration(
 
 ### CONFIGURE THE SHIP SIMULATION MODELS
 ## Own ship
-own_ship_route_filename = 'Stangvik_AST.txt'
+own_ship_route_filename = 'Stangvik_AST_reversed.txt'
 own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
 
 start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
@@ -198,8 +198,8 @@ start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: 
 own_ship_config = SimulationConfiguration(
     initial_north_position_m=start_E,
     initial_east_position_m=start_N,
-    initial_yaw_angle_rad=np.deg2rad(45.0),
-    initial_forward_speed_m_per_s=4.0,
+    initial_yaw_angle_rad=np.deg2rad(-60.0), #45 non reversed, -60 reversed
+    initial_forward_speed_m_per_s=0.0,
     initial_sideways_speed_m_per_s=0.0,
     initial_yaw_rate_rad_per_s=0.0,
     integration_step=args.time_step,
@@ -219,8 +219,8 @@ own_ship_los_guidance_parameters = LosParameters(
 )
 own_ship_desired_speed = 4.5
 own_ship_cross_track_error_tolerance = 750
-own_ship_initial_propeller_shaft_speed = 500
-own_ship_initial_propeller_shaft_acceleration = 10
+own_ship_initial_propeller_shaft_speed = 0
+own_ship_initial_propeller_shaft_acceleration = 0
 own_ship = ShipModel(
     ship_config=ship_config,
     simulation_config=own_ship_config,
@@ -240,7 +240,7 @@ own_ship = ShipModel(
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
     map_obj=map[0],
     colav_mode='sbmpc',
-    print_status=False
+    print_status=True
 )
 own_ship_info = AssetInfo(
     # dynamic state (mutable)
