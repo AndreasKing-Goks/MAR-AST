@@ -78,11 +78,11 @@ if __name__ == "__main__":
     ast_env = ast_model.get_env()
     obs = ast_env.reset()
     
-    # try:
-    #     check_env(env)
-    #     print("Environment passes all chekcs!")
-    # except Exception as e:
-    #     print(f"Environment has issues: {e}")
+    try:
+        check_env(env)
+        print("Environment passes all chekcs!")
+    except Exception as e:
+        print(f"Environment has issues: {e}")
     
     action, _ = ast_model.predict(obs, deterministic=True)
     

@@ -278,7 +278,7 @@ class BaseShipModel:
         Fx_t = np.sum(Fx_ij, axis=(0, 1))
         Fy_t = np.sum(Fy_ij, axis=(0, 1))
 
-        return np.array([Fx_t, Fy_t, Mz_t]) / 5
+        return np.array([Fx_t, Fy_t, Mz_t]) / 20
 
     def three_dof_kinematics(self):
         ''' Updates the time differientials of the north position, east

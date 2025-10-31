@@ -243,7 +243,7 @@ def get_env_assets(args):
         wave_model_config=wave_model_config,
         current_model_config=current_model_config,
         wind_model_config=wind_model_config,
-        args=args
+        args=args,
         include_wave=True,
         include_wind=True,
         include_current=True)

@@ -290,7 +290,41 @@ class SeaEnvAST(gym.Env):
         
         return observation    
     
-    def _step(self, env_args=None, asset_infos=None):
+    def _step(self, action=None):
+        '''
+            The method is used for stepping up the simulator for the ship assets
+            
+            * Action unpcaked
+            - Hs                : Significant wave height
+            - Tp                : Wave peak period
+            - U_w_bar           : Wind mean speed
+            - psi_ww_bar        : Wave and Wind mean direction
+            - U_c_bar           : Current mean speed
+            - psi_c_bar         : Current mean direction
+        '''
+        if action is not None:
+            ## Unpack the action
+            Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
+            
+            ## GLOBAL ARGS FOR ALL SHIP ASSETS
+            # Compile wave_args
+            wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww_bar) if self.wave_model else None
+            
+            # Compile current_args
+            current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c_bar) if self.current_model else None
+            
+            # Compile wind_args
+            wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww_bar) if self.wind_model else None
+            
+            # Compile env_args
+            env_args = (wave_args, current_args, wind_args)
+            
+            # Collect assets_info
+            asset_infos = [asset.info for asset in self.assets]
+        else:
+            env_args = None
+            asset_infos = None
+        
         ## Step up all available digital assets
         for i, asset in enumerate(self.assets):
             # Step
@@ -317,45 +351,22 @@ class SeaEnvAST(gym.Env):
         
         return
     
-    def step(self, action_norm, action_sampling_period=1000):
+    def step(self, action_norm, action_sampling_period=2000):
         ''' 
-            The method is used for stepping up the simulator for the ship assets
-            
-            * Action unpcaked
-            - Hs                : Significant wave height
-            - Tp                : Wave peak period
-            - U_w_bar           : Wind mean speed
-            - psi_ww_bar        : Wave and Wind mean direction
-            - U_c_bar           : Current mean speed
-            - psi_c_bar         : Current mean direction
+            The method is used to step up the Reinforcement Learning step.
         '''
         # Denormalize action
         action = self._denormalize_action(action_norm)
         
-        ## Unpack the action
-        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
+        # Unpack some of the action for environmental load memory
+        _, _, _, psi_ww_bar, U_c_bar, psi_c_bar = action
         
-        ## GLOBAL ARGS FOR ALL SHIP ASSETS
-        # Compile wave_args
-        wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww_bar) if self.wave_model else None
-        
-        # Compile current_args
-        current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c_bar) if self.current_model else None
-        
-        # Compile wind_args
-        wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww_bar) if self.wind_model else None
-        
-        # Compile env_args
-        env_args = (wave_args, current_args, wind_args)
-        
-        # Collect assets_info
-        asset_infos = [asset.info for asset in self.assets]
         
         #------------------------------ Step the simulator ------------------------------#
         running_time = 0
         # Run the simulator within the action sampling period or until the own ship stopped.
         while running_time <= action_sampling_period:
-            self._step(env_args, asset_infos)
+            self._step(action)
             
             # Update running time using simulator time step
             running_time += self.assets[0].ship_model.int.dt 
@@ -441,13 +452,21 @@ class SeaEnvAST(gym.Env):
         super().reset(seed=seed)
         self.np_random, _ = gym.utils.seeding.np_random(seed)
         
+        # # Deterministically seed sub-models (use their own rng if they have one)
+        # if self.wave_model:
+        #     self.wave_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+        # if self.current_model:
+        #     self.current_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+        # if self.wind_model:
+        #     self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+            
         # Deterministically seed sub-models (use their own rng if they have one)
         if self.wave_model:
-            self.wave_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+            self.wave_model.reset(seed=seed)
         if self.current_model:
-            self.current_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+            self.current_model.reset(seed=seed)
         if self.wind_model:
-            self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+            self.wind_model.reset(seed=seed)
 
         # reset ships; pass seeds if supported
         for asset in self.assets:

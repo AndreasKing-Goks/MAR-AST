@@ -270,8 +270,9 @@ class PolarAnimator:
         # Wave: from forces (math -> nav)
         dy = np.asarray(sim['wave force north [N]'])
         dx = np.asarray(sim['wave force east [N]'])
-        wave_deg_math = np.rad2deg(np.arctan2(dy, dx))
-        self.wave_dir_deg = _math_to_nav(wave_deg_math)
+        # wave_deg_math = np.rad2deg(np.arctan2(dy, dx))
+        # self.wave_dir_deg = _math_to_nav(wave_deg_math)
+        self.wave_dir_deg = np.asarray(sim['wind dir [deg]']) # Assume wave and wind direction are the same
         self.wave_mag     = np.sqrt(dx**2 + dy**2)
 
         # Current & wind (assumed already 0N/CW+; convert here if not)
