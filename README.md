@@ -180,8 +180,10 @@ Using this, users can:
    data/
    ├── map/
    │   └── basemap.gpkg
+   │   └── ...
    └── route/
        └── own_ship_route.txt
+       └── ...
    ```
 
 6. **Supported Layers**
@@ -233,7 +235,8 @@ Scripts for testing the AST training scripts.
 
 | Script | Description |
 |--------|-------------|
-| `run_ast_env.py` | Run the stress-testing simulation environment without the actual AST process.  |
+| `run_ast_env.py` | Run the stress-testing simulation environment with the AST action sampling process.  |
+| `run_non_ast_env.py` | Run the stress-testing simulation environment without the AST action sampling process.  |
 | `setup.py` | A script for setting the configuration of `ship_model` and the environment wrapper class. |
 | `test_ast.py` | Main script for running the AST training process. |
 
@@ -262,7 +265,7 @@ See [here](https://github.com/AndreasKing-Goks/MAR-AST/tree/main/test_beds).
 
 | Script | Description |
 |--------|-------------|
+| `test_ship_env_load.py` | Run `MultiShipEnv()` class for single-ship cases without running machinery system to test environment load effects on the ship. |
 | `test_single_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating single ship asset. |
 | `test_double_ship_map.py` | Run `MultiShipEnv()` class on a real-world map while simulating two ship asset. Used to check the COLAV system. |
 | `test_multi_ship_map.py` | Run `MultiShipEnv()` class on a real-world map with multiple ship asset simulated together. |
-| `test_ship_env_load.py` | Run `MultiShipEnv()` class for single-ship cases without running machinery system to test environment load effects on the ship. |
