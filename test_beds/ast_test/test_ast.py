@@ -48,10 +48,13 @@ def parse_cli_args():
     parser.add_argument('--map_gpkg_filename', type=str, default='Stangvik.gpkg', metavar='MAP_FILENAME',
                         help="ENV: a string filename for the map file in gkpg format (default: 'Stangvik.gpkg')")
     
-
-    # Add arguments for episodic run
+   # Add arguments for AST-core
     parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                         help='AST: number of simulation episode counts (default: 1)')
+    parser.add_argument('--action_sampling_start_time', default=1500, metavar='ACT_SAMPLING_START_TIME',
+                        help='AST: time needed before policy - action sampling takes place (default: 1500)')
+    parser.add_argument('--action_sampling_perdiod', default=1000, metavar='ACT_SAMPLING_PERIOD',
+                        help='AST: time period between policy - action sampling (default: 1000)')
 
     # Parse args
     args = parser.parse_args()

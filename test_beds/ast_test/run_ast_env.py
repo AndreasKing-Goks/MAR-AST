@@ -54,9 +54,13 @@ parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
                     help='ENV: time delay in second between ship drawing record (default: 30)')
 
-# Add arguments for episodic run
+# Add arguments for AST-core
 parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
+parser.add_argument('--warm_up_time', default=1500, metavar='WARM_UP_TIME',
+                    help='AST: time needed before policy - action sampling takes place (default: 1500)')
+parser.add_argument('--action_sampling_period', default=1000, metavar='ACT_SAMPLING_PERIOD',
+                    help='AST: time period between policy - action sampling (default: 1000)')
 
 args = parser.parse_args()
 
