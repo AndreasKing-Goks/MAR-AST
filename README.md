@@ -1,5 +1,5 @@
 # MAR-AST
-Repository for Adaptive Stress Testing (AST) algorithm for maritime operations
+Repository for Adaptive Stress Testing (AST) algorithm for maritime operations.
 
 ## Conda Environment Setup [Simulator Only]
 
@@ -28,7 +28,7 @@ pip install 'stable-baselines3[extra]'
 ### PyTorch [Optional]
  We use `pytorch` to build the multi-layer perceptron network related with Reinforcement Learning (RL) implementaion for the AST. The installed `pytorch` only supports `cpu`-device. We need to reinstall the `pytorch` with `cuda` support to enable `cuda` acceleration for the training process. Please consult to [PyTorch official website](https://pytorch.org/get-started/locally/) for local installation guide. 
  
- Generally we need to uinstall the onboard `pytorch` from the previous `stable-baselines3` installation by running:
+ Generally we need to uninstall the onboard `pytorch` from the previous `stable-baselines3` installation by running:
 ```bash
 pip3 uninstall torch torchvision
 ```
