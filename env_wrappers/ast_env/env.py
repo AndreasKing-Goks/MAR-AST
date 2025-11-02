@@ -121,17 +121,16 @@ class SeaEnvAST(gym.Env):
         ### REINFORCEMENT LEARNING AGENT        
         ## Warm up environmental load states (Sea State 1, all direction to North)
         # Wave
-        self.Hs = 0.3 
-        self.Tp = 7.5 
-        self.psi_0 = np.deg2rad(0.0)
+        self.Hs_wu = 0.3 
+        self.Tp_wu = 7.5 
         
         # Current
-        self.vel_mean = 0.25
-        self.current_dir_mean = np.deg2rad(0.0)
+        self.U_c_bar_wu = 0.25
+        self.psi_c_bar_wu = np.deg2rad(0.0)
         
         # Wind
-        self.Ubar_mean = 1.5
-        self.wind_dir_mean = np.deg2rad(0.0)
+        self.U_w_bar_wu = 1.5
+        self.psi_ww_bar_wu = np.deg2rad(0.0)
         
         ## Observation space
         minx, miny, maxx, maxy           = self.map_frame.total_bounds
@@ -332,12 +331,23 @@ class SeaEnvAST(gym.Env):
             
             # Compile env_args
             env_args = (wave_args, current_args, wind_args)
-            
-            # Collect assets_info
-            asset_infos = [asset.info for asset in self.assets]
+        
+        # No action means being in warm up phase       
         else:
-            env_args = None
-            asset_infos = None
+            # Compile wave_args
+            wave_args = self.wave_model.get_wave_force_params(self.Hs_wu, self.Tp_wu, self.psi_ww_bar_wu) if self.wave_model else None
+            
+            # Compile current_args
+            current_args = self.current_model.get_current_vel_and_dir(self.U_c_bar_wu, self.psi_c_bar_wu) if self.current_model else None
+            
+            # Compile wind_args
+            wind_args = self.wind_model.get_wind_vel_and_dir(self.U_w_bar_wu, self.psi_ww_bar_wu) if self.wind_model else None
+            
+            # Compile env_args
+            env_args = (wave_args, current_args, wind_args)
+            
+        # Collect assets_info
+        asset_infos = [asset.info for asset in self.assets]
         
         ## Step up all available digital assets
         for i, asset in enumerate(self.assets):
@@ -473,7 +483,7 @@ class SeaEnvAST(gym.Env):
         if self.wind_model:
             self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
 
-        # reset ships; pass seeds if supported
+        # Reset ships; pass seeds if supported
         for asset in self.assets:
             if hasattr(asset.ship_model, "reset"):
                 try:
@@ -490,10 +500,36 @@ class SeaEnvAST(gym.Env):
         self.terminated = False
         self.truncated  = False
         
-        # Reset the environmental load memory
-        self.U_c_bar_prev       = self.current_model_config.initial_current_velocity
-        self.psi_c_bar_prev     = self.current_model_config.initial_current_direction
-        self.psi_ww_bar_prev    = self.wind_model_config.initial_wind_direction
+        #--------------------------------- Warm Up Phase --------------------------------#
+        # Do step without implementing action for the warm up phase
+        # BEWARE: 
+        # MAKE SURE THAT DURING THE WARM UP PHASE, 
+        # SIMULATOR SHOULD NOT BE TERMINATED/TRUNCATED
+        running_time = 0
+        while running_time <= self.args.warm_up_time:
+            # Simulator integration using a very gentle environment load
+            self._step()
+            
+            # Update running time using simulator time step
+            running_time += self.assets[0].ship_model.int.dt 
+            
+            # Check if all the ship assets has stopped
+            if np.all(self.ship_stop_status):
+                # Set the environment model termination flag as True if all the ship assets are stop
+                self.terminated = True
+                break
+            
+            # Check if the simulator still within the maximum simulation time
+            if self.assets[0].ship_model.int.time > self.assets[0].ship_model.simulation_config.simulation_time:
+                # Set the environment model truncated flag as True if all the ship assets not stoping within time limit
+                self.truncated  = True
+                break
+        #--------------------------------------------------------------------------------#
+        
+        # Reset the environmental load memory. First memory is using the warm up environmental load's parameters
+        self.U_c_bar_prev       = self.U_c_bar_wu
+        self.psi_c_bar_prev     = self.psi_c_bar_wu
+        self.psi_ww_bar_prev    = self.psi_ww_bar_wu
         
         # Reset the observation
         observation = self._get_obs()

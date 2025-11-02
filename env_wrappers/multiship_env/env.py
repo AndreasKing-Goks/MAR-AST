@@ -101,8 +101,8 @@ class MultiShipEnv:
         
         ## Fixed environment parameter
         # Wave
-        self.Hs = 0.88 #11.5 #0.3 
-        self.Tp = 7.5 #16.4 #7.5 
+        self.Hs = 0.3 
+        self.Tp = 7.5 
         self.psi_0 = np.deg2rad(0.0)
         
         # Current
