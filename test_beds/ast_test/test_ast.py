@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 import os
 
-##¤ IMPORT UTILS
+### IMPORT UTILS
 from utils.get_path import get_saved_model_path
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
@@ -119,7 +119,7 @@ if __name__ == "__main__":
                     device='cuda')
     
     # Train the RL model
-    ast_model.learn(total_timesteps=1000)
+    ast_model.learn(total_timesteps=500)
     
     # Save the trained model
     saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-trial_1")
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         if terminated or truncated:
             break
         
-####################################### GET RESULTS ¤#######################################
+####################################### GET RESULTS ########################################
 
 # Print container
 print('Action       :', action_list)

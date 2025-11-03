@@ -76,6 +76,7 @@ class SeaEnvAST(gym.Env):
                       and its helper functions based on Shapely library
         - args      : Environmental arguments
         '''
+        # Gymnasium-related attribute
         super().__init__()
         
         # Store args as attribute
@@ -268,7 +269,7 @@ class SeaEnvAST(gym.Env):
         return {
 
         }
-    
+
     def _denormalize_action(self, action_norm):
         """
         Directly unpacks and denormalize the action from the RL agent
