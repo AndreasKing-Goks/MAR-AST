@@ -294,44 +294,25 @@ while episode <= args.n_episodes:
     # Increment the episode count
     episode += 1
     
-    # Container
-    action_list         = []
-    terminated_list     = []
-    truncated_list      = []
-    reward_list         = []
-    
-    # Termination status
-    terminated = False
-    truncated  = False
-    
     # Reset the environment at the beginning of episode
     env.reset()
     
     ## THIS IS WHERE THE SIMULATION HAPPENS
-    while not (terminated or truncated):
+    while True:
         # Sample action
         action = env.action_space.sample()
         
         # Step the env
         _, reward, terminated, truncated, _ = env.step(action)
         
-        action_list.append(env._denormalize_action(action))
-        terminated_list.append(terminated)
-        truncated_list.append(truncated)
-        reward_list.append(reward)
-    
-    # Break the loop if terminated or truncated
-    if not (terminated or truncated):
-        break
+        if terminated or truncated:
+            break
     
 
 ################################## GET RESULTS ##################################
 
 # Print container
-print('Action       :', action_list)
-print('Terminated   :', terminated_list)
-print('Truncated    :', truncated_list)
-print('Reward       :', reward_list)
+env.print_RL_transition()
 
 ## Get the simulation results for all assets, and plot the asset simulation results
 own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)

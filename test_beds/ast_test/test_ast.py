@@ -66,75 +66,6 @@ def parse_cli_args():
     
     return args
 
-def print_RL_transition(env):
-    # Unpack observation
-    north_list              = []
-    east_list               = []
-    heading_list            = []
-    speed_list              = []
-    cross_track_error_list  = []
-    wind_speed_list         = []
-    wind_dir_list           = []
-    current_speed_list      = []
-    current_dir_list        = []
-    for obs in env.obs_list:
-        # First denormalized obs
-        obs = env._denormalize_observation(obs)
-        
-        north_list.append(obs["position"][0].item())
-        east_list.append(obs["position"][1].item())
-        heading_list.append(np.rad2deg(obs["position"][2]).item())
-        speed_list.append(obs["speed"][0].item())
-        cross_track_error_list.append(obs["cross_track_error"][0].item())
-        wind_speed_list.append(obs["wind"][0].item())
-        wind_dir_list.append(np.rad2deg(obs["wind"][1]).item())
-        current_speed_list.append(obs["current"][0].item())
-        current_dir_list.append(np.rad2deg(obs["current"][1]).item())
-        
-    # Unpack action
-    Hs_list         = []
-    Tp_list         = []
-    U_w_bar_list    = []
-    psi_ww_bar_list = []
-    U_c_bar_list    = []
-    psi_c_bar_list  = []
-    for action in env.action_list:
-        Hs_list.append(action[0].item())
-        Tp_list.append(action[1].item())
-        U_w_bar_list.append(action[2].item())
-        psi_ww_bar_list.append(np.rad2deg(action[3]).item())
-        U_c_bar_list.append(action[4].item())
-        psi_c_bar_list.append(np.rad2deg(action[5]).item())
-        
-    # Do print
-    print('#=========================== RL TRANSITION ==========================#')
-    print('#---------------------------- Observation ---------------------------#')
-    print('north             [m] :', north_list)
-    print('east              [m] :', east_list)
-    print('heading         [deg] :', heading_list)
-    print('speed           [m/s] :', speed_list)
-    print('cross track error [m] :', cross_track_error_list)
-    print('wind speed      [m/s] :', wind_speed_list)
-    print('wind dir        [deg] :', wind_dir_list)
-    print('current speed   [m/s] :', current_speed_list)
-    print('current dir     [deg] :', current_dir_list)
-    print('#------------------------------ Action ------------------------------#')
-    print('Hs                [m] :', Hs_list)
-    print('Tp                [s] :', Tp_list)
-    print('U_w_bar         [m/s] :', U_w_bar_list)
-    print('psi_ww_bar      [deg] :', psi_ww_bar_list)
-    print('U_c_bar         [m/s] :', U_c_bar_list)
-    print('psi_c_Bar       [deg] :', psi_c_bar_list)
-    print('#--------------------------------------------------------------------#')
-    print('Terminated            :', env.terminated_list)
-    print('#--------------------------------------------------------------------#')
-    print('Truncated             :', env.truncated_list)
-    print('#--------------------------------------------------------------------#')
-    print('Reward                :', env.reward_list)
-    print('#--------------------------------------------------------------------#')
-    
-    return
-
 if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
@@ -187,7 +118,7 @@ if __name__ == "__main__":
                     device='cuda')
     
     # Train the RL model
-    ast_model.learn(total_timesteps=50)
+    ast_model.learn(total_timesteps=1000)
     
     # Save the trained model
     saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-trial_1")
@@ -213,7 +144,7 @@ if __name__ == "__main__":
 ####################################### GET RESULTS ########################################
 
     # Print RL transition
-    print_RL_transition(env)
+    env.print_RL_transition()
 
     ## Get the simulation results for all assets, and plot the asset simulation results
     own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
