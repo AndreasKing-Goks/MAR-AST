@@ -38,23 +38,23 @@ def parse_cli_args():
     parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
                         help='ENV: engine integration step count in between simulation timestep (default: 10)')
     parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
-                        help='ENV: radius of acceptance for LOS algorithm (default: 300)')
+                        help='ENV: radius of acceptance in meter for LOS algorithm (default: 300)')
     parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
-                        help='ENV: lookahead distance for LOS algorithm (default: 1000)')
+                        help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
+    parser.add_argument('--nav_fail_time', type=int, default=600, metavar='NAV_FAIL_TIME',
+                        help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 600)')
     parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                         help='ENV: record ship drawing for plotting and animation (default: True)')
     parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
                         help='ENV: time delay in second between ship drawing record (default: 30)')
-    parser.add_argument('--map_gpkg_filename', type=str, default='Stangvik.gpkg', metavar='MAP_FILENAME',
-                        help="ENV: a string filename for the map file in gkpg format (default: 'Stangvik.gpkg')")
-    
+
     # Add arguments for AST-core
     parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                         help='AST: number of simulation episode counts (default: 1)')
     parser.add_argument('--warm_up_time', default=1800, metavar='WARM_UP_TIME',
-                        help='AST: time needed before policy - action sampling takes place (default: 1500)')
+                        help='AST: time needed in second before policy - action sampling takes place (default: 1500)')
     parser.add_argument('--action_sampling_period', default=1800, metavar='ACT_SAMPLING_PERIOD',
-                        help='AST: time period between policy - action sampling (default: 1000)')
+                        help='AST: time period in second between policy - action sampling (default: 1000)')
 
     # Parse args
     args = parser.parse_args()

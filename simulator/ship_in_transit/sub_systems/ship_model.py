@@ -484,6 +484,7 @@ class ShipModel(BaseShipModel):
                  init_throttle_period=0,
                  desired_speed=8.0,
                  cross_track_error_tolerance=500,
+                 nav_fail_time=600,
                  map_obj=None,
                  colav_mode=None,
                  print_status=True):
@@ -522,15 +523,13 @@ class ShipModel(BaseShipModel):
         
         # Ship desired speed
         self.desired_speed = desired_speed
-        self.init_desired_speed = self.desired_speed
         
         # Cross track error tolerance
         self.cross_track_error_tolerance = cross_track_error_tolerance
-        self.init_cross_track_error_tolerance = self.cross_track_error_tolerance
         
-        # Initial throttle 
-        self.init_throttle = init_throttle
-        self.init_throttle_period = init_throttle_period
+        # Navigational warning time counter
+        self.nav_warn_time_counter = 0
+        self.nav_fail_time = nav_fail_time if self.auto_pilot is True else np.inf
         
         # Get stop_info
         self.stop_info = {
@@ -759,14 +758,33 @@ class ShipModel(BaseShipModel):
         # --- Navigation failure --------------------------------------------------
         # Ignored if the autopilot is inactive
         if self.auto_pilot is not None:
-            nav_fail = check_condition.is_ship_navigation_failure(
+            nav_warn = check_condition.is_ship_navigation_warning(
                 e_ct=self.auto_pilot.navigate.e_ct,
                 e_tol=self.cross_track_error_tolerance
             )
-            push_flag('navigation_failure', nav_fail, self.nav_failure_array)
-            if nav_fail and self.print_status:
-                print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
-                    'experiences navigational failure.')
+            # If navigational warning, see if the ship could recover within allowed time limit
+            if nav_warn:
+                # Increase the time counter
+                self.nav_warn_time_counter += self.int.dt
+                print('nav_warn     :', True)
+                print('time counter :', self.nav_warn_time_counter)
+                print('time now     :', self.int.time)
+                print('----------------------')
+                
+                if self.nav_warn_time_counter > self.nav_fail_time:
+                    # Set the nav_fail flag as True
+                    nav_fail = True
+                
+                    push_flag('navigation_failure', nav_fail, self.nav_failure_array)
+                    if nav_fail and self.print_status:
+                        print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                        'experiences navigational failure.')
+            else:
+                # Reset the navigation warning time counter if the ship recovers (nav_warn == False)
+                self.nav_warn_time_counter = 0
+                print('nav_warn     :', False)
+                print('time now     :', self.int.time)
+                print('----------------------')
 
         # --- Reaches endpoint ----------------------------------------------------
         # Ignored if the autopilot is inactive
@@ -997,11 +1015,8 @@ class ShipModel(BaseShipModel):
         if self.throttle_controller is not None:
             self.auto_pilot.reset()
         
-        # Reset the desired speed
-        self.desired_speed = self.init_desired_speed
-        
-        # Reset the cross track error tolerance
-        self.cross_track_error_tolerance = self.init_cross_track_error_tolerance
+        # Reset the navigational warning time counter
+        self.nav_warn_time_counter = 0
         
         # Reset stop_info
         self.stop_info = {

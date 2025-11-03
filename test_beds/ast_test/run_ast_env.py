@@ -46,9 +46,11 @@ parser.add_argument('--time_step', type=int, default=5, metavar='TIMESTEP',
 parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
                     help='ENV: engine integration step count in between simulation timestep (default: 10)')
 parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
-                    help='ENV: radius of acceptance for LOS algorithm (default: 300)')
+                    help='ENV: radius of acceptance in meter for LOS algorithm (default: 300)')
 parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
-                    help='ENV: lookahead distance for LOS algorithm (default: 1000)')
+                    help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
+parser.add_argument('--nav_fail_time', type=int, default=600, metavar='NAV_FAIL_TIME',
+                    help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 600)')
 parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                     help='ENV: record ship drawing for plotting and animation (default: True)')
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
@@ -58,9 +60,9 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
 parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
 parser.add_argument('--warm_up_time', default=1800, metavar='WARM_UP_TIME',
-                    help='AST: time needed before policy - action sampling takes place (default: 1500)')
+                    help='AST: time needed in second before policy - action sampling takes place (default: 1500)')
 parser.add_argument('--action_sampling_period', default=1800, metavar='ACT_SAMPLING_PERIOD',
-                    help='AST: time period between policy - action sampling (default: 1000)')
+                    help='AST: time period in second between policy - action sampling (default: 1000)')
 
 args = parser.parse_args()
 
@@ -242,6 +244,7 @@ own_ship = ShipModel(
     initial_propeller_shaft_acc_rad_per_sec2=own_ship_initial_propeller_shaft_acceleration * np.pi / 30,
     desired_speed=own_ship_desired_speed,
     cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
+    nav_fail_time=args.nav_fail_time,
     map_obj=map[0],
     colav_mode='sbmpc',
     print_status=True

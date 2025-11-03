@@ -118,14 +118,14 @@ def is_route_inside_obstacles(map_obj:PolygonObstacle,
       
     return is_inside
 
-def is_ship_navigation_failure(e_ct, e_tol=500):
+def is_ship_navigation_warning(e_ct, e_tol=500):
     '''
         Check if the cross-track error grow bigger than the allowed limit
     '''
     ## Ship deviates off the course beyond tolerance
-    is_failed_nav = np.abs(e_ct) > e_tol
+    is_warning_nav = np.abs(e_ct) > e_tol
         
-    return is_failed_nav
+    return is_warning_nav
     
 def is_collision_imminent(test_pos, obs_pos, safety_distance=3000):
     '''
