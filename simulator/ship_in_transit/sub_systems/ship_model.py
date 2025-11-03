@@ -480,8 +480,6 @@ class ShipModel(BaseShipModel):
                  engine_steps_per_time_step,
                  initial_propeller_shaft_speed_rad_per_s,
                  initial_propeller_shaft_acc_rad_per_sec2,
-                 init_throttle=None,
-                 init_throttle_period=0,
                  desired_speed=8.0,
                  cross_track_error_tolerance=500,
                  nav_fail_time=600,
@@ -528,8 +526,12 @@ class ShipModel(BaseShipModel):
         self.cross_track_error_tolerance = cross_track_error_tolerance
         
         # Navigational warning time counter
-        self.nav_warn_time_counter = 0
-        self.nav_fail_time = nav_fail_time if self.auto_pilot is True else np.inf
+        self._nav_warn_time_counter = 0
+        self._nav_fail_time = nav_fail_time if self.auto_pilot is not None else np.inf
+            
+        self._navwarn_active = False       # are we currently in a warning episode?
+        self._navfail_printed = False      # have we printed the failure message for this episode?
+        self._navrecover_printed = False   # have we printed the recovery message for the just-ended episode?
         
         # Get stop_info
         self.stop_info = {
@@ -762,29 +764,46 @@ class ShipModel(BaseShipModel):
                 e_ct=self.auto_pilot.navigate.e_ct,
                 e_tol=self.cross_track_error_tolerance
             )
-            # If navigational warning, see if the ship could recover within allowed time limit
+
             if nav_warn:
-                # Increase the time counter
-                self.nav_warn_time_counter += self.int.dt
-                print('nav_warn     :', True)
-                print('time counter :', self.nav_warn_time_counter)
-                print('time now     :', self.int.time)
-                print('----------------------')
-                
-                if self.nav_warn_time_counter > self.nav_fail_time:
-                    # Set the nav_fail flag as True
-                    nav_fail = True
-                
-                    push_flag('navigation_failure', nav_fail, self.nav_failure_array)
-                    if nav_fail and self.print_status:
+                # Edge: warning just started
+                if not self._navwarn_active:
+                    if self.print_status:
                         print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
-                        'experiences navigational failure.')
+                            'is prone to have navigational failure.')
+                    self._navwarn_active = True
+                    self._navrecover_printed = False
+                    self._nav_warn_time_counter = 0.0  # start counting this warning episode
+
+                # During warning
+                self._nav_warn_time_counter += self.int.dt
+                nav_fail = False
+
+                # If the time counter for nav warn exceeds the allowed limit → failure
+                if self._nav_warn_time_counter > self._nav_fail_time:
+                    nav_fail = True
+                    push_flag('navigation_failure', nav_fail, self.nav_failure_array)
+
+                    # Print failure once per episode
+                    if self.print_status and not self._navfail_printed:
+                        print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                            'experiences navigational failure.')
+                        self._navfail_printed = True
+
             else:
-                # Reset the navigation warning time counter if the ship recovers (nav_warn == False)
-                self.nav_warn_time_counter = 0
-                print('nav_warn     :', False)
-                print('time now     :', self.int.time)
-                print('----------------------')
+                # Edge: warning just ended (recovered)
+                if self._navwarn_active:
+                    if self.print_status and not self._navrecover_printed:
+                        print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                            'recovers from navigational failure warning.')
+                        self._navrecover_printed = True
+
+                    # reset episode-scoped flags so a future warning can print again
+                    self._navfail_printed = False
+
+                # Outside warning
+                self._navwarn_active = False
+                self._nav_warn_time_counter = 0.0
 
         # --- Reaches endpoint ----------------------------------------------------
         # Ignored if the autopilot is inactive
@@ -1015,8 +1034,11 @@ class ShipModel(BaseShipModel):
         if self.throttle_controller is not None:
             self.auto_pilot.reset()
         
-        # Reset the navigational warning time counter
-        self.nav_warn_time_counter = 0
+        # Reset the navigational warning time
+        self._nav_warn_time_counter = 0.0
+        self._navwarn_active = False       # are we currently in a warning episode?
+        self._navfail_printed = False      # have we printed the failure message for this episode?
+        self._navrecover_printed = False   # have we printed the recovery message for the just-ended episode?
         
         # Reset stop_info
         self.stop_info = {

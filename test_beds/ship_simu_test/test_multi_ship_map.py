@@ -49,8 +49,8 @@ parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='RO
                     help='ENV: radius of acceptance in meter for LOS algorithm (default: 300)')
 parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
                     help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
-parser.add_argument('--nav_fail_time', type=int, default=600, metavar='NAV_FAIL_TIME',
-                    help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 600)')
+parser.add_argument('--nav_fail_time', type=int, default=300, metavar='NAV_FAIL_TIME',
+                    help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 300)')
 parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                     help='ENV: record ship drawing for plotting and animation (default: True)')
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',

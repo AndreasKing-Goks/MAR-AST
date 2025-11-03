@@ -46,8 +46,8 @@ parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='RO
                     help='ENV: radius of acceptance in meter for LOS algorithm (default: 300)')
 parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
                     help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
-parser.add_argument('--nav_fail_time', type=int, default=600, metavar='NAV_FAIL_TIME',
-                    help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 600)')
+parser.add_argument('--nav_fail_time', type=int, default=300, metavar='NAV_FAIL_TIME',
+                    help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 300)')
 parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                     help='ENV: record ship drawing for plotting and animation (default: True)')
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
@@ -96,29 +96,29 @@ wave_model_config = WaveModelConfiguration(
     timestep_size=args.time_step
 )
 current_model_config = CurrentModelConfiguration(
-    initial_current_velocity=1.0,
-    current_velocity_standard_deviation=0.05,
-    current_velocity_decay_rate=0.0025,
-    initial_current_direction=np.deg2rad(-90),
-    current_direction_standard_deviation=0.05,
-    current_direction_decay_rate=0.005,
+    initial_current_velocity=0.01,
+    current_velocity_standard_deviation=0.0075,
+    current_velocity_decay_rate=0.025,
+    initial_current_direction=np.deg2rad(0.0),
+    current_direction_standard_deviation=0.025,
+    current_direction_decay_rate=0.025,
     timestep_size=args.time_step
 )
 wind_model_config = WindModelConfiguration(
     initial_mean_wind_velocity=None,                    # Set to None to use a mean wind component
-    mean_wind_velocity_decay_rate=0.001,
-    mean_wind_velocity_standard_deviation=0.5,
-    initial_wind_direction=np.deg2rad(90.0),
-    wind_direction_decay_rate=0.001,
-    wind_direction_standard_deviation=0.03,
+    mean_wind_velocity_decay_rate=0.025,
+    mean_wind_velocity_standard_deviation=0.005,
+    initial_wind_direction=np.deg2rad(0.0),
+    wind_direction_decay_rate=0.025,
+    wind_direction_standard_deviation=0.025,
     minimum_mean_wind_velocity=0.0,
-    maximum_mean_wind_velocity=32.9244444,
+    maximum_mean_wind_velocity=42.0,
     minimum_wind_gust_frequency=0.06,
     maximum_wind_gust_frequency=0.4,
     wind_gust_frequency_discrete_unit_count=100,
     clip_speed_nonnegative=True,
     kappa_parameter=0.0026,
-    U10=2.5,
+    U10=10.0,
     wind_evaluation_height=5.0,
     timestep_size=args.time_step
 )
@@ -243,9 +243,9 @@ env = MultiShipEnv(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args,
-    include_wave=False,
-    include_current=False,
-    include_wind=False)
+    include_wave=True,
+    include_current=True,
+    include_wind=True)
 
 
 ### THIS IS WHERE THE EPISODE HAPPENS

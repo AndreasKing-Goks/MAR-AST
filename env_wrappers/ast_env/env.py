@@ -460,10 +460,12 @@ class SeaEnvAST(gym.Env):
         reward += reward_env_ll
         
         ## Get reward from termination status
-        if collision or grounding_failure or navigation_failure or power_overload:
-            reward += 50.0
-        elif reaches_endpoint or outside_horizon:
-            reward += -50.0
+        if collision or navigation_failure or power_overload or outside_horizon:
+            reward += 50.0 # If failure gives positive reward
+        elif grounding_failure:
+            reward += 60.0  # We value grounding failure more
+        elif reaches_endpoint:
+            reward += -50.0 # We discourage the agent to let the ship finishes its mission.
         
         return reward
 
@@ -476,11 +478,11 @@ class SeaEnvAST(gym.Env):
         self.np_random, _ = gym.utils.seeding.np_random(seed)
         
         # Deterministically seed sub-models (use their own rng if they have one)
-        if self.wave_model:
+        if self.wave_model is not None:
             self.wave_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
-        if self.current_model:
+        if self.current_model is not None:
             self.current_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
-        if self.wind_model:
+        if self.wind_model is not None:
             self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
 
         # Reset ships; pass seeds if supported
