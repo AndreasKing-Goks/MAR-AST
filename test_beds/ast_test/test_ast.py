@@ -25,6 +25,9 @@ from typing import List
 import numpy as np
 import pandas as pd
 import os
+
+##¤ IMPORT UTILS
+from utils.get_path import get_saved_model_path
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 
@@ -41,19 +44,21 @@ def parse_cli_args():
                         help='ENV: radius of acceptance in meter for LOS algorithm (default: 300)')
     parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
                         help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
-parser.add_argument('--nav_fail_time', type=int, default=300, metavar='NAV_FAIL_TIME',
+    parser.add_argument('--nav_fail_time', type=int, default=300, metavar='NAV_FAIL_TIME',
                     help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 300)')
     parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                         help='ENV: record ship drawing for plotting and animation (default: True)')
-    parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
+    parser.add_argument('--time_since_last_ship_drawing', type=int, default=30, metavar='SHIP_DRAW_TIME',
                         help='ENV: time delay in second between ship drawing record (default: 30)')
+    parser.add_argument('--map_gpkg_filename', type=str, default="Stangvik.gpkg", metavar='MAP_GPKG_FILENAME',
+                        help='ENV: name of the .gpkg filename for the map (default: "Stangvik.gpkg")')
 
     # Add arguments for AST-core
     parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                         help='AST: number of simulation episode counts (default: 1)')
-    parser.add_argument('--warm_up_time', default=1800, metavar='WARM_UP_TIME',
+    parser.add_argument('--warm_up_time', type=int, default=1800, metavar='WARM_UP_TIME',
                         help='AST: time needed in second before policy - action sampling takes place (default: 1500)')
-    parser.add_argument('--action_sampling_period', default=1800, metavar='ACT_SAMPLING_PERIOD',
+    parser.add_argument('--action_sampling_period', type=int, default=1800, metavar='ACT_SAMPLING_PERIOD',
                         help='AST: time period in second between policy - action sampling (default: 1000)')
 
     # Parse args
@@ -63,93 +68,129 @@ parser.add_argument('--nav_fail_time', type=int, default=300, metavar='NAV_FAIL_
 
 
 if __name__ == "__main__":
-    
+
+###################################### TRAIN THE MODEL #####################################
+
     # Get the args
     args = parse_cli_args()
     
     # Get the assets and AST Environment Wrapper
     env, assets, map_gdfs = get_env_assets(args=args)
     
-    # Get RL model
-    ast_model = SAC("MultiInputPolicy",
-                    env=env,
-                    verbose=1,
-                    device='cuda')
-    # ast_model.learn(total_timesteps=1_000)
-        
-    # Get the trained agent to predict action
-    ast_env = ast_model.get_env()
-    obs = ast_env.reset()
-    
+    # Check the env if falid
     try:
         check_env(env)
         print("Environment passes all chekcs!")
     except Exception as e:
         print(f"Environment has issues: {e}")
+        print("ABORT TRAINING")
+        sys.exit(1)  # non-zero exit code stops the script
     
-    action, _ = ast_model.predict(obs, deterministic=True)
+    # Set the Policy
+    # Later
     
-    observation, reward, terminated, truncated, info = env.step(action[0])
+    # Set RL model
+    ast_model = SAC("MultiInputPolicy",
+                    env=env,
+                    learning_rate=3e-4,
+                    buffer_size=1_000_000,
+                    learning_starts=100,
+                    batch_size=256,
+                    tau=0.005,
+                    gamma=0.99,
+                    train_freq=1,
+                    gradient_steps=1,
+                    action_noise=None,
+                    replay_buffer_class=None,
+                    replay_buffer_kwargs=None,
+                    optimize_memory_usage=False,
+                    n_steps=1,
+                    ent_coef="auto",
+                    target_update_interval=1,
+                    target_entropy="auto",
+                    use_sde=False,
+                    sde_sample_freq=-1,
+                    use_sde_at_warmup=False,
+                    stats_window_size=100,
+                    tensorboard_log=None,
+                    policy_kwargs=None,
+                    verbose=1,
+                    seed=None,
+                    device='cuda')
     
-    print('obs          :', obs)
-    print('observation  :', observation)
-    print('reward       :', reward)
-    print('terminated   :', terminated)
-    print('truncated    :', truncated)
+    # Train the RL model
+    ast_model.learn(total_timesteps=1000)
+    
+    # Save the trained model
+    saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-trial_1")
+    ast_model.save(saved_model_path)
 
-    # ### THIS IS WHERE THE EPISODE HAPPENS
-    # episode = 1
-    # while episode <= args.n_episodes:
-    #     # Reset the environment at the beginning of episode
-    #     env.reset()
+################################## LOAD THE TRAINED MODEL ##################################
+
+    # Remove the model to demonstrate saving and loading
+    del ast_model
+    
+    # Load the trained model
+    ast_model = SAC.load(saved_model_path)
+    
+    ## Run the trained model
+    # Container
+    action_list         = []
+    terminated_list     = []
+    truncated_list      = []
+    reward_list         = []
+    
+    # Termination status
+    terminated = False
+    truncated  = False
+    
+    obs, info = env.reset()
+    while True:
+        action, _states = ast_model.predict(obs, deterministic=True)
+        obs, reward, terminated, truncated, info = env.step(action)
         
-    #     # Print message
-    #     print("--- EPISODE " + str(episode) + " ---")
+        action_list.append(env._denormalize_action(action))
+        terminated_list.append(terminated)
+        truncated_list.append(truncated)
+        reward_list.append(reward)
         
-    #     ## THIS IS WHERE THE SIMULATION HAPPENS
-    #     running_time = 0
-    #     while running_time < assets[0].ship_model.int.sim_time and env.stop is False:
-    #         env.step()
-            
-    #         # Update running time
-    #         running_time = np.max([asset.ship_model.int.time for asset in assets])
+        if terminated or truncated:
+            break
         
-    #     # Increment the episode
-    #     episode += 1
+####################################### GET RESULTS ¤#######################################
 
-    # ################################## GET RESULTS ##################################
+# Print container
+print('Action       :', action_list)
+print('Terminated   :', terminated_list)
+print('Truncated    :', truncated_list)
+print('Reward       :', reward_list)
 
-    # # Build both animations (don’t show yet)
-    # repeat=False
-    # map_anim = MapAnimator(
-    #     assets=assets,
-    #     map_gdfs=map_gdfs,
-    #     interval_ms=500,
-    #     status_asset_index=0  # flags for own ship
-    # )
-    # map_anim.run(fps=120, show=False, repeat=repeat)
+## Get the simulation results for all assets, and plot the asset simulation results
+own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
+result_dfs = [own_ship_results_df]
 
-    # polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-    # polar_anim.run(fps=120, show=False, repeat=repeat)
+# Build both animations (don’t show yet)
+repeat=False
+map_anim = MapAnimator(
+    assets=assets,
+    map_gdfs=map_gdfs,
+    interval_ms=500,
+    status_asset_index=0  # flags for own ship
+)
+map_anim.run(fps=120, show=False, repeat=False)
 
-    # # Place windows next to each other, same height, centered
-    # animate_side_by_side(map_anim.fig, polar_anim.fig,
-    #                     left_frac=0.68,  # how wide the map window is
-    #                     height_frac=0.92,
-    #                     gap_px=16,
-    #                     show=True)
+polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
+polar_anim.run(fps=120, show=False, repeat=False)
 
-    # ## Get the simulation results for all assets, and plot the asset simulation results
-    # result_dfs = []
-    # plot_env_load = [True, False, False] # Own ship, Target ship 1, Target ship 2
-    # for i, asset in enumerate(assets):
-    #     result_df = pd.DataFrame().from_dict(env.assets[i].ship_model.simulation_results)
-    #     result_dfs.append(result_df)
-        
-    #     # Plot 1: Status plot
-    #     plot_ship_status(asset, result_df, plot_env_load=plot_env_load[i], show=False)
+# Place windows next to each other, same height, centered
+animate_side_by_side(map_anim.fig, polar_anim.fig,
+                     left_frac=0.68,  # how wide the map window is
+                     height_frac=0.92,
+                     gap_px=16,
+                     show=True)
 
-    # # Plot 2: Ship and Map Plotting
-    # plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True)
-    
-    
+# Plot 1: Trajectory
+plot_ship_status(env.assets[0], own_ship_results_df, plot_env_load=True, show=False)
+
+# Plot 2: Status plot
+plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True)

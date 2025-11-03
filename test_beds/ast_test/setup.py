@@ -160,7 +160,7 @@ def get_env_assets(args):
 
     ### CONFIGURE THE SHIP SIMULATION MODELS
     ## Own ship
-    own_ship_route_filename = 'Stangvik_AST.txt'
+    own_ship_route_filename = 'Stangvik_AST_reversed.txt'
     own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
 
     start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
@@ -211,7 +211,7 @@ def get_env_assets(args):
         nav_fail_time=args.nav_fail_time,
         map_obj=map[0],
         colav_mode='sbmpc',
-        print_status=True
+        print_status=False
     )
     own_ship_info = AssetInfo(
         # dynamic state (mutable)
