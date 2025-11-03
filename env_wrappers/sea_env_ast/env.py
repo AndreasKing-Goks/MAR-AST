@@ -166,6 +166,14 @@ class SeaEnvAST(gym.Env):
         
         # Initialize observation space
         self.init_observation_space()
+        
+        # RL transition containers
+        self.obs_list           = []
+        self.action_list        = []
+        self.reward_list        = []
+        self.terminated_list    = []
+        self.truncated_list     = []
+        self.info_list          = []
 
         return
     
@@ -231,8 +239,10 @@ class SeaEnvAST(gym.Env):
         position                = np.array([self.assets[0].ship_model.north, self.assets[0].ship_model.east, self.assets[0].ship_model.yaw_angle], dtype=np.float32)
         speed                   = np.array([self.assets[0].ship_model.speed], dtype=np.float32)
         cross_track_error       = np.array([self.assets[0].ship_model.auto_pilot.navigate.e_ct], dtype=np.float32)
-        wind                    = np.array([self.wind_model.init_Ubar, self.wind_model.config.initial_wind_direction], dtype=np.float32)
-        current                 = np.array([self.current_model.config.initial_current_velocity, self.current_model.config.initial_current_direction], dtype=np.float32)
+        wind                    = np.array([self.assets[0].ship_model.simulation_results['wind speed [m/s]'][-1], 
+                                            self.assets[0].ship_model.simulation_results['wind dir [deg]'][-1]], dtype=np.float32)
+        current                 = np.array([self.assets[0].ship_model.simulation_results['current speed [m/s]'][-1], 
+                                            self.assets[0].ship_model.simulation_results['current dir [deg]'][-1]], dtype=np.float32)
         
         position_norm           = self._normalize(position, self.position_range["min"], self.position_range["max"])
         speed_norm              = self._normalize(speed, self.speed_range["min"], self.speed_range["max"])
@@ -415,6 +425,14 @@ class SeaEnvAST(gym.Env):
         truncated   = self.truncated
         info        = {}
         
+        # Append the RL transition containers
+        self.obs_list.append(observation)
+        self.action_list.append(action)
+        self.reward_list.append(reward)
+        self.terminated_list.append(terminated)
+        self.truncated_list.append(truncated)
+        self.info_list.append(info)
+        
         # Update the environmental load memory
         self.U_c_bar_prev       = U_c_bar
         self.psi_c_bar_prev     = psi_c_bar
@@ -539,5 +557,12 @@ class SeaEnvAST(gym.Env):
         
         # Reset the info
         info = self._get_info()
+        
+        # Reset the RL transition containers
+        self.obs_list           = [observation] # Immediately store the first observation from the reset
+        self.action_list        = []
+        self.reward_list        = []
+        self.terminated_list    = []
+        self.truncated_list     = []
         
         return observation, info

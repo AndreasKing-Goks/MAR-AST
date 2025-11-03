@@ -224,7 +224,7 @@ class BaseShipModel:
         a_eta = np.sqrt(2.0 * np.outer(S_w, D_psi) * self.domega * self.dpsi)   # (Nw, Nd)
         
         # Get ship speed and heading
-        ship_speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
+        ship_speed = self.speed
         psi_ship = self.yaw_angle
         
         # Encounter correction [Forward speed effect in Faltinsen (1993)]
@@ -420,7 +420,7 @@ class BaseShipModel:
                         't_surge', 't_sway', 't_yaw',
                         'ku', 'kv', 'kr',
                         'north', 'east', 'yaw_angle',
-                        'forward_speed', 'sideways_speed', 'yaw_rate',
+                        'forward_speed', 'sideways_speed', 'yaw_rate', 'speed',
                         'd_north', 'd_east', 'd_yaw',
                         'd_forward_speed', 'd_sideways_speed', 'd_yaw_rate',
                         'proj_area_f', 'proj_area_l',
@@ -924,6 +924,7 @@ class ShipModel(BaseShipModel):
         heading = self.yaw_angle
         measured_shaft_speed = self.ship_machinery_model.omega
         measured_speed = np.sqrt(self.forward_speed**2 + self.sideways_speed**2)
+        self.speed = measured_speed
         
         # Keep it, even when sbmpc is disabled
         speed_factor, desired_heading_offset = 1.0, 0.0
