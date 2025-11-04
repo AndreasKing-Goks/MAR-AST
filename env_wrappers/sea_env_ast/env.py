@@ -170,6 +170,7 @@ class SeaEnvAST(gym.Env):
         # RL transition containers
         self.obs_list           = []
         self.action_list        = []
+        self.action_time_list   = []
         self.reward_list        = []
         self.terminated_list    = []
         self.truncated_list     = []
@@ -390,6 +391,9 @@ class SeaEnvAST(gym.Env):
         ''' 
             The method is used to step up the Reinforcement Learning step.
         '''
+        # Record the when tha action is sampled
+        self.action_time_list.append(self.assets[0].ship_model.int.time)
+        
         # Denormalize action
         action = self._denormalize_action(action_norm)
         
@@ -399,7 +403,7 @@ class SeaEnvAST(gym.Env):
         #------------------------------ Step the simulator ------------------------------#
         running_time = 0
         # Run the simulator within the action sampling period or until the own ship stopped.
-        while running_time <= self.args.action_sampling_period:
+        while running_time < self.args.action_sampling_period:
             self._step(action)
             
             # Update running time using simulator time step
@@ -448,7 +452,7 @@ class SeaEnvAST(gym.Env):
         [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar] = action
         
         ## Base reward -> Encourage further exploration
-        reward = 1 / len(self.obs_list) * -50.0
+        reward = len(self.action_list) * 10.0
         
         ## Get the termination info of the own ship
         collision           = self.assets[0].ship_model.stop_info['collision']
@@ -527,7 +531,7 @@ class SeaEnvAST(gym.Env):
         # MAKE SURE THAT DURING THE WARM UP PHASE, 
         # SIMULATOR SHOULD NOT BE TERMINATED/TRUNCATED
         running_time = 0
-        while running_time <= self.args.warm_up_time:
+        while running_time < self.args.warm_up_time:
             # Simulator integration using a very gentle environment load
             self._step()
             
@@ -561,6 +565,7 @@ class SeaEnvAST(gym.Env):
         # Reset the RL transition containers
         self.obs_list           = [observation] # Immediately store the first observation from the reset
         self.action_list        = []
+        self.action_time_list   = []
         self.reward_list        = []
         self.terminated_list    = []
         self.truncated_list     = []
@@ -610,28 +615,29 @@ class SeaEnvAST(gym.Env):
         # Do print
         print('#=========================== RL TRANSITION ==========================#')
         print('#---------------------------- Observation ---------------------------#')
-        print('north             [m] :', north_list)
-        print('east              [m] :', east_list)
-        print('heading         [deg] :', heading_list)
-        print('speed           [m/s] :', speed_list)
-        print('cross track error [m] :', cross_track_error_list)
-        print('wind speed      [m/s] :', wind_speed_list)
-        print('wind dir        [deg] :', wind_dir_list)
-        print('current speed   [m/s] :', current_speed_list)
-        print('current dir     [deg] :', current_dir_list)
+        print('north                [m] :', north_list)
+        print('east                 [m] :', east_list)
+        print('heading            [deg] :', heading_list)
+        print('speed              [m/s] :', speed_list)
+        print('cross track error    [m] :', cross_track_error_list)
+        print('wind speed         [m/s] :', wind_speed_list)
+        print('wind dir           [deg] :', wind_dir_list)
+        print('current speed      [m/s] :', current_speed_list)
+        print('current dir        [deg] :', current_dir_list)
         print('#------------------------------ Action ------------------------------#')
-        print('Hs                [m] :', Hs_list)
-        print('Tp                [s] :', Tp_list)
-        print('U_w_bar         [m/s] :', U_w_bar_list)
-        print('psi_ww_bar      [deg] :', psi_ww_bar_list)
-        print('U_c_bar         [m/s] :', U_c_bar_list)
-        print('psi_c_Bar       [deg] :', psi_c_bar_list)
+        print('sampling timestamp   [s] :', self.action_time_list)
+        print('Hs                   [m] :', Hs_list)
+        print('Tp                   [s] :', Tp_list)
+        print('U_w_bar            [m/s] :', U_w_bar_list)
+        print('psi_ww_bar         [deg] :', psi_ww_bar_list)
+        print('U_c_bar            [m/s] :', U_c_bar_list)
+        print('psi_c_bar          [deg] :', psi_c_bar_list)
         print('#--------------------------------------------------------------------#')
-        print('Terminated            :', self.terminated_list)
+        print('Terminated               :', self.terminated_list)
         print('#--------------------------------------------------------------------#')
-        print('Truncated             :', self.truncated_list)
+        print('Truncated                :', self.truncated_list)
         print('#--------------------------------------------------------------------#')
-        print('Reward                :', self.reward_list)
+        print('Reward                   :', self.reward_list)
         print('#--------------------------------------------------------------------#')
         
         return

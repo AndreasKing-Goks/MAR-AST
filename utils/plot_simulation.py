@@ -1,6 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+def wrap_angle_deg(x):
+    # wrap to (-pi, pi]
+    return (x + 180) % (360) - 180
+
 def center_plot_window():
     try:
         manager = plt.get_current_fig_manager()
@@ -81,7 +85,7 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
     axes[0].legend(loc='upper right', frameon=False)
 
     # 2. Yaw angle
-    axes[1].plot(t, result_df['yaw angle [deg]'])
+    axes[1].plot(t, wrap_angle_deg(result_df['yaw angle [deg]']))
     axes[1].axhline(y=0.0, color='red', linestyle='--', linewidth=1.5)
     axes[1].set_title(f'{nm} Yaw Angle')
     _ax_style(axes[1], xlabel=True, ylabel='Yaw angle (deg)')

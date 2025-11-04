@@ -208,3 +208,45 @@ class SeaStateMixture:
         for i, _ in enumerate(self.states):
             logs.append(self.log_ps[i] + self.logpdf_given_state(hs, uw, tp, i))
         return float(logsumexp(logs))
+    
+    # ------- masks several sea state ------- #
+    def condition_on_states(self, allowed_names, soft_epsilon=0.0, temperature=None):
+        """
+        Keep probability mass on 'allowed_names' only, renormalize.
+        - hard conditioning: soft_epsilon=0.0 (default) → disallowed states get -inf log p
+        - soft floor: soft_epsilon>0 → disallowed states get a tiny epsilon before renorm
+        - optional temperature scaling: T<1 sharpens, T>1 flattens the mixture before renorm
+        """
+        names = [s["name"] for s in self.states]
+        mask = np.array([n in allowed_names for n in names], dtype=float)
+
+        ps = np.exp(self.log_ps)
+
+        if soft_epsilon == 0.0:
+            # Hard conditioning: zero out disallowed, renormalize allowed
+            ps = ps * mask
+            if ps.sum() == 0:
+                raise ValueError("Conditioning removed all probability mass.")
+        else:
+            # Soft floor: keep a tiny tail on disallowed to avoid hard zeros
+            ps = ps * mask + soft_epsilon * (1.0 - mask)
+
+        if temperature is not None:
+            # Optional reweighting knob: ps^(1/T)
+            ps = np.power(ps, 1.0/temperature)
+
+        ps = ps / ps.sum()
+        # For hard conditioning, set true zeros to -inf; otherwise log of tiny eps is fine
+        with np.errstate(divide='ignore'):
+            self.log_ps = np.log(ps)
+            if soft_epsilon == 0.0:
+                self.log_ps[mask == 0] = -np.inf
+
+    # (optional) convenience helper
+    def condition_by_max_state(self, max_state_name="SS 4", **kwargs):
+        allowed = []
+        for s in self.states:
+            allowed.append(s["name"])
+            if s["name"] == max_state_name:
+                break
+        self.condition_on_states(set(allowed), **kwargs)
