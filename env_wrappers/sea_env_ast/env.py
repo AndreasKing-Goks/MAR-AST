@@ -399,7 +399,7 @@ class SeaEnvAST(gym.Env):
         action = self._denormalize_action(action_norm)
         
         # Unpack some of the action for environmental load memory
-        _, _, _, psi_ww_bar, U_c_bar, psi_c_bar = action
+        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
         
         #------------------------------ Step the simulator ------------------------------#
         running_time = 0
@@ -421,7 +421,11 @@ class SeaEnvAST(gym.Env):
                 # Set the environment model truncated flag as True if all the ship assets not stoping within time limit
                 self.truncated  = True
                 break
-        #--------------------------------------------------------------------------------#
+        # #--------------------------------------------------------------------------------#
+        # # TO TEST: IF THE ENVIRONMENTAL PARAM DIDN'T COMPLY TO THE SEA STATE TABLE
+        # # IMMEDIATELY TERMINATED
+        # self.terminated = self.sea_state_mixture.action_validity(Hs, Tp, U_w_bar)
+        # #--------------------------------------------------------------------------------#
         
         # Get the RL stepping outputs
         observation = self._get_obs()
@@ -445,7 +449,7 @@ class SeaEnvAST(gym.Env):
         
         return observation, reward, terminated, truncated, info
     
-    def reward_function(self, action, logp_floor=-30.0):
+    def reward_function(self, action, logp_floor=-100.0):
         """
         For this reward function, we only take into account the own_ship
         """
@@ -453,7 +457,7 @@ class SeaEnvAST(gym.Env):
         [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar] = action
         
         ## Base reward -> Encourage further exploration [Can be a hyper parameter as well]
-        reward = len(self.action_list) * 5.0
+        reward = len(self.action_list) * 10.0
         
         ## Get the termination info of the own ship
         collision           = self.assets[0].ship_model.stop_info['collision']
@@ -487,11 +491,11 @@ class SeaEnvAST(gym.Env):
         if collision or navigation_failure or power_overload:
             reward += 10.0      # If failure gives positive reward
         elif grounding_failure:
-            reward += 15.0      # We value grounding failure more
+            reward += 25.0      # We value grounding failure more
         elif outside_horizon:
-            reward += 0.0       # Not very insightful
+            reward += -10.0       # Not very insightful
         elif reaches_endpoint:
-            reward += -10.0     # We discourage the agent to let the ship finishes its mission.
+            reward += -25.0     # We discourage the agent to let the ship finishes its mission.
         
         return reward
 
@@ -612,7 +616,7 @@ class SeaEnvAST(gym.Env):
         for action in self.action_list:
             Hs      = action[0].item()
             Tp      = action[1].item()
-            U_w_bar = action[3].item()
+            U_w_bar = action[2].item()
             act_validity = self.sea_state_mixture.action_validity(Hs, Tp, U_w_bar)
             if act_validity:
                 idx       = self.sea_state_mixture.matching_states(Hs, Tp, U_w_bar)[0]
