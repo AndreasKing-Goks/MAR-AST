@@ -21,10 +21,9 @@ from gymnasium.utils.env_checker import check_env
 
 ### IMPORT TOOLS
 import argparse
-from typing import List
-import numpy as np
 import pandas as pd
 import os
+import time
 
 ### IMPORT UTILS
 from utils.get_path import get_saved_model_path
@@ -56,10 +55,10 @@ def parse_cli_args():
     # Add arguments for AST-core
     parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                         help='AST: number of simulation episode counts (default: 1)')
-    parser.add_argument('--warm_up_time', type=int, default=1800, metavar='WARM_UP_TIME',
+    parser.add_argument('--warm_up_time', type=int, default=3000, metavar='WARM_UP_TIME',
                         help='AST: time needed in second before policy - action sampling takes place (default: 1500)')
     parser.add_argument('--action_sampling_period', type=int, default=1800, metavar='ACT_SAMPLING_PERIOD',
-                        help='AST: time period in second between policy - action sampling (default: 1000)')
+                        help='AST: time period in second between policy - action sampling (default: 1800)')
 
     # Parse args
     args = parser.parse_args()
@@ -93,7 +92,7 @@ if __name__ == "__main__":
                     env=env,
                     learning_rate=3e-4,
                     buffer_size=1_000_000,
-                    learning_starts=100,
+                    learning_starts=1000,
                     batch_size=256,
                     tau=0.005,
                     gamma=0.99,
@@ -117,8 +116,12 @@ if __name__ == "__main__":
                     seed=None,
                     device='cuda')
     
-    # Train the RL model
-    ast_model.learn(total_timesteps=1000)
+    # Train the RL model. Record the time
+    start_time = time.time()
+    ast_model.learn(total_timesteps=3000)
+    elapsed_time = time.time() - start_time
+    minutes, seconds = divmod(elapsed_time, 60)
+    hours, _         = divmod(minutes, 60)
     
     # Save the trained model
     saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-trial_1")
@@ -145,6 +148,9 @@ if __name__ == "__main__":
 
     # Print RL transition
     env.print_RL_transition()
+    
+    # Print training time
+    print(f"Training is done in {int(hours)} hours, {int(minutes)} minutes, and {int(seconds)} seconds.")
 
     ## Get the simulation results for all assets, and plot the asset simulation results
     own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)

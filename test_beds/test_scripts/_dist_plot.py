@@ -12,18 +12,20 @@ from simulator.ship_in_transit.sub_systems.env_load_prob_model import SeaStateMi
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-#
-
 test_1 = True
-test_1 = False
+# test_1 = False
 
 if test_1:
     # Example usage:
     sampler = SeaStateMixture()
+    sampler.condition_by_max_state(max_state_name="SS 4")
     draw = sampler.sample_joint()
     print(draw["Hs"], draw["Uw"], draw["Tp"], draw["logp_total"])
     logp_marg = sampler.logpdf_marginal(draw["Hs"], draw["Uw"], draw["Tp"])
     print("marginal logp:", logp_marg)
+    print("Action validity :", sampler.action_validity(draw["Hs"], draw["Uw"], draw["Tp"]))
+    idx = sampler.matching_states(draw["Hs"], draw["Uw"], draw["Tp"])
+    print("Sea states      :", sampler.states[idx[0]]["name"])
 
 test_2 = True
 test_2 = False
@@ -71,7 +73,7 @@ if test_2:
     plt.show()
     
 test_3 = True
-# test_3 = False
+test_3 = False
 
 if test_3:
     fig, ax = plt.subplots(1, 1)

@@ -60,9 +60,9 @@ parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_
 parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
 parser.add_argument('--warm_up_time', default=1800, metavar='WARM_UP_TIME',
-                    help='AST: time needed in second before policy - action sampling takes place (default: 1500)')
+                    help='AST: time needed in second before policy - action sampling takes place (default: 1800)')
 parser.add_argument('--action_sampling_period', default=1800, metavar='ACT_SAMPLING_PERIOD',
-                    help='AST: time period in second between policy - action sampling (default: 1000)')
+                    help='AST: time period in second between policy - action sampling (default: 1800)')
 
 args = parser.parse_args()
 

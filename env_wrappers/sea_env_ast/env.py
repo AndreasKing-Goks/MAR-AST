@@ -104,6 +104,7 @@ class SeaEnvAST(gym.Env):
         self.current_model      = SurfaceCurrent(self.current_model_config, seed=seed) if include_current else None
         self.wind_model         = NORSOKWindModel(self.wind_model_config, seed=seed) if include_wind else None
         self.sea_state_mixture  = SeaStateMixture()
+        self.sea_state_mixture.condition_by_max_state(max_state_name="SS 5")
         
         # Previous sampled mean current speed, mean current direction, and mean wind-wave direction
         self.U_c_bar_prev       = self.current_model_config.initial_current_velocity
@@ -189,11 +190,11 @@ class SeaEnvAST(gym.Env):
     def init_action_space(self):
         ## Action Space (6)
         # Significant wave height
-        Hs_min, Hs_max                   = [0.1, 15.0] 
+        Hs_min, Hs_max                   = [0.1, 4.0] # [0.1, 15.0] 
         # Wave peak period
-        Tp_min, Tp_max                   = [0.1, 23.7]
+        Tp_min, Tp_max                   = [0.1, 15.5] # [0.1, 23.7]
         # Mean wind speed
-        U_w_bar_min, U_w_bar_max         = [0.0, 42.0] # in m/s. Knot [0, ~80] 
+        U_w_bar_min, U_w_bar_max         = [0.0, 12.87] # in m/s. Knot [0, ~27.0] # [0.0, 42.0] # in m/s. Knot [0, ~80]
         # Mean wind direction
         psi_ww_bar_min, psi_ww_bar_max   = [-np.pi, np.pi]
         # Mean current speed
@@ -444,15 +445,15 @@ class SeaEnvAST(gym.Env):
         
         return observation, reward, terminated, truncated, info
     
-    def reward_function(self, action, logp_floor=-60.0):
+    def reward_function(self, action, logp_floor=-30.0):
         """
         For this reward function, we only take into account the own_ship
         """
         ## Unpack action
         [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar] = action
         
-        ## Base reward -> Encourage further exploration
-        reward = len(self.action_list) * 10.0
+        ## Base reward -> Encourage further exploration [Can be a hyper parameter as well]
+        reward = len(self.action_list) * 5.0
         
         ## Get the termination info of the own ship
         collision           = self.assets[0].ship_model.stop_info['collision']
@@ -483,12 +484,14 @@ class SeaEnvAST(gym.Env):
         reward += reward_env_ll
         
         ## Get reward from termination status
-        if collision or navigation_failure or power_overload or outside_horizon:
-            reward += 50.0 # If failure gives positive reward
+        if collision or navigation_failure or power_overload:
+            reward += 10.0      # If failure gives positive reward
         elif grounding_failure:
-            reward += 60.0  # We value grounding failure more
+            reward += 15.0      # We value grounding failure more
+        elif outside_horizon:
+            reward += 0.0       # Not very insightful
         elif reaches_endpoint:
-            reward += -50.0 # We discourage the agent to let the ship finishes its mission.
+            reward += -10.0     # We discourage the agent to let the ship finishes its mission.
         
         return reward
 
@@ -598,23 +601,37 @@ class SeaEnvAST(gym.Env):
             current_dir_list.append(np.rad2deg(obs["current"][1]).item())
             
         # Unpack action
-        Hs_list         = []
-        Tp_list         = []
-        U_w_bar_list    = []
-        psi_ww_bar_list = []
-        U_c_bar_list    = []
-        psi_c_bar_list  = []
+        Hs_list           = []
+        Tp_list           = []
+        U_w_bar_list      = []
+        psi_ww_bar_list   = []
+        U_c_bar_list      = []
+        psi_c_bar_list    = []
+        act_validity_list = []
+        sea_state_list    = []
         for action in self.action_list:
-            Hs_list.append(action[0].item())
-            Tp_list.append(action[1].item())
-            U_w_bar_list.append(action[2].item())
+            Hs      = action[0].item()
+            Tp      = action[1].item()
+            U_w_bar = action[3].item()
+            act_validity = self.sea_state_mixture.action_validity(Hs, Tp, U_w_bar)
+            if act_validity:
+                idx       = self.sea_state_mixture.matching_states(Hs, Tp, U_w_bar)[0]
+                sea_state = self.sea_state_mixture.states[idx]["name"]
+            else:
+                sea_state = None
+            
+            Hs_list.append(Hs)
+            Tp_list.append(Tp)
+            U_w_bar_list.append(U_w_bar)
             psi_ww_bar_list.append(np.rad2deg(action[3]).item())
             U_c_bar_list.append(action[4].item())
             psi_c_bar_list.append(np.rad2deg(action[5]).item())
+            act_validity_list.append(act_validity)
+            sea_state_list.append(sea_state)
             
         # Do print
-        print('#=========================== RL TRANSITION ==========================#')
-        print('#---------------------------- Observation ---------------------------#')
+        print('#===================================== RL TRANSITION ====================================#')
+        print('#-------------------------------------- Observation -------------------------------------#')
         print('north                [m] :', north_list)
         print('east                 [m] :', east_list)
         print('heading            [deg] :', heading_list)
@@ -624,7 +641,7 @@ class SeaEnvAST(gym.Env):
         print('wind dir           [deg] :', wind_dir_list)
         print('current speed      [m/s] :', current_speed_list)
         print('current dir        [deg] :', current_dir_list)
-        print('#------------------------------ Action ------------------------------#')
+        print('#---------------------------------------- Action ----------------------------------------#')
         print('sampling timestamp   [s] :', self.action_time_list)
         print('Hs                   [m] :', Hs_list)
         print('Tp                   [s] :', Tp_list)
@@ -632,12 +649,14 @@ class SeaEnvAST(gym.Env):
         print('psi_ww_bar         [deg] :', psi_ww_bar_list)
         print('U_c_bar            [m/s] :', U_c_bar_list)
         print('psi_c_bar          [deg] :', psi_c_bar_list)
-        print('#--------------------------------------------------------------------#')
+        print('action validity          :', act_validity_list)
+        print('sea state                :', sea_state_list)
+        print('#----------------------------------------------------------------------------------------#')
         print('Terminated               :', self.terminated_list)
-        print('#--------------------------------------------------------------------#')
+        print('#----------------------------------------------------------------------------------------#')
         print('Truncated                :', self.truncated_list)
-        print('#--------------------------------------------------------------------#')
+        print('#----------------------------------------------------------------------------------------#')
         print('Reward                   :', self.reward_list)
-        print('#--------------------------------------------------------------------#')
+        print('#----------------------------------------------------------------------------------------#')
         
         return

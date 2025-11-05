@@ -119,34 +119,42 @@ class SeaStateMixture:
             "Hs":{"range":(0.0,0.1),"mean":0.05,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([0.0,6.0]),"mean":self.knot_to_ms(3.0),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(0.0,3.3),"mean":1.65,"dist":"triangular"}},   # Tp placeholder
+            
             {"name":"SS 2","p":0.0680,
             "Hs":{"range":(0.1,0.5),"mean":0.3,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([7.0,10.0]),"mean":self.knot_to_ms(8.5),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(3.3,12.8),"mean":7.5,"dist":"triangular"}},
+            
             {"name":"SS 3","p":0.2370,
             "Hs":{"range":(0.5,1.25),"mean":0.88,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([11.0,16.0]),"mean":self.knot_to_ms(13.5),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(5.0,14.8),"mean":7.5,"dist":"triangular"}},
+            
             {"name":"SS 4","p":0.2780,
             "Hs":{"range":(1.25,2.5),"mean":1.88,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([17.0,21.0]),"mean":self.knot_to_ms(19.0),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(6.1,15.2),"mean":8.8,"dist":"triangular"}},
+            
             {"name":"SS 5","p":0.2064,
             "Hs":{"range":(2.5,4.0),"mean":3.25,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([22.0,27.0]),"mean":self.knot_to_ms(24.5),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(8.3,15.5),"mean":9.7,"dist":"triangular"}},
+            
             {"name":"SS 6","p":0.1315,
             "Hs":{"range":(4.0,6.0),"mean":5.0,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([28.0,47.0]),"mean":self.knot_to_ms(37.5),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(9.8,16.2),"mean":12.4,"dist":"triangular"}},
+            
             {"name":"SS 7","p":0.0605,
             "Hs":{"range":(6.0,9.0),"mean":7.5,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([48.0,55.0]),"mean":self.knot_to_ms(51.5),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(11.8,18.5),"mean":15.0,"dist":"triangular"}},
+            
             {"name":"SS 8","p":0.0111,
             "Hs":{"range":(9.0,14.0),"mean":11.5,"dist":"truncnorm","sigma_frac":0.25},
             "Uw":{"range":self.knot_to_ms([56.0,63.0]),"mean":self.knot_to_ms(59.5),"dist":"truncnorm","sigma_frac":0.25},
             "Tp":{"range":(14.2,18.6),"mean":16.4,"dist":"triangular"}},
+            
             {"name":"SS >8","p":0.0005,
             "Hs":{"range":(14.0,20.0),"mean":16.0,"dist":"truncnorm","sigma_frac":0.25},  # capped
             "Uw":{"range":self.knot_to_ms([63.0,80.0]),"mean":self.knot_to_ms(70.0),"dist":"truncnorm","sigma_frac":0.25},  # capped
@@ -189,6 +197,44 @@ class SeaStateMixture:
             "logp_total": ll_state + ll_hs + ll_uw + ll_tp
         }
 
+    # ---- Gives the validity of [Hs, Tp, and Uw] -----
+    def action_validity(self, hs, uw, tp, tol=1e-9, respect_conditioning=True):
+        """
+        Return True if (hs, uw, tp) falls within the ranges of at least one *allowed* sea state.
+        - tol: numeric tolerance for inclusive bounds
+        - respect_conditioning: if True, ignore states whose prior is 0 (hard-conditioned away)
+        """
+        ps = np.exp(self.log_ps) if respect_conditioning else None
+
+        for i, state in enumerate(self.states):
+            if respect_conditioning and (not np.isfinite(self.log_ps[i]) or ps[i] <= 0.0):
+                continue  # skip disallowed states
+
+            hs_min, hs_max = state["Hs"]["range"]
+            uw_min, uw_max = state["Uw"]["range"]
+            tp_min, tp_max = state["Tp"]["range"]
+
+            hs_valid = (hs_min - tol) <= hs <= (hs_max + tol)
+            uw_valid = (uw_min - tol) <= uw <= (uw_max + tol)
+            tp_valid = (tp_min - tol) <= tp <= (tp_max + tol)  # <-- fixed
+
+            if hs_valid and uw_valid and tp_valid:
+                return True
+        return False
+    
+    def matching_states(self, hs, uw, tp, tol=1e-9, respect_conditioning=True):
+        hits = []
+        ps = np.exp(self.log_ps) if respect_conditioning else None
+        for i, s in enumerate(self.states):
+            if respect_conditioning and (not np.isfinite(self.log_ps[i]) or ps[i] <= 0.0):
+                continue
+            H=(s["Hs"]["range"][0]-tol) <= hs <= (s["Hs"]["range"][1]+tol)
+            U=(s["Uw"]["range"][0]-tol) <= uw <= (s["Uw"]["range"][1]+tol)
+            T=(s["Tp"]["range"][0]-tol) <= tp <= (s["Tp"]["range"][1]+tol)
+            if H and U and T:
+                hits.append(i)
+        return hits  # [] if none
+    
     # ---- conditional log-pdf given a specific state ----
     def logpdf_given_state(self, hs, uw, tp, idx):
         s = self.states[idx]
