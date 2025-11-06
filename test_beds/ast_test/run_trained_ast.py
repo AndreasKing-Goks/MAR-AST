@@ -75,7 +75,7 @@ if __name__ == "__main__":
     env, assets, map_gdfs = get_env_assets(args=args)
     
     # Load the trained model
-    saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-trial_1")
+    saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-train_2")
     
     # Load the trained model
     ast_model = SAC.load(saved_model_path)
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     ## Run the trained model
     obs, info = env.reset()
     while True:
-        action, _states = ast_model.predict(obs, deterministic=True)
+        action, _states = ast_model.predict(obs, deterministic=False)
         obs, reward, terminated, truncated, info = env.step(action)
         
         if terminated or truncated:

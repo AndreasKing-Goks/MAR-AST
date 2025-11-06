@@ -25,7 +25,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-saved_model/
+saved_model/private/
 0_artifact/
 0_reference/
 
