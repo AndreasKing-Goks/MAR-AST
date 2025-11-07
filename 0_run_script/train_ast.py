@@ -3,7 +3,7 @@ import sys
 
 ## PATH HELPER (OBLIGATORY)
 # project root = two levels up from this file
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
@@ -15,8 +15,6 @@ from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ## IMPORT AST RELATED TOOLS
 from stable_baselines3 import SAC
-from stable_baselines3.sac import MlpPolicy, MultiInputPolicy
-from gymnasium.wrappers import FlattenObservation, RescaleAction
 from gymnasium.utils.env_checker import check_env
 
 ### IMPORT TOOLS
@@ -26,8 +24,9 @@ import os
 import time
 
 ### IMPORT UTILS
-from utils.get_path import get_saved_model_path
+from utils.get_path import get_trained_model_path
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 
 def parse_cli_args():
     # Argument Parser
@@ -68,17 +67,75 @@ if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
 
+    # Path
+    model_name  ="AST-train_1"
+    model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
+    
     # Get the args
     args = parse_cli_args()
     
     # Get the assets and AST Environment Wrapper
-    env, assets, map_gdfs = get_env_assets(args=args, print_ship_status=True)
+    env, assets, map_gdfs = get_env_assets(args=args)
+    
+    # Check the env if falid
+    try:
+        check_env(env)
+        print("Environment passes all chekcs!")
+    except Exception as e:
+        print(f"Environment has issues: {e}")
+        print("ABORT TRAINING")
+        sys.exit(1)  # non-zero exit code stops the script
+    
+    # Set the Policy
+    # Later
+    
+    # Set RL model
+    ast_model = SAC("MultiInputPolicy",
+                    env=env,
+                    learning_rate=3e-4,
+                    buffer_size=1_000_000,
+                    learning_starts=2500,
+                    batch_size=256,
+                    tau=0.005,
+                    gamma=0.99,
+                    train_freq=1,
+                    gradient_steps=1,
+                    action_noise=None,
+                    replay_buffer_class=None,
+                    replay_buffer_kwargs=None,
+                    optimize_memory_usage=False,
+                    n_steps=1,
+                    ent_coef="auto",
+                    target_update_interval=1,
+                    target_entropy="auto",
+                    use_sde=False,
+                    sde_sample_freq=-1,
+                    use_sde_at_warmup=False,
+                    stats_window_size=100,
+                    tensorboard_log=None,
+                    policy_kwargs=None,
+                    verbose=1,
+                    seed=None,
+                    device='cuda')
+    
+    # Train the RL model. Record the time
+    start_time = time.time()
+    ast_model.learn(total_timesteps=7_500)
+    elapsed_time = time.time() - start_time
+    minutes, seconds = divmod(elapsed_time, 60)
+    hours, _         = divmod(minutes, 60)
+    train_time = (hours, minutes, seconds)
+    
+    # Save the trained model
+    ast_model.save(model_path)
+
+################################## LOAD THE TRAINED MODEL ##################################
+
+    # Remove the model to demonstrate saving and loading
+    del ast_model
     
     # Load the trained model
-    saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-train_2")
-    
-    # Load the trained model
-    ast_model = SAC.load(saved_model_path)
+    ast_model = SAC.load(model_path)
     
     ## Run the trained model
     obs, info = env.reset()
@@ -92,9 +149,12 @@ if __name__ == "__main__":
 ####################################### GET RESULTS ########################################
 
     # Print RL transition
-    env.log_RL_transition_text(train_time=None,
-                        txt_path=None,
-                        also_print=True)
+    env.log_RL_transition_text(train_time=train_time,
+                               txt_path=log_path,
+                               also_print=True)
+    env.log_RL_transition_json_csv(jsonl_path=log_path,
+                                   csv_path=log_path,
+                                   logger_name=model_name)
 
     ## Get the simulation results for all assets, and plot the asset simulation results
     own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)

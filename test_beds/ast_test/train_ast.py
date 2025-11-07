@@ -122,9 +122,10 @@ if __name__ == "__main__":
     elapsed_time = time.time() - start_time
     minutes, seconds = divmod(elapsed_time, 60)
     hours, _         = divmod(minutes, 60)
+    train_time = (hours, minutes, seconds)
     
     # Save the trained model
-    saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-train_2")
+    saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-train_3")
     ast_model.save(saved_model_path)
 
 ################################## LOAD THE TRAINED MODEL ##################################
@@ -147,7 +148,9 @@ if __name__ == "__main__":
 ####################################### GET RESULTS ########################################
 
     # Print RL transition
-    env.print_RL_transition()
+    env.log_RL_transition_text(train_time=train_time,
+                           txt_path=None,
+                           also_print=True)
     
     # Print training time
     print(f"Training is done in {int(hours)} hours, {int(minutes)} minutes, and {int(seconds)} seconds.")

@@ -2,6 +2,8 @@
 This module provides classes for AST-compliant environment wrapper
 """
 import numpy as np
+import pandas as pd
+import os
 
 import gymnasium as gym
 from gymnasium.spaces import Box
@@ -15,6 +17,8 @@ from simulator.ship_in_transit.sub_systems.env_load_prob_model import SeaStateMi
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Literal
+from utils.logger import setup_rl_logger
+import json
 
 import copy
 
@@ -457,7 +461,7 @@ class SeaEnvAST(gym.Env):
         [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar] = action
         
         ## Base reward -> Encourage further exploration [Can be a hyper parameter as well]
-        reward = len(self.action_list) * 10.0
+        reward = len(self.action_list) * 5.0
         
         ## Get the termination info of the own ship
         collision           = self.assets[0].ship_model.stop_info['collision']
@@ -489,11 +493,11 @@ class SeaEnvAST(gym.Env):
         
         ## Get reward from termination status
         if collision or navigation_failure or power_overload:
-            reward += 10.0      # If failure gives positive reward
+            reward += 0.0      # If failure gives positive reward
         elif grounding_failure:
             reward += 25.0      # We value grounding failure more
         elif outside_horizon:
-            reward += -10.0       # Not very insightful
+            reward += -15.0       # Not very insightful
         elif reaches_endpoint:
             reward += -25.0     # We discourage the agent to let the ship finishes its mission.
         
@@ -579,8 +583,18 @@ class SeaEnvAST(gym.Env):
         
         return observation, info
     
-    def print_RL_transition(self):
-        # Unpack observation
+    def log_RL_transition_text(
+        self,
+        train_time=None,
+        txt_path: str | None = None,
+        append: bool = True,
+        also_print: bool = False
+    ):
+        """
+        Writes the exact same strings as print_RL_transition() to a text file.
+        Does not modify content/formatting—just captures those strings verbatim.
+        """
+        # ---------- Unpack observation (same as your print) ----------
         north_list              = []
         east_list               = []
         heading_list            = []
@@ -593,7 +607,7 @@ class SeaEnvAST(gym.Env):
         for obs in self.obs_list:
             # First denormalized obs
             obs = self._denormalize_observation(obs)
-            
+
             north_list.append(obs["position"][0].item())
             east_list.append(obs["position"][1].item())
             heading_list.append(np.rad2deg(obs["position"][2]).item())
@@ -603,8 +617,8 @@ class SeaEnvAST(gym.Env):
             wind_dir_list.append(np.rad2deg(obs["wind"][1]).item())
             current_speed_list.append(obs["current"][0].item())
             current_dir_list.append(np.rad2deg(obs["current"][1]).item())
-            
-        # Unpack action
+
+        # ---------- Unpack action (same as your print) ----------
         Hs_list           = []
         Tp_list           = []
         U_w_bar_list      = []
@@ -623,7 +637,7 @@ class SeaEnvAST(gym.Env):
                 sea_state = self.sea_state_mixture.states[idx]["name"]
             else:
                 sea_state = None
-            
+
             Hs_list.append(Hs)
             Tp_list.append(Tp)
             U_w_bar_list.append(U_w_bar)
@@ -632,35 +646,189 @@ class SeaEnvAST(gym.Env):
             psi_c_bar_list.append(np.rad2deg(action[5]).item())
             act_validity_list.append(act_validity)
             sea_state_list.append(sea_state)
-            
-        # Do print
-        print('#===================================== RL TRANSITION ====================================#')
-        print('#-------------------------------------- Observation -------------------------------------#')
-        print('north                [m] :', north_list)
-        print('east                 [m] :', east_list)
-        print('heading            [deg] :', heading_list)
-        print('speed              [m/s] :', speed_list)
-        print('cross track error    [m] :', cross_track_error_list)
-        print('wind speed         [m/s] :', wind_speed_list)
-        print('wind dir           [deg] :', wind_dir_list)
-        print('current speed      [m/s] :', current_speed_list)
-        print('current dir        [deg] :', current_dir_list)
-        print('#---------------------------------------- Action ----------------------------------------#')
-        print('sampling timestamp   [s] :', self.action_time_list)
-        print('Hs                   [m] :', Hs_list)
-        print('Tp                   [s] :', Tp_list)
-        print('U_w_bar            [m/s] :', U_w_bar_list)
-        print('psi_ww_bar         [deg] :', psi_ww_bar_list)
-        print('U_c_bar            [m/s] :', U_c_bar_list)
-        print('psi_c_bar          [deg] :', psi_c_bar_list)
-        print('action validity          :', act_validity_list)
-        print('sea state                :', sea_state_list)
-        print('#----------------------------------------------------------------------------------------#')
-        print('Terminated               :', self.terminated_list)
-        print('#----------------------------------------------------------------------------------------#')
-        print('Truncated                :', self.truncated_list)
-        print('#----------------------------------------------------------------------------------------#')
-        print('Reward                   :', self.reward_list)
-        print('#----------------------------------------------------------------------------------------#')
-        
-        return
+
+        # ---------- Build the exact same printed lines ----------
+        lines = []
+        lines.append('#===================================== RL TRANSITION ====================================#')
+        lines.append('#-------------------------------------- Observation -------------------------------------#')
+        lines.append(f'north                [m] : {north_list}')
+        lines.append(f'east                 [m] : {east_list}')
+        lines.append(f'heading            [deg] : {heading_list}')
+        lines.append(f'speed              [m/s] : {speed_list}')
+        lines.append(f'cross track error    [m] : {cross_track_error_list}')
+        lines.append(f'wind speed         [m/s] : {wind_speed_list}')
+        lines.append(f'wind dir           [deg] : {wind_dir_list}')
+        lines.append(f'current speed      [m/s] : {current_speed_list}')
+        lines.append(f'current dir        [deg] : {current_dir_list}')
+        lines.append('#---------------------------------------- Action ----------------------------------------#')
+        lines.append(f'sampling timestamp   [s] : {self.action_time_list}')
+        lines.append(f'Hs                   [m] : {Hs_list}')
+        lines.append(f'Tp                   [s] : {Tp_list}')
+        lines.append(f'U_w_bar            [m/s] : {U_w_bar_list}')
+        lines.append(f'psi_ww_bar         [deg] : {psi_ww_bar_list}')
+        lines.append(f'U_c_bar            [m/s] : {U_c_bar_list}')
+        lines.append(f'psi_c_bar          [deg] : {psi_c_bar_list}')
+        lines.append(f'action validity          : {act_validity_list}')
+        lines.append(f'sea state                : {sea_state_list}')
+        lines.append('#----------------------------------------------------------------------------------------#')
+        lines.append(f'Terminated               : {self.terminated_list}')
+        lines.append('#----------------------------------------------------------------------------------------#')
+        lines.append(f'Truncated                : {self.truncated_list}')
+        lines.append('#----------------------------------------------------------------------------------------#')
+        lines.append(f'Reward                   : {self.reward_list}')
+        lines.append('#----------------------------------------------------------------------------------------#')
+
+        if train_time is not None:
+            hours, minutes, seconds = train_time
+            lines.append(f'Training is done in {int(hours)} hours, {int(minutes)} minutes, and {int(seconds)} seconds.')
+
+        # ---------- Write to file (append or overwrite) ----------
+        if txt_path is not None:
+            txt_path += ".txt"
+            os.makedirs(os.path.dirname(txt_path) or ".", exist_ok=True)
+            mode = "a" if append else "w"
+            with open(txt_path, mode, encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+
+        # Optional: also print to console (exact same strings)
+        if also_print:
+            for line in lines:
+                print(line)
+    
+    # --- Drop-in: replaces print_RL_transition with logging + optional CSV append ---
+    def log_RL_transition_json_csv(
+        self,
+        jsonl_path: str = "log",
+        csv_path: str | None = "log",
+        also_print_summary: bool = False,
+        logger_name: str = "AST",
+    ):
+        """
+        Logs each RL transition step as a JSON line (and optionally appends CSV).
+        Keeps your current denormalization + validity checks.
+        """
+        jsonl_path += ".jsonl"
+        logger = setup_rl_logger(name=logger_name, log_file=jsonl_path)
+
+        # --------- Unpack observations (same as your function) ----------
+        north_list, east_list, heading_list = [], [], []
+        speed_list, cross_track_error_list = [], []
+        wind_speed_list, wind_dir_list = [], []
+        current_speed_list, current_dir_list = [], []
+
+        for obs in self.obs_list:
+            o = self._denormalize_observation(obs)
+            north_list.append(o["position"][0].item())
+            east_list.append(o["position"][1].item())
+            heading_list.append(np.rad2deg(o["position"][2]).item())
+            speed_list.append(o["speed"][0].item())
+            cross_track_error_list.append(o["cross_track_error"][0].item())
+            wind_speed_list.append(o["wind"][0].item())
+            wind_dir_list.append(np.rad2deg(o["wind"][1]).item())
+            current_speed_list.append(o["current"][0].item())
+            current_dir_list.append(np.rad2deg(o["current"][1]).item())
+
+        # --------- Unpack actions (same as your function) ----------
+        Hs_list, Tp_list = [], []
+        U_w_bar_list, psi_ww_bar_list = [], []
+        U_c_bar_list, psi_c_bar_list = [], []
+        act_validity_list, sea_state_list = [], []
+
+        for action in self.action_list:
+            Hs = action[0].item()
+            Tp = action[1].item()
+            U_w_bar = action[2].item()
+
+            act_validity = self.sea_state_mixture.action_validity(Hs, Tp, U_w_bar)
+            if act_validity:
+                idx = self.sea_state_mixture.matching_states(Hs, Tp, U_w_bar)[0]
+                sea_state = self.sea_state_mixture.states[idx]["name"]
+            else:
+                sea_state = None
+
+            Hs_list.append(Hs)
+            Tp_list.append(Tp)
+            U_w_bar_list.append(U_w_bar)
+            psi_ww_bar_list.append(np.rad2deg(action[3]).item())
+            U_c_bar_list.append(action[4].item())
+            psi_c_bar_list.append(np.rad2deg(action[5]).item())
+            act_validity_list.append(act_validity)
+            sea_state_list.append(sea_state)
+
+        # --------- Meta / outcomes ----------
+        # Expect these to be aligned per step already, as in your print version
+        sampling_ts_list = list(self.action_time_list)  # seconds
+        terminated_list  = list(self.terminated_list)
+        truncated_list   = list(self.truncated_list)
+        reward_list      = list(self.reward_list)
+
+        # --------- Build per-step records ----------
+        n = min(
+            len(north_list), len(east_list), len(heading_list), len(speed_list),
+            len(cross_track_error_list), len(wind_speed_list), len(wind_dir_list),
+            len(current_speed_list), len(current_dir_list),
+            len(Hs_list), len(Tp_list), len(U_w_bar_list), len(psi_ww_bar_list),
+            len(U_c_bar_list), len(psi_c_bar_list), len(act_validity_list),
+            len(sea_state_list), len(sampling_ts_list),
+            len(terminated_list), len(truncated_list), len(reward_list)
+        )
+
+        rows = []
+        for i in range(n):
+            row = {
+                # Observation
+                "obs.north_m": north_list[i],
+                "obs.east_m": east_list[i],
+                "obs.heading_deg": heading_list[i],
+                "obs.speed_mps": speed_list[i],
+                "obs.cross_track_error_m": cross_track_error_list[i],
+                "obs.wind_speed_mps": wind_speed_list[i],
+                "obs.wind_dir_deg": wind_dir_list[i],
+                "obs.current_speed_mps": current_speed_list[i],
+                "obs.current_dir_deg": current_dir_list[i],
+
+                # Action
+                "act.t_sample_s": sampling_ts_list[i],
+                "act.Hs_m": Hs_list[i],
+                "act.Tp_s": Tp_list[i],
+                "act.U_w_bar_mps": U_w_bar_list[i],
+                "act.psi_ww_bar_deg": psi_ww_bar_list[i],
+                "act.U_c_bar_mps": U_c_bar_list[i],
+                "act.psi_c_bar_deg": psi_c_bar_list[i],
+                "act.valid": act_validity_list[i],
+                "act.sea_state": sea_state_list[i],
+
+                # Outcomes
+                "done.terminated": terminated_list[i],
+                "done.truncated": truncated_list[i],
+                "reward": reward_list[i],
+            }
+            rows.append(row)
+
+        # --------- Write JSONL (one JSON object per line) ----------
+        with open(jsonl_path, "a", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+        # Also send a compact message to the logger (console/file)
+        logger.info(f"Logged {len(rows)} RL transition steps to {jsonl_path}")
+
+        # --------- Optional CSV append ----------
+        if csv_path:
+            df = pd.DataFrame(rows)
+            # append (no header if file exists)
+            header = not os.path.exists(csv_path)
+            csv_path += ".csv"
+            df.to_csv(csv_path, mode="a", index=False, header=header)
+            logger.info(f"Appended {len(rows)} rows to {csv_path}")
+
+        # --------- Optional short, human summary (keeps terminal tidy) ----------
+        if also_print_summary and rows:
+            r0, rN = rows[0], rows[-1]
+            print("#==== RL TRANSITION (summary) ====#")
+            print(f"steps logged: {len(rows)} | t0={r0['act.t_sample_s']}s -> tN={rN['act.t_sample_s']}s")
+            print(f"Hs: {r0['act.Hs_m']:.2f}->{rN['act.Hs_m']:.2f} m | Tp: {r0['act.Tp_s']:.2f}->{rN['act.Tp_s']:.2f} s")
+            print(f"U_w: {r0['act.U_w_bar_mps']:.2f}->{rN['act.U_w_bar_mps']:.2f} m/s | ψ_w: {r0['act.psi_ww_bar_deg']:.1f}->{rN['act.psi_ww_bar_deg']:.1f} deg")
+            print(f"U_c: {r0['act.U_c_bar_mps']:.2f}->{rN['act.U_c_bar_mps']:.2f} m/s | ψ_c: {r0['act.psi_c_bar_deg']:.1f}->{rN['act.psi_c_bar_deg']:.1f} deg")
+            print(f"reward: {r0['reward']:.3f} -> {rN['reward']:.3f} | term: {rN['done.terminated']} | trunc: {rN['done.truncated']}")
+            print("#=================================#")

@@ -28,7 +28,7 @@ import numpy as np
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
-def get_env_assets(args, print_ship_status=False):
+def get_env_assets(args):
 
     # -----------------------
     # GPKG settings (edit if your layer names differ)
@@ -211,7 +211,7 @@ def get_env_assets(args, print_ship_status=False):
         nav_fail_time=args.nav_fail_time,
         map_obj=map[0],
         colav_mode='sbmpc',
-        print_status=print_ship_status
+        print_status=False
     )
     own_ship_info = AssetInfo(
         # dynamic state (mutable)

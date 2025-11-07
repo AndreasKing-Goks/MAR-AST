@@ -3,7 +3,7 @@ import sys
 
 ## PATH HELPER (OBLIGATORY)
 # project root = two levels up from this file
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
@@ -26,7 +26,7 @@ import os
 import time
 
 ### IMPORT UTILS
-from utils.get_path import get_saved_model_path
+from utils.get_path import get_trained_model_path
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def parse_cli_args():
@@ -67,7 +67,10 @@ def parse_cli_args():
 if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
-
+    # Path
+    model_name  ="AST-train_1"
+    model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
+    
     # Get the args
     args = parse_cli_args()
     
@@ -75,10 +78,7 @@ if __name__ == "__main__":
     env, assets, map_gdfs = get_env_assets(args=args, print_ship_status=True)
     
     # Load the trained model
-    saved_model_path = get_saved_model_path(root=ROOT, saved_model_filename="AST-train_2")
-    
-    # Load the trained model
-    ast_model = SAC.load(saved_model_path)
+    ast_model = SAC.load(model_path)
     
     ## Run the trained model
     obs, info = env.reset()
