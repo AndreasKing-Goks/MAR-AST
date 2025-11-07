@@ -68,13 +68,13 @@ frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = get_gdf_from_gpkg(GPKG_PA
 
 # draw order: land first, then ocean/water, then coast lines, then frame boundary
 if not land_gdf.empty:
-    land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
+    land_gdf.plot(ax=ax, facecolor="#e6e6e6", edgecolor="#bbbbbb", linewidth=0.3, zorder=0)
 if not ocean_gdf.empty:
-    ocean_gdf.plot(ax=ax, facecolor="#d9f2ff", edgecolor="#bde9ff", linewidth=0.4, alpha=0.95, zorder=2)
+    ocean_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="none", zorder=1)
 if not water_gdf.empty:
     water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
 if not coast_gdf.empty:
-    coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
+    coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.2, zorder=3)
 
 # fit exactly to frame bounds, remove margins/axes so the basemap fills the figure
 minx, miny, maxx, maxy = frame_gdf.total_bounds
