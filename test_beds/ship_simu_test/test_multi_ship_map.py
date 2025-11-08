@@ -315,7 +315,7 @@ tar_ship1 = ShipModel(
     cross_track_error_tolerance=tar_ship_cross_track_error_tolerance1,
     nav_fail_time=args.nav_fail_time,
     map_obj=map[0],
-    colav_mode=None,
+    colav_mode='sbmpc',
     print_status=True
 )
 tar_ship_info1 = AssetInfo(
@@ -388,7 +388,7 @@ tar_ship2 = ShipModel(
     cross_track_error_tolerance=tar_ship_cross_track_error_tolerance2,
     nav_fail_time=args.nav_fail_time,
     map_obj=map[0],
-    colav_mode=None,
+    colav_mode='sbmpc',
     print_status=True
 )
 tar_ship_info2 = AssetInfo(
