@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.patches import Polygon, Rectangle
 from matplotlib import gridspec as mpl_gs
+from matplotlib.patches import FancyArrowPatch
 
 # =========================
 # Shared helpers
@@ -10,14 +11,14 @@ from matplotlib import gridspec as mpl_gs
 
 def draw_real_map(ax, land_gdf, ocean_gdf, water_gdf, coast_gdf, frame_gdf):
     # Draw order
-    if land_gdf is not None and not land_gdf.empty:
-        land_gdf.plot(ax=ax, facecolor="#e8e4d8", edgecolor="#b5b2a6", linewidth=0.4, zorder=1)
-    if ocean_gdf is not None and not ocean_gdf.empty:
-        ocean_gdf.plot(ax=ax, facecolor="#d9f2ff", edgecolor="#bde9ff", linewidth=0.4, alpha=0.95, zorder=2)
-    if water_gdf is not None and not water_gdf.empty:
+    if not land_gdf.empty:
+        land_gdf.plot(ax=ax, facecolor="#e6e6e6", edgecolor="#bbbbbb", linewidth=0.3, zorder=0)
+    if not ocean_gdf.empty:
+        ocean_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="none", zorder=1)
+    if not water_gdf.empty:
         water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
-    if coast_gdf is not None and not coast_gdf.empty:
-        coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.0, zorder=3)
+    if not coast_gdf.empty:
+        coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.2, zorder=3)
 
     # Keep the full frame extent (avoid aspect cropping)
     if frame_gdf is not None and not frame_gdf.empty:
@@ -54,9 +55,20 @@ def ship_vertices_polar(ship_draw, heading_rad_nav, ax, size_frac=0.25):
     scale = (size_frac * rmax) / (ship_draw.l / 2.0)
     x = x_loc * scale; y = y_loc * scale
     theta_math = np.arctan2(y, x)
-    theta_nav  = (np.pi/2.0) - theta_math + heading_rad_nav
+    theta_nav  = theta_math + heading_rad_nav
     r = np.hypot(x, y)
     return np.column_stack([theta_nav, r])
+
+def _make_arrow(ax, lw=2, head=14):
+    arr = FancyArrowPatch((0, 0), (0, 0),
+                          arrowstyle='-|>',      # triangular head
+                          mutation_scale=head,   # head size
+                          lw=lw,
+                          transform=ax.transData,  # theta,r in DATA coords
+                          clip_on=False,
+                          animated=True)         # important for blitting
+    ax.add_patch(arr)
+    return arr
 
 # -------- Window positioning (backend-safe-ish) --------
 def get_screen_size(fig):
@@ -119,12 +131,17 @@ def animate_side_by_side(fig_left, fig_right, left_frac=0.68, height_frac=0.92, 
 class MapAnimator:
     """
     Map-only animation with basemap + ships + status strip (for one chosen asset).
+    - Blit-friendly (status artists returned each frame)
+    - Safe index clamping for status arrays
+    - 3-state navigation box via _nav_status(): INACTIVE / WARNING / ACTIVE
     """
     def __init__(self, assets, map_gdfs, interval_ms=500, status_asset_index=0):
         self.assets = assets
         self.interval = interval_ms
         self.focus_idx = status_asset_index
         self.stop_requested = False
+
+        # NOTE: order here should match your draw_real_map signature
         frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = map_gdfs
 
         def sr(a, k): return np.asarray(a.ship_model.simulation_results[k])
@@ -149,12 +166,16 @@ class MapAnimator:
 
         # Status arrays for the focus ship
         fm = self.assets[self.focus_idx].ship_model
-        self.colav = np.asarray(getattr(fm, 'colav_active_array', []))
-        self.colli = np.asarray(getattr(fm, 'collision_array', []))
-        self.navfl = np.asarray(getattr(fm, 'nav_failure_array', []))
-        self.ground= np.asarray(getattr(fm, 'grounding_array', []))
+        self.colav  = np.asarray(getattr(fm, 'colav_active_array', []), dtype=bool)
+        self.colli  = np.asarray(getattr(fm, 'collision_array', []), dtype=bool)
+        self.navfl  = np.asarray(getattr(fm, 'nav_failure_array', []), dtype=bool)
+        # Optional: navigation warning array; default to zeros with same length as failure
+        self.navwarn = np.asarray(getattr(fm, 'nav_warning_array', []), dtype=bool)
+        if self.navwarn.size == 0 and self.navfl.size:
+            self.navwarn = np.zeros_like(self.navfl, dtype=bool)
+        self.ground = np.asarray(getattr(fm, 'grounding_array', []), dtype=bool)
 
-        # ---- Figure: map + status strip (taller than before)
+        # ---- Figure: map + status strip
         self.fig = plt.figure(figsize=(17.5, 9.8), constrained_layout=True)
         gs = self.fig.add_gridspec(nrows=2, ncols=1, height_ratios=[1.0, 0.12], hspace=0.0)
         self.ax_map   = self.fig.add_subplot(gs[0, 0])
@@ -174,49 +195,102 @@ class MapAnimator:
         for s in self.series:
             tr, = self.ax_map.plot([], [], '-', lw=1.8, zorder=10, label=s['label'])
             ol, = self.ax_map.plot([], [], lw=1.4, zorder=12)
+            tr.set_animated(True); ol.set_animated(True)
             self.trails.append(tr); self.outlines.append(ol)
         self.ax_map.legend(loc='upper right')
-        self.time_text = self.ax_map.text(0.01, 0.97, '', transform=self.ax_map.transAxes, fontsize=12, va='top')
 
-        # Status boxes (bottom)
+        self.time_text = self.ax_map.text(0.01, 0.97, '',
+                                          transform=self.ax_map.transAxes,
+                                          fontsize=12, va='top', animated=True)
+
+        # Status boxes (bottom) — animated + collected
         self.boxes = []
+        self._status_artists = []
         for i, lab in enumerate(["COLAV", "Collision", "Nav Failure", "Grounding"]):
             x0, w = i/4.0, 1/4.0
             rect = Rectangle((x0, 0.05), w-0.02, 0.9, fill=False, lw=1.2)
+            rect.set_animated(True)
             self.ax_stat.add_patch(rect)
-            txt = self.ax_stat.text(x0 + w/2 - 0.01, 0.5, f"{lab}\nINACTIVE", ha='center', va='center', fontsize=10)
+            txt = self.ax_stat.text(x0 + w/2 - 0.01, 0.5,
+                                    f"{lab}\nINACTIVE",
+                                    ha='center', va='center',
+                                    fontsize=10, animated=True)
             self.boxes.append((rect, txt))
+            self._status_artists.extend([rect, txt])
+
         self.ax_stat.set_xlim(0, 1); self.ax_stat.set_ylim(0, 1)
 
         # 'q' to stop
-        self.fig.canvas.mpl_connect('key_press_event', lambda e: self.request_stop() if e.key == 'q' else None)
+        self.fig.canvas.mpl_connect('key_press_event',
+                                    lambda e: self.request_stop() if e.key == 'q' else None)
 
     def request_stop(self):
         self.stop_requested = True
-        try: self.animation.event_source.stop()
-        except Exception: pass
+        try:
+            self.animation.event_source.stop()
+        except Exception:
+            pass
+
+    # ---------- helpers ----------
+    @staticmethod
+    def _on(arr, i):
+        """Clamp-safe boolean read for status arrays."""
+        if not hasattr(arr, 'size') or arr.size == 0:
+            return False
+        j = i if i < arr.size else arr.size - 1
+        return bool(arr[j])
 
     def _status(self, idx, on, on_text, off_text):
+        """Generic 2-state renderer."""
         rect, txt = self.boxes[idx]
         label = txt.get_text().split('\n')[0]
         txt.set_text(f"{label}\n{on_text if on else off_text}")
         rect.set_fill(on); rect.set_alpha(0.15 if on else 0.0); rect.set_hatch('////' if on else '')
+        rect.set_edgecolor('#cc0000' if on else 'black')
 
-    @staticmethod
-    def _on(arr, i): return bool(arr[i]) if hasattr(arr, 'size') and i < arr.size else False
+    def _nav_status(self, idx, warn_on, fail_on):
+        """3-state renderer for navigation box: INACTIVE / WARNING / ACTIVE."""
+        rect, txt = self.boxes[idx]
+        label = txt.get_text().split('\n')[0]
+        if fail_on:
+            txt.set_text(f"{label}\nYES")
+            rect.set_fill(True);  rect.set_alpha(0.18)
+            rect.set_hatch('/////')
+            rect.set_edgecolor('#cc0000'); rect.set_linewidth(1.4)
+        elif warn_on:
+            txt.set_text(f"{label}\nWARNING")
+            rect.set_fill(True);  rect.set_alpha(0.12)
+            rect.set_hatch('....')
+            rect.set_edgecolor("#fffb00"); rect.set_linewidth(1.4)
+        else:
+            txt.set_text(f"{label}\nNO")
+            rect.set_fill(False); rect.set_alpha(0.0)
+            rect.set_hatch('')
+            rect.set_edgecolor('black'); rect.set_linewidth(1.2)
 
+    # ---------- animation hooks ----------
     def init_animation(self):
         for tr in self.trails: tr.set_data([], [])
         for ol in self.outlines: ol.set_data([], [])
         self.time_text.set_text('')
-        # reset status
-        for _, txt in self.boxes:
-            txt.set_text(txt.get_text().split('\n')[0] + "\nINACTIVE")
-        return (*self.trails, *self.outlines, self.time_text)
+        # reset boxes to INACTIVE
+        for k, (rect, txt) in enumerate(self.boxes):
+            label = txt.get_text().split('\n')[0]
+            txt.set_text(label + "\nINACTIVE")
+            rect.set_fill(False); rect.set_alpha(0.0); rect.set_hatch('')
+            rect.set_edgecolor('black'); rect.set_linewidth(1.2)
+        return (*self.trails, *self.outlines, self.time_text, *self._status_artists)
 
     def animate(self, i):
         if self.stop_requested:
-            return (*self.trails, *self.outlines, self.time_text)
+            self.time_text.set_text(f"Time: {self.t[i]:.1f} s")
+            self._status(0, self._on(self.colav, i), "ACTIVE", "INACTIVE")
+            self._status(1, self._on(self.colli, i), "YES",    "NO")
+            self._nav_status(2, self._on(self.navwarn, i+1), self._on(self.navfl, i+1))
+            self._status(3, self._on(self.ground, i), "YES",   "NO")
+            return (*self.trails, *self.outlines, self.time_text, *self._status_artists)
+
+        # trails + current outlines
         for s, tr, ol in zip(self.series, self.trails, self.outlines):
             tr.set_data(s['east'][:i], s['north'][:i])
             if s['drawer'] is not None and i < len(s['east']):
@@ -225,15 +299,15 @@ class MapAnimator:
                 xR, yR = s['drawer'].rotate_coords(xL, yL, psi)
                 xF, yF = s['drawer'].translate_coords(xR, yR, north, east)
                 ol.set_data(yF, xF)  # (East, North)
-        self.time_text.set_text(f"Time: {self.t[i]:.1f} s")
 
-        # status for focus ship
+        # time + statuses for focus ship
+        self.time_text.set_text(f"Time: {self.t[i]:.1f} s")
         self._status(0, self._on(self.colav, i), "ACTIVE", "INACTIVE")
         self._status(1, self._on(self.colli, i), "YES",    "NO")
-        self._status(2, self._on(self.navfl, i), "ACTIVE", "INACTIVE")
-        self._status(3, self._on(self.ground, i), "YES",    "NO")
+        self._nav_status(2, self._on(self.navwarn, i), self._on(self.navfl, i+1))
+        self._status(3, self._on(self.ground, i), "YES",   "NO")
 
-        return (*self.trails, *self.outlines, self.time_text)
+        return (*self.trails, *self.outlines, self.time_text, *self._status_artists)
 
     def run(self, fps=None, show=False, repeat=False):
         if fps is not None: self.interval = 1000 / fps
@@ -250,143 +324,157 @@ class MapAnimator:
         writer = FFMpegWriter(fps=fps)
         self.animation.save(path, writer=writer)
 
-# =========================
-# 2) POLAR-ONLY ANIMATOR (unchanged)
-# =========================
-
 class PolarAnimator:
-    """
-    Three polar panels (wave/current/wind) for one focus ship.
-    Each axis gets its own rmax based on its own data.
-    """
+    """Three polar panels (wave/current/wind) for one focus ship.
+       Per-axis rmax; arrows for vectors; blue rotating ship outline."""
     def __init__(self, focus_asset, interval_ms=500, rpad=0.05, rmin=1.0):
         self.a = focus_asset
         self.interval = interval_ms
 
         sim = self.a.ship_model.simulation_results
-        self.t = np.asarray(sim['time [s]'])
-        self.hdg_rad = np.radians(np.asarray(sim['yaw angle [deg]']))
+        self.t        = np.asarray(sim['time [s]'])
+        self.hdg_rad  = np.radians(np.asarray(sim['yaw angle [deg]'])) - np.pi/2.0
 
-        # Wave: from forces (math -> nav)
+        # wave dir from forces (math -> nav)
         dy = np.asarray(sim['wave force north [N]'])
         dx = np.asarray(sim['wave force east [N]'])
-        # wave_deg_math = np.rad2deg(np.arctan2(dy, dx))
-        # self.wave_dir_deg = _math_to_nav(wave_deg_math)
-        self.wave_dir_deg = np.asarray(sim['wind dir [deg]']) # Assume wave and wind direction are the same
-        self.wave_mag     = np.sqrt(dx**2 + dy**2)
+        self.wave_mag   = np.sqrt(dx**2 + dy**2) / 1000
 
-        # Current & wind (assumed already 0N/CW+; convert here if not)
-        self.curr_dir_deg = np.asarray(sim['current dir [deg]'])
-        self.curr_speed   = np.asarray(sim['current speed [m/s]'])
-        self.wind_dir_deg = np.asarray(sim['wind dir [deg]'])
-        self.wind_speed   = np.asarray(sim['wind speed [m/s]'])
+        # current & wind (assumed already 0N/CW+)
+        self.curr_dir_d = np.asarray(sim['current dir [deg]'])
+        self.curr_spd   = np.asarray(sim['current speed [m/s]'])
+        self.wind_dir_d = np.asarray(sim['wind dir [deg]'])
+        self.wind_spd   = np.asarray(sim['wind speed [m/s]'])
 
-        # ----- per-axis rmax (with small padding) -----
         def _rmax(arr):
             if hasattr(arr, "size") and arr.size:
-                m = float(np.nanmax(arr))
-                return max(rmin, m * (1.0 + rpad))
+                return max(rmin, float(np.nanmax(arr)) * (1.0 + rpad))
             return rmin
 
         self.rmax_wave = _rmax(self.wave_mag)
-        self.rmax_curr = _rmax(self.curr_speed)
-        self.rmax_wind = _rmax(self.wind_speed)
+        self.rmax_curr = _rmax(self.curr_spd)
+        self.rmax_wind = _rmax(self.wind_spd)
 
-        # Figure
-        self.fig = plt.figure(figsize=(6.5, 9), constrained_layout=True)
-        self.ax_wave  = self.fig.add_subplot(311, projection='polar')
-        self.ax_curr  = self.fig.add_subplot(312, projection='polar')
-        self.ax_wind  = self.fig.add_subplot(313, projection='polar')
+        # ---- figure (manual spacing) ----
+        self.fig = plt.figure(figsize=(6.6, 9.4))
+        self.fig.subplots_adjust(left=0.10, right=0.90, top=0.925, bottom=0.075, hspace=0.5)
+        self.ax_wave = self.fig.add_subplot(311, projection='polar')
+        self.ax_curr = self.fig.add_subplot(312, projection='polar')
+        self.ax_wind = self.fig.add_subplot(313, projection='polar')
 
-        # Apply per-axis nav setup
-        setup_nav_polar(self.ax_wave, self.rmax_wave); self.ax_wave.set_title("Wave & heading")
-        setup_nav_polar(self.ax_curr, self.rmax_curr); self.ax_curr.set_title("Current & heading")
-        setup_nav_polar(self.ax_wind, self.rmax_wind); self.ax_wind.set_title("Wind & heading")
+        def _setup(ax, rmax, title):
+            ax.set_rlim(0, rmax)
+            ax.set_theta_zero_location('N')
+            ax.set_theta_direction(-1)
+            ax.set_thetagrids([0,45,90,135,180,225,270,315],
+                              labels=['0°','45°','90°','135°','180°','-135°','-90°','-45°'])
+            ax.set_rlabel_position(225)
+            ax.grid(alpha=0.25)
+            ax.set_title(title, pad=10, fontsize=10)
+            # smaller tick labels to avoid clutter
+            for lab in ax.get_xticklabels() + ax.get_yticklabels():
+                lab.set_fontsize(9)
 
-        # Rays + ship icons
-        self.wave_ship, = self.ax_wave.plot([], [], lw=2)
-        self.wave_vec,  = self.ax_wave.plot([], [], lw=2)
-        self.curr_ship, = self.ax_curr.plot([], [], lw=2)
-        self.curr_vec,  = self.ax_curr.plot([], [], lw=2)
-        self.wind_ship, = self.ax_wind.plot([], [], lw=2)
-        self.wind_vec,  = self.ax_wind.plot([], [], lw=2)
+        _setup(self.ax_wave, self.rmax_wave, "Wave load [kN] & heading [deg]")
+        _setup(self.ax_curr, self.rmax_curr, "Current speed [m/s] & heading [deg]")
+        _setup(self.ax_wind, self.rmax_wind, "Wind speed [m/s] & heading [deg]")
 
-        self.ship_icon_wave = None
-        self.ship_icon_curr = None
-        self.ship_icon_wind = None
+        # ---- arrows (distinct colors) ----
+        def _make_arrow(ax, color, lw=2, head=12):
+            arr = FancyArrowPatch((0, 0), (0, 0),
+                                  arrowstyle='-|>',
+                                  mutation_scale=head,
+                                  lw=lw, color=color,
+                                  transform=ax.transData,
+                                  clip_on=False, animated=True, zorder=6)
+            ax.add_patch(arr)
+            return arr
 
-        self.time_text = self.fig.text(0.02, 0.98, '', ha='left', va='top')
+        self.wave_arrow = _make_arrow(self.ax_wave,  "#ff0000")  # orange
+        self.curr_arrow = _make_arrow(self.ax_curr,  "#b095ff")  # teal
+        self.wind_arrow = _make_arrow(self.ax_wind,  "#56cd32")  # purple
 
-    @staticmethod
-    def _set_ray(line, theta, r):
-        line.set_data([theta, theta], [0, max(0, r)])
+        # ---- ship outlines (blue) ----
+        def _make_ship(ax):
+            p = Polygon([[0, 0]], closed=True, fill=False, lw=1.8,
+                        ec='black', clip_on=False, animated=True, zorder=7)
+            ax.add_patch(p)
+            return p
 
+        self.ship_icon_wave = _make_ship(self.ax_wave)
+        self.ship_icon_curr = _make_ship(self.ax_curr)
+        self.ship_icon_wind = _make_ship(self.ax_wind)
+
+        # time text ABOVE first polar (no overlap)
+        self.time_text = self.ax_wave.text(-0.65, -3.25, '', transform=self.ax_wave.transAxes,
+                                           ha='left', va='bottom', fontsize=10,
+                                           bbox=dict(facecolor='white', alpha=0.6, edgecolor='none'),
+                                           animated=True, clip_on=False)
+
+        self._artists = (self.wave_arrow, self.curr_arrow, self.wind_arrow,
+                         self.ship_icon_wave, self.ship_icon_curr, self.ship_icon_wind,
+                         self.time_text)
+
+        self.ship_draw = getattr(self.a.ship_model, 'draw', None) or self.a.ship_model  # ShipDraw
+
+    # --- helpers ---
+    def _ship_verts(self, ax, heading_rad_nav, size_frac=0.24):
+        x_loc, y_loc = self.ship_draw.local_coords()
+        rmax = ax.get_rmax()
+        scale = (size_frac * rmax) / (self.ship_draw.l / 2.0)
+        x = x_loc * scale; y = y_loc * scale
+        theta_math = np.arctan2(y, x)
+        theta_nav  = (np.pi/2.0) - theta_math + heading_rad_nav
+        r = np.hypot(x, y)
+        return np.column_stack([theta_nav, r])
+
+    # --- FuncAnimation hooks ---
     def init_animation(self):
-        for ln in [self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec]:
-            ln.set_data([], [])
-        for icon in [self.ship_icon_wave, self.ship_icon_curr, self.ship_icon_wind]:
-            try:
-                if icon is not None: icon.remove()
-            except Exception:
-                pass
-        self.ship_icon_wave = self.ship_icon_curr = self.ship_icon_wind = None
+        self.wave_arrow.set_positions((0.0, 0.0), (0.0, 0.0))
+        self.curr_arrow.set_positions((0.0, 0.0), (0.0, 0.0))
+        self.wind_arrow.set_positions((0.0, 0.0), (0.0, 0.0))
+        self.ship_icon_wave.set_xy([[0, 0]])
+        self.ship_icon_curr.set_xy([[0, 0]])
+        self.ship_icon_wind.set_xy([[0, 0]])
         self.time_text.set_text('')
-        return self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec
+        return self._artists
 
     def animate(self, i):
         hdg = self.hdg_rad[i]
 
-        # Wave panel
-        self._set_ray(self.wave_ship, hdg, 0.8*self.ax_wave.get_rmax())
-        if self.wave_mag.size and self.wave_dir_deg.size:
-            self._set_ray(self.wave_vec, np.deg2rad(self.wave_dir_deg[i]), self.wave_mag[i])
-        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model,
-                                    hdg, self.ax_wave, 0.25)
-        if self.ship_icon_wave is None:
-            self.ship_icon_wave = Polygon(verts, closed=True, fill=False, lw=1.5)
-            self.ship_icon_wave.set_transform(self.ax_wave.transData); self.ax_wave.add_patch(self.ship_icon_wave)
-        else:
-            self.ship_icon_wave.set_xy(verts)
+        if self.wave_mag.size and self.wind_dir_d.size:
+            th = np.deg2rad(self.wind_dir_d[i]); r = float(self.wave_mag[i])
+            self.wave_arrow.set_positions((th, 0.0), (th, r))
+        if self.curr_spd.size and self.curr_dir_d.size:
+            th = np.deg2rad(self.curr_dir_d[i]); r = float(self.curr_spd[i])
+            self.curr_arrow.set_positions((th, 0.0), (th, r))
+        if self.wind_spd.size and self.wind_dir_d.size:
+            th = np.deg2rad(self.wind_dir_d[i]); r = float(self.wind_spd[i])
+            self.wind_arrow.set_positions((th, 0.0), (th, r))
 
-        # Current panel
-        self._set_ray(self.curr_ship, hdg, 0.8*self.ax_curr.get_rmax())
-        if self.curr_speed.size and self.curr_dir_deg.size:
-            self._set_ray(self.curr_vec, np.deg2rad(self.curr_dir_deg[i]), self.curr_speed[i])
-        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model,
-                                    hdg, self.ax_curr, 0.25)
-        if self.ship_icon_curr is None:
-            self.ship_icon_curr = Polygon(verts, closed=True, fill=False, lw=1.5)
-            self.ship_icon_curr.set_transform(self.ax_curr.transData); self.ax_curr.add_patch(self.ship_icon_curr)
-        else:
-            self.ship_icon_curr.set_xy(verts)
-
-        # Wind panel
-        self._set_ray(self.wind_ship, hdg, 0.8*self.ax_wind.get_rmax())
-        if self.wind_speed.size and self.wind_dir_deg.size:
-            self._set_ray(self.wind_vec, np.deg2rad(self.wind_dir_deg[i]), self.wind_speed[i])
-        verts = ship_vertices_polar(getattr(self.a.ship_model, 'draw', None) or self.a.ship_model,
-                                    hdg, self.ax_wind, 0.25)
-        if self.ship_icon_wind is None:
-            self.ship_icon_wind = Polygon(verts, closed=True, fill=False, lw=1.5)
-            self.ship_icon_wind.set_transform(self.ax_wind.transData); self.ax_wind.add_patch(self.ship_icon_wind)
-        else:
-            self.ship_icon_wind.set_xy(verts)
+        self.ship_icon_wave.set_xy(self._ship_verts(self.ax_wave, hdg))
+        self.ship_icon_curr.set_xy(self._ship_verts(self.ax_curr, hdg))
+        self.ship_icon_wind.set_xy(self._ship_verts(self.ax_wind, hdg))
 
         self.time_text.set_text(f"t = {self.t[i]:.1f} s")
-        return self.wave_ship, self.wave_vec, self.curr_ship, self.curr_vec, self.wind_ship, self.wind_vec
+        return self._artists
 
     def run(self, fps=None, show=False, repeat=False):
         if fps is not None: self.interval = 1000 / fps
-        self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
-                                       init_func=self.init_animation, blit=True,
-                                       interval=self.interval, repeat=repeat)
-        if show:
-            plt.show()
+        self.animation = FuncAnimation(self.fig, self.animate,
+                                       frames=len(self.t),
+                                       init_func=self.init_animation,
+                                       blit=True, interval=self.interval,
+                                       repeat=repeat, cache_frame_data=False)
+        if show: plt.show()
 
-    def save(self, path, fps=2):
-        self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
-                                       init_func=self.init_animation, blit=True,
-                                       interval=self.interval, repeat=False)
+    def save(self, path, fps=25):
+        self.animation = FuncAnimation(self.fig, self.animate,
+                                       frames=len(self.t),
+                                       init_func=self.init_animation,
+                                       blit=True, interval=self.interval,
+                                       repeat=False, cache_frame_data=False)
+        FFMpegWriter(fps=fps).setup(self.fig, path, dpi=140)
         writer = FFMpegWriter(fps=fps)
         self.animation.save(path, writer=writer)
 

@@ -263,7 +263,7 @@ def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
     ax.set_title('Ship Trajectory')
     ax.set_xlabel('East position (m)')
     ax.set_ylabel('North position (m)')
-    ax.grid(True, linewidth=0.5, alpha=0.4)
+    # ax.grid(True, linewidth=0.5, alpha=0.4)
 
     if show:
         plt.show()

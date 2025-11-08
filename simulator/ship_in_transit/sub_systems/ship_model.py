@@ -559,8 +559,10 @@ class ShipModel(BaseShipModel):
         self.colav_active_array     = []
         self.collision_array        = []
         self.nav_failure_array      = []
+        self.nav_warning_array      = []
         self.grounding_array        = []
         self.power_overload_array   = []
+        self.outside_horizon_array  = []
 
         # Default dictionary for simulation results
         self.simulation_results = defaultdict(list)
@@ -750,8 +752,6 @@ class ShipModel(BaseShipModel):
                 ship_length=self.l_ship
             )
             # Keep per-tick alignment (add an array if you plan to analyze later)
-            if not hasattr(self, 'outside_horizon_array'):
-                self.outside_horizon_array = []
             push_flag('outside_horizon', outside, self.outside_horizon_array)
             if outside and self.print_status:
                 print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
@@ -760,6 +760,11 @@ class ShipModel(BaseShipModel):
         # --- Navigation failure --------------------------------------------------
         # Ignored if the autopilot is inactive
         if self.auto_pilot is not None:
+            # Record 
+            nav_fail = False
+            self.nav_warning_array.append(False)
+            push_flag('navigation_failure', nav_fail, self.nav_failure_array)
+            
             nav_warn = check_condition.is_ship_navigation_warning(
                 e_ct=self.auto_pilot.navigate.e_ct,
                 e_tol=self.cross_track_error_tolerance
@@ -775,13 +780,19 @@ class ShipModel(BaseShipModel):
                     self._navrecover_printed = False
                     self._nav_warn_time_counter = 0.0  # start counting this warning episode
 
+                # Record
+                nav_fail = False
+                self.nav_warning_array.append(True)
+                push_flag('navigation_failure', nav_fail, self.nav_failure_array)
+                
                 # During warning
                 self._nav_warn_time_counter += self.int.dt
-                nav_fail = False
 
                 # If the time counter for nav warn exceeds the allowed limit → failure
                 if self._nav_warn_time_counter > self._nav_fail_time:
+                    # Record
                     nav_fail = True
+                    self.nav_warning_array.append(False) # -> Switch off because now it is failure, not warning anymore
                     push_flag('navigation_failure', nav_fail, self.nav_failure_array)
 
                     # Print failure once per episode
@@ -937,11 +948,6 @@ class ShipModel(BaseShipModel):
             self.colav_active_array.append(self.sbmpc.is_stephen_useful())
         #################################################################################################### 
         
-        # Evaluate the ship condition. If the ship stopped, immediately return
-        self.evaluate_ship_condition(asset_infos)
-        if self.stop is True:
-            return
-        
         # Get environment args
         if env_args is None:
             wave_force = np.array([0.0, 0.0, 0.0])
@@ -1019,6 +1025,11 @@ class ShipModel(BaseShipModel):
                                   env_loads=env_loads)
         self.integrate_differentials()
         
+        # Evaluate the ship condition. If the ship stopped, immediately return
+        self.evaluate_ship_condition(asset_infos)
+        if self.stop is True:
+            return
+        
         # Step up the simulator
         self.int.next_time()
         
@@ -1055,8 +1066,10 @@ class ShipModel(BaseShipModel):
         self.colav_active_array     = []
         self.collision_array        = []
         self.nav_failure_array      = []
+        self.nav_warning_array      = []
         self.grounding_array        = []
         self.power_overload_array   = []
+        self.outside_horizon_array  = []
         
         #  Also reset the results and draws container
         self.simulation_results = defaultdict(list)
