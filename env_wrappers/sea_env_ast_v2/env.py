@@ -514,15 +514,19 @@ class SeaEnvAST(gym.Env):
         
         return observation, reward, terminated, truncated, info
     
-    def reward_function(self, action, logp_floor=-100.0):
+    def reward_function(self, action, logp_floor=-100.0, eta=0.5, theta=5.0):
         """
         For this reward function, we only take into account the own_ship
+        Param:
+        logp_floor  : clip value when encountering log prob value of -inf
+        eta         : coefficient to aim for immediate or late failure discovery. Range: [0(immediate), 1(late)]
+        theta       : gain value to encourage immediate failure discovery
         """
         ## Unpack action
         [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar] = action
         
-        ## Base reward -> Encourage further exploration [Can be a hyper parameter as well]
-        reward = len(self.action_list) * 5.0
+        ## Base reward -> Encourage further exploration
+        reward = len(self.action_list) * eta * theta
         
         ## Get the termination info of the own ship
         collision           = self.assets[0].ship_model.stop_info['collision']
@@ -553,14 +557,12 @@ class SeaEnvAST(gym.Env):
         reward += reward_env_ll
         
         ## Get reward from termination status
-        if collision or navigation_failure or power_overload:
-            reward += 0.0       # If failure gives positive reward
+        if collision or navigation_failure or power_overload or outside_horizon:
+            reward += -15.0       # We only want grounding failure
         elif grounding_failure:
-            reward += 25.0      # We value grounding failure more
-        elif outside_horizon:
-            reward += -15.0     # Not very insightful
+            reward += 25.0      # We focus on finding grounding failure
         elif reaches_endpoint:
-            reward += -25.0     # We discourage the agent to let the ship finishes its mission.
+            reward += -25.0     # We highly discourage the agent to let the ship finishes its mission.
         
         return reward
 

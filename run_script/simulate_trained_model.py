@@ -96,8 +96,8 @@ if __name__ == "__main__":
 
     # Print RL transition
     env.log_RL_transition_text(train_time=None,
-                        txt_path=None,
-                        also_print=True)
+                               txt_path=None,
+                               also_print=True)
 
     ## Get the simulation results for all assets, and plot the asset simulation results
     own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
