@@ -1035,7 +1035,7 @@ class ShipModel(BaseShipModel):
         
         return
     
-    def reset(self):
+    def reset(self, seed=None, route=None):
         # Call the reset method from the parent class
         super().reset()
         
@@ -1043,8 +1043,18 @@ class ShipModel(BaseShipModel):
         self.ship_machinery_model.reset()
         if self.throttle_controller is not None:
             self.throttle_controller.reset()
-        if self.throttle_controller is not None:
-            self.auto_pilot.reset()
+        if self.auto_pilot is not None:
+            self.auto_pilot.reset(route)
+            
+        # Initialize states based on auto pilot route
+        if route is not None:
+            N_0, E_0 = np.loadtxt(route)[0]  # expecting two columns: east, north
+            N_1, E_1 = np.loadtxt(route)[1]  # expecting two columns: east, north
+            psi_0    = np.atan2((E_1 - E_0), (N_1 - N_0))
+            
+            self.north      = N_0
+            self.east       = E_0
+            self.yaw_angle  = psi_0
         
         # Reset the navigational warning time
         self._nav_warn_time_counter = 0.0

@@ -3,7 +3,7 @@ import sys
 
 ## PATH HELPER (OBLIGATORY)
 # project root = two levels up from this file
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
@@ -28,7 +28,7 @@ import numpy as np
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
-def get_env_assets(args):
+def get_env_assets(args, print_ship_status=False):
 
     # -----------------------
     # GPKG settings (edit if your layer names differ)
@@ -163,12 +163,14 @@ def get_env_assets(args):
     own_ship_route_filename = 'Stangvik_AST_reversed.txt'
     own_ship_route_name = get_ship_route_path(ROOT, own_ship_route_filename)
 
-    start_E, start_N = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
+    N_0, E_0 = np.loadtxt(own_ship_route_name)[0]  # expecting two columns: east, north
+    N_1, E_1 = np.loadtxt(own_ship_route_name)[1]  # expecting two columns: east, north
+    psi_0    = np.atan2((E_1 - E_0), (N_1 - N_0))
 
     own_ship_config = SimulationConfiguration(
-        initial_north_position_m=start_E,
-        initial_east_position_m=start_N,
-        initial_yaw_angle_rad=np.deg2rad(-60.0),
+        initial_north_position_m=N_0,
+        initial_east_position_m=E_0,
+        initial_yaw_angle_rad=psi_0,
         initial_forward_speed_m_per_s=0.0,
         initial_sideways_speed_m_per_s=0.0,
         initial_yaw_rate_rad_per_s=0.0,
@@ -211,7 +213,7 @@ def get_env_assets(args):
         nav_fail_time=args.nav_fail_time,
         map_obj=map[0],
         colav_mode='sbmpc',
-        print_status=False
+        print_status=print_ship_status
     )
     own_ship_info = AssetInfo(
         # dynamic state (mutable)

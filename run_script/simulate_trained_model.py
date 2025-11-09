@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
-from test_beds.ast_test.setup import get_env_assets
+from run_script.setup import get_env_assets
 
 ## IMPORT FUNCTIONS
 from utils.animate import MapAnimator, PolarAnimator, animate_side_by_side
@@ -76,6 +76,9 @@ if __name__ == "__main__":
     
     # Get the assets and AST Environment Wrapper
     env, assets, map_gdfs = get_env_assets(args=args, print_ship_status=True)
+    
+    # Set random route to false
+    env.set_random_route_flag(flag=False)
     
     # Load the trained model
     ast_model = SAC.load(model_path)

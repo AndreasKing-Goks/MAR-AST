@@ -443,7 +443,7 @@ class HeadingBySampledRouteController:
             'heading_mea': 0
         }
     
-    def reset(self):
+    def reset(self, route=None):
         '''
         Reset the heading controller for a new episode.
         '''
@@ -458,6 +458,6 @@ class HeadingBySampledRouteController:
         self.heading_controller.reset()
         
         # Navigation system reset
-        self.navigate.reset()
+        self.navigate.reset(route)
         
         

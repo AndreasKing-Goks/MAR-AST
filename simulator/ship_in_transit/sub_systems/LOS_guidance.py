@@ -128,11 +128,16 @@ class NavigationSystem:
             'e_ct_int': 0.0,
         }
 
-    def reset(self):
+    def reset(self, route=None):
         '''
         Reset the LOS internal states and waypoints for a new episode.
         '''
         self.e_ct = self._initial_state['e_ct']
         self.e_ct_int = self._initial_state['e_ct_int']
-        self.route = copy.deepcopy(self._initial_state['route'])  # Update route
+        if route is None:
+            self.route = copy.deepcopy(self._initial_state['route'])  # Update route
+        elif route is not None:
+            self.route = route
         self.load_waypoints(self.route)
+        print(self.route)
+        

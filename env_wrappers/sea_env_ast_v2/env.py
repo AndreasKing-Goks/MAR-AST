@@ -1,6 +1,14 @@
 """ 
 This module provides classes for AST-compliant environment wrapper
 """
+from pathlib import Path
+import sys
+
+## PATH HELPER (OBLIGATORY)
+# project root = two levels up from this file
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
 import numpy as np
 import pandas as pd
 import os
@@ -18,6 +26,7 @@ from simulator.ship_in_transit.sub_systems.env_load_prob_model import SeaStateMi
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Literal
 from utils.logger import setup_rl_logger
+from utils.get_path import get_ship_route_path_for_training
 import json
 
 import copy
@@ -70,6 +79,7 @@ class SeaEnvAST(gym.Env):
                  include_wave=True,
                  include_current=True,
                  include_wind=True,
+                 random_route=True,
                  seed=None):
         '''
         Arguments:
@@ -97,6 +107,12 @@ class SeaEnvAST(gym.Env):
         if map is not None:
             self.map = map[0]
             self.map_frame = map[1]
+            
+        # Gather all route files for training
+        self.route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
+        
+        # Flags for random route sampling
+        self.random_route = random_route
         
         # Set configuration as an attribute
         self.wave_model_config = wave_model_config
@@ -130,13 +146,13 @@ class SeaEnvAST(gym.Env):
         self.Hs_wu = 0.3 
         self.Tp_wu = 7.5 
         
-        # Current
-        self.U_c_bar_wu = 0.25
-        self.psi_c_bar_wu = np.deg2rad(0.0)
-        
         # Wind
         self.U_w_bar_wu = 1.5
         self.psi_ww_bar_wu = np.deg2rad(0.0)
+        
+        # Current
+        self.U_c_bar_wu = 0.25
+        self.psi_c_bar_wu = np.deg2rad(0.0)
         
         ## Observation space
         minx, miny, maxx, maxy           = self.map_frame.total_bounds
@@ -182,6 +198,9 @@ class SeaEnvAST(gym.Env):
         self.info_list          = []
 
         return
+    
+    def set_random_route_flag(self, flag=True):
+        self.random_route = flag
     
     def _normalize(self, x, min_val, max_val):
         """Normalize x from [min_val, max_val] to [-1, 1]."""
@@ -306,6 +325,26 @@ class SeaEnvAST(gym.Env):
         
         return action
     
+    def _normalize_action(self, action):
+        """
+        Directly unpacks and denormalize the action from the RL agent
+        """
+        ## Unpack the action
+        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action # -> The action is nested
+        
+        ## Denormalize the action
+        Hs_norm = self._normalize(Hs, self.Hs_range[0], self.Hs_range[1])
+        Tp_norm = self._normalize(Tp, self.Tp_range[0], self.Tp_range[1])
+        U_w_bar_norm = self._normalize(U_w_bar, self.U_w_bar_range[0], self.U_w_bar_range[1])
+        psi_ww_bar_norm = self._normalize(psi_ww_bar, self.psi_ww_bar_range[0], self.psi_ww_bar_range[1])
+        U_c_bar_norm = self._normalize(U_c_bar, self.U_c_bar_range[0], self.U_c_bar_range[1])
+        psi_c_bar_norm = self._normalize(psi_c_bar, self.psi_c_bar_range[0], self.psi_c_bar_range[1])
+        
+        # Return action
+        action_norm = Hs_norm, Tp_norm, U_w_bar_norm, psi_ww_bar_norm, U_c_bar_norm, psi_c_bar_norm
+        
+        return action_norm
+    
     def _denormalize_observation(self, observation_norm):
         """
         Directly unpacks and denormalize the observation from the environment
@@ -318,7 +357,21 @@ class SeaEnvAST(gym.Env):
             "current"               : self._denormalize(observation_norm["current"], self.current_range["min"], self.current_range["max"])
         }
         
-        return observation    
+        return observation
+    
+    def _normalize_observation(self, observation):
+        """
+        Directly unpacks and denormalize the observation from the environment
+        """    
+        observation_norm = {
+            "position"              : self._normalize(observation["position"], self.position_range["min"], self.position_range["max"]),
+            "speed"                 : self._normalize(observation["speed"], self.speed_range["min"], self.speed_range["max"]),
+            "cross_track_error"     : self._normalize(observation["cross_track_error"], self.cross_track_error_range["min"], self.cross_track_error_range["max"]),
+            "wind"                  : self._normalize(observation["wind"], self.wind_range["min"], self.wind_range["max"]),
+            "current"               : self._normalize(observation["current"], self.current_range["min"], self.current_range["max"])
+        }
+        
+        return observation_norm       
     
     def _step(self, action=None):
         '''
@@ -403,7 +456,7 @@ class SeaEnvAST(gym.Env):
         action = self._denormalize_action(action_norm)
         
         # Unpack some of the action for environmental load memory
-        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
+        _, _, _, psi_ww_bar, U_c_bar, psi_c_bar = action
         
         #------------------------------ Step the simulator ------------------------------#
         running_time = 0
@@ -493,11 +546,11 @@ class SeaEnvAST(gym.Env):
         
         ## Get reward from termination status
         if collision or navigation_failure or power_overload:
-            reward += 0.0      # If failure gives positive reward
+            reward += 0.0       # If failure gives positive reward
         elif grounding_failure:
             reward += 25.0      # We value grounding failure more
         elif outside_horizon:
-            reward += -15.0       # Not very insightful
+            reward += -15.0     # Not very insightful
         elif reaches_endpoint:
             reward += -25.0     # We discourage the agent to let the ship finishes its mission.
         
@@ -519,13 +572,21 @@ class SeaEnvAST(gym.Env):
         if self.wind_model is not None:
             self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
 
+        # Sample a random route for training during random training
+        if self.random_route:
+            route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
+            idx = np.random.randint(0, len(route_files))
+            route = str(route_files[idx])
+        else:
+            route = None
+        
         # Reset ships; pass seeds if supported
         for asset in self.assets:
             if hasattr(asset.ship_model, "reset"):
                 try:
-                    asset.ship_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+                    asset.ship_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)), route=route)
                 except TypeError:
-                    asset.ship_model.reset()
+                    asset.ship_model.reset(route=route)
 
             # restore info to initial values (deep-copied)
             init = asset.init_copy
