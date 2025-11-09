@@ -139,5 +139,4 @@ class NavigationSystem:
         elif route is not None:
             self.route = route
         self.load_waypoints(self.route)
-        print(self.route)
         

@@ -24,6 +24,16 @@ We also use `stable-baselines3`, which is a `pytorch`-compliant version for RL a
 ```bash
 pip install 'stable-baselines3[extra]'
 ```
+To view the training process, `stable-baselines3` uses `tensorboard` using the `events.out.tfevents.*` file stored inside `<log_path>\tb`, commonly `trained_model\AST-train*\tb`. If not installed, we first need to install `tensorboard` by running:
+```bash
+pip install tensorboard
+```
+To view the charts, in the terminal first run:
+```bash
+tensorboard --logdir "<log_path>/tb"
+```
+While the terminal is running, go to the Tensorboard URL shown in the terminal. Commonly printed as: `http://localhost:6006/`. 
+> **You can ignore the `TensorFlow installation not found` warning messages! Because we are using `PyTorch`**
 
 ### PyTorch [Optional]
  We use `pytorch` to build the multi-layer perceptron network related with Reinforcement Learning (RL) implementaion for the AST. The installed `pytorch` only supports `cpu`-device. We need to reinstall the `pytorch` with `cuda` support to enable `cuda` acceleration for the training process. Please consult to [PyTorch official website](https://pytorch.org/get-started/locally/) for local installation guide. 

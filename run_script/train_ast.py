@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 ### IMPORT SIMULATOR ENVIRONMENTS
-from test_beds.ast_test.setup import get_env_assets
+from run_script.setup import get_env_assets
 
 ## IMPORT FUNCTIONS
 from utils.animate import MapAnimator, PolarAnimator, animate_side_by_side
@@ -15,6 +15,7 @@ from utils.plot_simulation import plot_ship_status, plot_ship_and_real_map
 
 ## IMPORT AST RELATED TOOLS
 from stable_baselines3 import SAC
+from stable_baselines3.common.monitor import Monitor
 from gymnasium.utils.env_checker import check_env
 
 ### IMPORT TOOLS
@@ -24,7 +25,8 @@ import os
 import time
 
 ### IMPORT UTILS
-from utils.get_path import get_trained_model_path
+from utils.get_path import get_trained_model_and_log_path
+from utils.logger import log_ast_training_config
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 
@@ -49,14 +51,54 @@ def parse_cli_args():
                         help='ENV: time delay in second between ship drawing record (default: 30)')
     parser.add_argument('--map_gpkg_filename', type=str, default="Stangvik.gpkg", metavar='MAP_GPKG_FILENAME',
                         help='ENV: name of the .gpkg filename for the map (default: "Stangvik.gpkg")')
+    parser.add_argument('--warm_up_time', type=int, default=2500, metavar='WARM_UP_TIME',
+                        help='ENV: time needed in second before policy - action sampling takes place (default: 1500)')
+    parser.add_argument('--action_sampling_period', type=int, default=1800, metavar='ACT_SAMPLING_PERIOD',
+                        help='ENV: time period in second between policy - action sampling (default: 1800)')
 
     # Add arguments for AST-core
-    parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
-                        help='AST: number of simulation episode counts (default: 1)')
-    parser.add_argument('--warm_up_time', type=int, default=2500, metavar='WARM_UP_TIME',
-                        help='AST: time needed in second before policy - action sampling takes place (default: 1500)')
-    parser.add_argument('--action_sampling_period', type=int, default=1800, metavar='ACT_SAMPLING_PERIOD',
-                        help='AST: time period in second between policy - action sampling (default: 1800)')
+    parser.add_argument('--total_steps', type=int, default=20, metavar='TOTAL_STEPS',
+                        help='AST: total steps of overall AST training [start_steps + train_steps] (default: 75_000)')
+    parser.add_argument('--learning_rate', type=float, default=3e-4, metavar='LEARNING_RATE',
+                        help='AST: learning rate for adam optimizer (default: 3e-4)')
+    parser.add_argument('--buffer_size', type=int, default=1_000_000, metavar='REPLAY_BUFFER_SIZE',
+                        help='AST: size of the replay buffer (default: 1_000_000)')
+    parser.add_argument('--learning_starts', type=int, default=5, metavar='LEARNING_STARTS',
+                        help='AST: how many steps of the model to collect transitions for before learning starts (default: 25_000)')
+    parser.add_argument('--batch_size', type=int, default=256, metavar='BATCH_SIZE',
+                        help='AST: minibatch size for each gradient update (default: 256)')
+    parser.add_argument('--tau', type=float, default=0.005, metavar='SOFT_UPDATE_COEFFICIENT',
+                        help='AST: the soft update coefficient [“Polyak update”, between 0 and 1] (default: 0.005)')
+    parser.add_argument('--gamma', type=float, default=0.99, metavar='DISCOUNT_FACTOR',
+                        help='AST: RL discount factor (default: 0.99)')
+    parser.add_argument('--train_freq', type=int, default=1, metavar='TRAIN_FREQ',
+                        help='AST: Update the model every train_freq steps. \
+                            alternatively pass a tuple of frequency and unit like (5, "step") or (2, "episode") (default: 1)')
+    parser.add_argument('--gradient_steps', type=int, default=1, metavar='GRADIENT_STEPS',
+                        help='AST: How many gradient steps to do after each rollout (see train_freq). \
+                            Set to -1 means to do as many gradient steps as steps done in the environment during the rollout (default: 1)')
+    parser.add_argument('--ent_coef', type=str, default="auto", metavar='ENT_COEF',
+                        help='AST: Entropy regularization coefficient. (Equivalent to inverse of reward scale in the original SAC paper.)\
+                                Controlling exploration/exploitation trade-off. Set it to "auto" to learn it automatically \
+                                (and "auto_0.1" for using 0.1 as initial value) (default: "auto")')
+    parser.add_argument('--target_update_interval', type=int, default=1, metavar='TARGET_UPDATE_INTERVAL',
+                        help='AST: update the target network every target_network_update_freq gradient steps (default: 1)')
+    parser.add_argument('--target_entropy', type=str, default="auto", metavar='TARGET_ENTROPY',
+                        help='AST: target entropy when learning ent_coef. Can be set to auto (default: "auto")')
+    parser.add_argument('--stats_window_size', type=int, default=100, metavar='TARGET_UPDATE_INTERVAL',
+                        help='AST: window size for the rollout logging, specifying the number of episodes to average \
+                            the reported success rate, mean episode length, and mean reward over (default: 100)')
+    parser.add_argument('--tensorboard_log', type=bool, default=True, metavar='TENSORBOARD_LOG',
+                        help='AST: do tensorboard log. The log will be stored inside the training folder (default: True)')
+    parser.add_argument('--verbose', type=int, default=1, metavar='VERBOSE',
+                        help='AST: verbosity level: 0 for no output, 1 for info messages (such as device or wrappers used), \
+                            2 for debug messages (default: 1)')
+    parser.add_argument('--seed', type=int, default=None, metavar='SEED',
+                        help='AST: seed for the pseudo random generators (default: None)')
+    parser.add_argument('--device', type=str, default="cuda", metavar='DEVICE',
+                        help='AST: device (cpu, cuda, …) on which the code should be run. \
+                            Setting it to auto, the code will be run on the GPU if possible. (default: "cuda)')
+    
 
     # Parse args
     args = parser.parse_args()
@@ -68,8 +110,8 @@ if __name__ == "__main__":
 ###################################### TRAIN THE MODEL #####################################
 
     # Path
-    model_name  ="AST-train_1"
-    model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
+    model_name  ="AST-train"
+    model_path, log_path, tb_path = get_trained_model_and_log_path(root=ROOT, model_name=model_name)
     
     # Get the args
     args = parse_cli_args()
@@ -86,41 +128,40 @@ if __name__ == "__main__":
         print("ABORT TRAINING")
         sys.exit(1)  # non-zero exit code stops the script
     
-    # Set the Policy
-    # Later
+    # Before training (so the config is at the top of the run)
+    log_ast_training_config(args=args, txt_path=log_path, env=env, also_print=True)
     
-    # Set RL model
+    # Before model init
+    if args.tensorboard_log:
+        tb_dir = tb_path
+    else:
+        tb_dir = None
+    
     ast_model = SAC("MultiInputPolicy",
-                    env=env,
-                    learning_rate=3e-4,
-                    buffer_size=1_000_000,
-                    learning_starts=2500,
-                    batch_size=256,
-                    tau=0.005,
-                    gamma=0.99,
-                    train_freq=1,
-                    gradient_steps=1,
-                    action_noise=None,
-                    replay_buffer_class=None,
-                    replay_buffer_kwargs=None,
-                    optimize_memory_usage=False,
-                    n_steps=1,
-                    ent_coef="auto",
-                    target_update_interval=1,
-                    target_entropy="auto",
-                    use_sde=False,
-                    sde_sample_freq=-1,
-                    use_sde_at_warmup=False,
-                    stats_window_size=100,
-                    tensorboard_log=None,
-                    policy_kwargs=None,
-                    verbose=1,
-                    seed=None,
-                    device='cuda')
+                    env=Monitor(env),
+                    learning_rate=args.learning_rate,
+                    buffer_size=args.buffer_size,
+                    learning_starts=args.learning_starts,
+                    batch_size=args.batch_size,
+                    tau=args.tau,
+                    gamma=args.gamma,
+                    train_freq=args.train_freq,
+                    gradient_steps=args.gradient_steps,
+                    ent_coef=args.ent_coef,
+                    target_update_interval=args.target_update_interval,
+                    target_entropy=args.target_entropy,
+                    stats_window_size=args.stats_window_size,
+                    tensorboard_log=tb_dir,
+                    verbose=args.verbose,
+                    seed=args.seed,
+                    device=args.device)
     
     # Train the RL model. Record the time
     start_time = time.time()
-    ast_model.learn(total_timesteps=7_500)
+    learn_kwargs = {}
+    if tb_dir is not None:
+        learn_kwargs["tb_log_name"] = "SAC_AST"
+    ast_model.learn(total_timesteps=args.total_steps, **learn_kwargs)
     elapsed_time = time.time() - start_time
     minutes, seconds = divmod(elapsed_time, 60)
     hours, _         = divmod(minutes, 60)

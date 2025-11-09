@@ -61,7 +61,7 @@ class ShipAsset:
     init_copy: 'ShipAsset' = field(default=None, repr=False, compare=False)
 
 
-class SeaEnvAST(gym.Env):
+class SeaEnvASTv2(gym.Env):
     """
     This class is the main class for AST-compliant environment wrapper the Ship-Transit Simulator for multiple ships. It handles:
     
@@ -581,12 +581,15 @@ class SeaEnvAST(gym.Env):
             self.current_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
         if self.wind_model is not None:
             self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
-
+            
         # Sample a random route for training during random training
         if self.random_route:
             route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
-            idx = np.random.randint(0, len(route_files))
+            route_files = sorted(route_files)  # make order deterministic across runs/OS
+            # draw index from the env's master RNG
+            idx = int(self.np_random.integers(0, len(route_files)))
             route = str(route_files[idx])
+            self._route_idx = idx  # (optional) keep for debugging
         else:
             route = None
         
@@ -719,35 +722,36 @@ class SeaEnvAST(gym.Env):
             sea_state_list.append(sea_state)
 
         # ---------- Build the exact same printed lines ----------
-        lines = []
-        lines.append('#===================================== RL TRANSITION ====================================#')
-        lines.append('#-------------------------------------- Observation -------------------------------------#')
-        lines.append(f'north                [m] : {north_list}')
-        lines.append(f'east                 [m] : {east_list}')
-        lines.append(f'heading            [deg] : {heading_list}')
-        lines.append(f'speed              [m/s] : {speed_list}')
-        lines.append(f'cross track error    [m] : {cross_track_error_list}')
-        lines.append(f'wind speed         [m/s] : {wind_speed_list}')
-        lines.append(f'wind dir           [deg] : {wind_dir_list}')
-        lines.append(f'current speed      [m/s] : {current_speed_list}')
-        lines.append(f'current dir        [deg] : {current_dir_list}')
-        lines.append('#---------------------------------------- Action ----------------------------------------#')
-        lines.append(f'sampling timestamp   [s] : {self.action_time_list}')
-        lines.append(f'Hs                   [m] : {Hs_list}')
-        lines.append(f'Tp                   [s] : {Tp_list}')
-        lines.append(f'U_w_bar            [m/s] : {U_w_bar_list}')
-        lines.append(f'psi_ww_bar         [deg] : {psi_ww_bar_list}')
-        lines.append(f'U_c_bar            [m/s] : {U_c_bar_list}')
-        lines.append(f'psi_c_bar          [deg] : {psi_c_bar_list}')
-        lines.append(f'action validity          : {act_validity_list}')
-        lines.append(f'sea state                : {sea_state_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
-        lines.append(f'Terminated               : {self.terminated_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
-        lines.append(f'Truncated                : {self.truncated_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
-        lines.append(f'Reward                   : {self.reward_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
+        with np.printoptions(precision=3, suppress=True, floatmode="fixed", sign="-" ):
+            lines = []
+            lines.append('#============================================ RL TRANSITION ===========================================#')
+            lines.append('#--------------------------------------------- Observation --------------------------------------------#')
+            lines.append(f'north                [m] : {np.asarray(north_list)}')
+            lines.append(f'east                 [m] : {np.asarray(east_list)}')
+            lines.append(f'heading            [deg] : {np.asarray(heading_list)}')
+            lines.append(f'speed              [m/s] : {np.asarray(speed_list)}')
+            lines.append(f'cross track error    [m] : {np.asarray(cross_track_error_list)}')
+            lines.append(f'wind speed         [m/s] : {np.asarray(wind_speed_list)}')
+            lines.append(f'wind dir           [deg] : {np.asarray(wind_dir_list)}')
+            lines.append(f'current speed      [m/s] : {np.asarray(current_speed_list)}')
+            lines.append(f'current dir        [deg] : {np.asarray(current_dir_list)}')
+            lines.append('#----------------------------------------------- Action -----------------------------------------------#')
+            lines.append(f'sampling timestamp   [s] : {np.asarray(self.action_time_list)}')
+            lines.append(f'Hs                   [m] : {np.asarray(Hs_list)}')
+            lines.append(f'Tp                   [s] : {np.asarray(Tp_list)}')
+            lines.append(f'U_w_bar            [m/s] : {np.asarray(U_w_bar_list)}')
+            lines.append(f'psi_ww_bar         [deg] : {np.asarray(psi_ww_bar_list)}')
+            lines.append(f'U_c_bar            [m/s] : {np.asarray(U_c_bar_list)}')
+            lines.append(f'psi_c_bar          [deg] : {np.asarray(psi_c_bar_list)}')
+            lines.append(f'action validity          : {np.asarray(act_validity_list)}')
+            lines.append(f'sea state                : {np.asarray(sea_state_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
+            lines.append(f'Terminated               : {np.asarray(self.terminated_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
+            lines.append(f'Truncated                : {np.asarray(self.truncated_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
+            lines.append(f'Reward                   : {np.asarray(self.reward_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
 
         if train_time is not None:
             hours, minutes, seconds = train_time
