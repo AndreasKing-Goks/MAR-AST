@@ -390,9 +390,9 @@ class PolarAnimator:
             ax.add_patch(arr)
             return arr
 
-        self.wave_arrow = _make_arrow(self.ax_wave,  "#ff0000")  # orange
-        self.curr_arrow = _make_arrow(self.ax_curr,  "#b095ff")  # teal
-        self.wind_arrow = _make_arrow(self.ax_wind,  "#56cd32")  # purple
+        self.wave_arrow = _make_arrow(self.ax_wave,  "#ff0000")
+        self.curr_arrow = _make_arrow(self.ax_curr,  "#b095ff")
+        self.wind_arrow = _make_arrow(self.ax_wind,  "#56cd32")
 
         # ---- ship outlines (blue) ----
         def _make_ship(ax):
@@ -405,12 +405,16 @@ class PolarAnimator:
         self.ship_icon_curr = _make_ship(self.ax_curr)
         self.ship_icon_wind = _make_ship(self.ax_wind)
 
-        # time text ABOVE first polar (no overlap)
-        self.time_text = self.ax_wave.text(-0.65, -3.25, '', transform=self.ax_wave.transAxes,
-                                           ha='left', va='bottom', fontsize=10,
-                                           bbox=dict(facecolor='white', alpha=0.6, edgecolor='none'),
-                                           animated=True, clip_on=False)
+        # ---- bottom-left time label in its own (tiny) axes; blit-safe ----
+        # Align left edge with the subplots, put near the bottom margin
+        left = self.ax_wind.get_position().x0
+        width = self.ax_wind.get_position().width
+        self.ax_time = self.fig.add_axes([left, 0.02, width, 0.03])  # [L, B, W, H] in fig coords
+        self.ax_time.set_axis_off()
+        self.time_text = self.ax_time.text(0.25, 0.5, '', ha='left', va='center',
+                                           fontsize=10, animated=True)
 
+        # artists for blitting
         self._artists = (self.wave_arrow, self.curr_arrow, self.wind_arrow,
                          self.ship_icon_wave, self.ship_icon_curr, self.ship_icon_wind,
                          self.time_text)
@@ -477,4 +481,3 @@ class PolarAnimator:
         FFMpegWriter(fps=fps).setup(self.fig, path, dpi=140)
         writer = FFMpegWriter(fps=fps)
         self.animation.save(path, writer=writer)
-
