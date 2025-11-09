@@ -85,9 +85,9 @@ def parse_cli_args():
                         help='AST: update the target network every target_network_update_freq gradient steps (default: 1)')
     parser.add_argument('--target_entropy', type=str, default="auto", metavar='TARGET_ENTROPY',
                         help='AST: target entropy when learning ent_coef. Can be set to auto (default: "auto")')
-    parser.add_argument('--stats_window_size', type=int, default=100, metavar='TARGET_UPDATE_INTERVAL',
+    parser.add_argument('--stats_window_size', type=int, default=25, metavar='TARGET_UPDATE_INTERVAL',
                         help='AST: window size for the rollout logging, specifying the number of episodes to average \
-                            the reported success rate, mean episode length, and mean reward over (default: 100)')
+                            the reported success rate, mean episode length, and mean reward over (default: 25)')
     parser.add_argument('--tensorboard_log', type=bool, default=True, metavar='TENSORBOARD_LOG',
                         help='AST: do tensorboard log. The log will be stored inside the training folder (default: True)')
     parser.add_argument('--verbose', type=int, default=1, metavar='VERBOSE',
