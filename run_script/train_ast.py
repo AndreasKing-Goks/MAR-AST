@@ -57,13 +57,13 @@ def parse_cli_args():
                         help='ENV: time period in second between policy - action sampling (default: 1800)')
 
     # Add arguments for AST-core
-    parser.add_argument('--total_steps', type=int, default=20, metavar='TOTAL_STEPS',
+    parser.add_argument('--total_steps', type=int, default=75_000, metavar='TOTAL_STEPS',
                         help='AST: total steps of overall AST training [start_steps + train_steps] (default: 75_000)')
     parser.add_argument('--learning_rate', type=float, default=3e-4, metavar='LEARNING_RATE',
                         help='AST: learning rate for adam optimizer (default: 3e-4)')
     parser.add_argument('--buffer_size', type=int, default=1_000_000, metavar='REPLAY_BUFFER_SIZE',
                         help='AST: size of the replay buffer (default: 1_000_000)')
-    parser.add_argument('--learning_starts', type=int, default=5, metavar='LEARNING_STARTS',
+    parser.add_argument('--learning_starts', type=int, default=25_000, metavar='LEARNING_STARTS',
                         help='AST: how many steps of the model to collect transitions for before learning starts (default: 25_000)')
     parser.add_argument('--batch_size', type=int, default=256, metavar='BATCH_SIZE',
                         help='AST: minibatch size for each gradient update (default: 256)')
