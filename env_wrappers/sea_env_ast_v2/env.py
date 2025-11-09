@@ -76,6 +76,7 @@ class SeaEnvAST(gym.Env):
                  current_model_config: CurrentModelConfiguration,
                  wind_model_config: WindModelConfiguration,
                  args,
+                 max_state_name=str("SS >8"),
                  include_wave=True,
                  include_current=True,
                  include_wind=True,
@@ -120,11 +121,12 @@ class SeaEnvAST(gym.Env):
         self.wind_model_config = wind_model_config
         
         # Get the environment model based on the config
+        self._max_state_name = max_state_name
         self.wave_model         = JONSWAPWaveModel(self.wave_model_config, seed=seed) if include_wave else None
         self.current_model      = SurfaceCurrent(self.current_model_config, seed=seed) if include_current else None
         self.wind_model         = NORSOKWindModel(self.wind_model_config, seed=seed) if include_wind else None
         self.sea_state_mixture  = SeaStateMixture()
-        self.sea_state_mixture.condition_by_max_state(max_state_name="SS 5")
+        self.sea_state_mixture.condition_by_max_state(max_state_name=self._max_state_name)
         
         # Previous sampled mean current speed, mean current direction, and mean wind-wave direction
         self.U_c_bar_prev       = self.current_model_config.initial_current_velocity
@@ -211,17 +213,23 @@ class SeaEnvAST(gym.Env):
         return (x_norm + 1) * 0.5 * (max_val - min_val) + min_val
 
     def init_action_space(self):
+        # Get sea state index
+        idx_min = self.sea_state_mixture.get_state_index(name="SS 0–1")
+        idx_max = self.sea_state_mixture.get_state_index(name=self._max_state_name)
+        min_sea_state = self.sea_state_mixture.states[idx_min]
+        max_sea_state = self.sea_state_mixture.states[idx_max]
+        
         ## Action Space (6)
         # Significant wave height
-        Hs_min, Hs_max                   = [0.1, 4.0] # [0.1, 15.0] 
+        Hs_min, Hs_max                   = [min_sea_state["Hs"]["range"][0], max_sea_state["Hs"]["range"][1]]
         # Wave peak period
-        Tp_min, Tp_max                   = [0.1, 15.5] # [0.1, 23.7]
+        Tp_min, Tp_max                   = [min_sea_state["Tp"]["range"][0], max_sea_state["Tp"]["range"][1]]
         # Mean wind speed
-        U_w_bar_min, U_w_bar_max         = [0.0, 12.87] # in m/s. Knot [0, ~27.0] # [0.0, 42.0] # in m/s. Knot [0, ~80]
+        U_w_bar_min, U_w_bar_max         = [min_sea_state["Uw"]["range"][0], max_sea_state["Uw"]["range"][1]]
         # Mean wind direction
         psi_ww_bar_min, psi_ww_bar_max   = [-np.pi, np.pi]
         # Mean current speed
-        U_c_bar_min, U_c_bar_max         = [0.0, 1.0]
+        U_c_bar_min, U_c_bar_max         = [0.0, 1.0] # Following north atlantic max current speed
         # Mean current direction
         psi_c_bar_min, psi_c_bar_max     = [-np.pi, np.pi]
         

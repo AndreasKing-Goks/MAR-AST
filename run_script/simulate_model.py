@@ -281,6 +281,7 @@ env = SeaEnvAST(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args,
+    max_state_name="SS 5",
     include_wave=True,
     include_wind=True,
     include_current=True)
@@ -334,10 +335,10 @@ map_anim = MapAnimator(
     interval_ms=500,
     status_asset_index=0  # flags for own ship
 )
-map_anim.run(fps=240, show=False, repeat=False)
+map_anim.run(fps=120, show=False, repeat=False)
 
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-polar_anim.run(fps=240, show=False, repeat=False)
+polar_anim.run(fps=120, show=False, repeat=False)
 
 # Place windows next to each other, same height, centered
 animate_side_by_side(map_anim.fig, polar_anim.fig,

@@ -176,6 +176,13 @@ class SeaStateMixture:
             return [m / 0.51444444 for m in ms]
         else:
             return ms / 0.51444444
+    
+    def get_state_index(self, name:str):
+        for idx, state in enumerate(self.states):
+            if state["name"] == name:
+                return idx
+        return None  # or raise ValueError if you want strict checking
+
 
     # ---- sampling + joint log-prob (when S is sampled) ----
     def sample_joint(self):
