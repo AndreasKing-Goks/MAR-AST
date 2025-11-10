@@ -157,15 +157,15 @@ if __name__ == "__main__":
                     device=args.device)
     
     # Train the RL model. Record the time
-    start_time = time.time()
     learn_kwargs = {}
     if tb_dir is not None:
         learn_kwargs["tb_log_name"] = "SAC_AST"
+    start_time           = time.time()
     ast_model.learn(total_timesteps=args.total_steps, **learn_kwargs)
-    elapsed_time = time.time() - start_time
-    minutes, seconds = divmod(elapsed_time, 60)
-    hours, _         = divmod(minutes, 60)
-    train_time = (hours, minutes, seconds)
+    elapsed_time         = time.time() - start_time
+    raw_minutes, seconds = divmod(elapsed_time, 60)
+    hours, minutes       = divmod(raw_minutes, 60)
+    train_time           = (hours, minutes, seconds)
     
     # Save the trained model
     ast_model.save(model_path)
