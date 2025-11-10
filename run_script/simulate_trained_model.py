@@ -78,7 +78,7 @@ if __name__ == "__main__":
     env, assets, map_gdfs = get_env_assets(args=args, print_ship_status=True)
     
     # Set random route to false
-    env.set_random_route_flag(flag=False)
+    env.set_random_route_flag(flag=True)
     
     # Load the trained model
     ast_model = SAC.load(model_path)
