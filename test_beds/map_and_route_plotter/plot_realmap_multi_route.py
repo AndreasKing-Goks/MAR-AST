@@ -75,7 +75,6 @@ plt.xlabel('East position (m)')
 plt.ylabel('North position (m)')
 plt.gca().set_aspect('equal')
 plt.grid(color='0.8', linestyle='-', linewidth=0.5)
-plt.legend()
 
 # Adjust layout for better spacing
 plt.tight_layout()

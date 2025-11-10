@@ -286,7 +286,7 @@ class MapAnimator:
             self.time_text.set_text(f"Time: {self.t[i]:.1f} s")
             self._status(0, self._on(self.colav, i), "ACTIVE", "INACTIVE")
             self._status(1, self._on(self.colli, i), "YES",    "NO")
-            self._nav_status(2, self._on(self.navwarn, i+1), self._on(self.navfl, i+1))
+            self._nav_status(2, self._on(self.navwarn, i), self._on(self.navfl, i))
             self._status(3, self._on(self.ground, i), "YES",   "NO")
             return (*self.trails, *self.outlines, self.time_text, *self._status_artists)
 
@@ -304,7 +304,7 @@ class MapAnimator:
         self.time_text.set_text(f"Time: {self.t[i]:.1f} s")
         self._status(0, self._on(self.colav, i), "ACTIVE", "INACTIVE")
         self._status(1, self._on(self.colli, i), "YES",    "NO")
-        self._nav_status(2, self._on(self.navwarn, i), self._on(self.navfl, i+1))
+        self._nav_status(2, self._on(self.navwarn, i), self._on(self.navfl, i))
         self._status(3, self._on(self.ground, i), "YES",   "NO")
 
         return (*self.trails, *self.outlines, self.time_text, *self._status_artists)

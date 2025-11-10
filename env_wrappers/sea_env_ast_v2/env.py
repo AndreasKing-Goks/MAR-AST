@@ -509,7 +509,7 @@ class SeaEnvASTv2(gym.Env):
         
         return observation, reward, terminated, truncated, info
     
-    def reward_function(self, action, logp_floor=-100.0, eta=0.5, theta=10.0):
+    def reward_function(self, action, logp_floor=-10.0, eta=0.5, theta=1.0):
         """
         For this reward function, we only take into account the own_ship
         Param:
@@ -553,11 +553,11 @@ class SeaEnvASTv2(gym.Env):
         
         ## Get reward from termination status
         if collision or navigation_failure or power_overload or outside_horizon:
-            reward += -25.0       # We only want grounding failure
+            reward += -5.0       # We only want grounding failure
         elif grounding_failure:
-            reward += 50.0      # We focus on finding grounding failure
+            reward += 15.0      # We focus on finding grounding failure
         elif reaches_endpoint:
-            reward += -50.0     # We highly discourage the agent to let the ship finishes its mission.
+            reward += -10.0     # We highly discourage the agent to let the ship finishes its mission.
         
         return reward
 

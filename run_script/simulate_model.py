@@ -45,12 +45,12 @@ parser.add_argument('--time_step', type=int, default=5, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 5)')
 parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
                     help='ENV: engine integration step count in between simulation timestep (default: 10)')
-parser.add_argument('--radius_of_acceptance', type=int, default=600, metavar='ROA',
-                    help='ENV: radius of acceptance in meter for LOS algorithm (default: 600)')
+parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
+                    help='ENV: radius of acceptance in meter for LOS algorithm (default: 300)')
 parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
                     help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
-parser.add_argument('--nav_fail_time', type=int, default=300, metavar='NAV_FAIL_TIME',
-                    help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 300)')
+parser.add_argument('--nav_fail_time', type=int, default=600, metavar='NAV_FAIL_TIME',
+                help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 600)')
 parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                     help='ENV: record ship drawing for plotting and animation (default: True)')
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
@@ -281,7 +281,7 @@ env = SeaEnvASTv2(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args,
-    max_state_name="SS 6",
+    max_state_name="SS 8",
     include_wave=True,
     include_wind=True,
     include_current=True)

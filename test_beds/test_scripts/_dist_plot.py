@@ -18,7 +18,7 @@ test_1 = True
 if test_1:
     # Example usage:
     sampler = SeaStateMixture()
-    sampler.condition_by_max_state(max_state_name="SS 4")
+    sampler.condition_by_max_state(max_state_name="SS 6")
     draw = sampler.sample_joint()
     print(draw["Hs"], draw["Uw"], draw["Tp"], draw["logp_total"])
     logp_marg = sampler.logpdf_marginal(draw["Hs"], draw["Uw"], draw["Tp"])

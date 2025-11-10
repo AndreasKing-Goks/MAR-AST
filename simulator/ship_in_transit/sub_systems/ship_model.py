@@ -756,65 +756,71 @@ class ShipModel(BaseShipModel):
             if outside and self.print_status:
                 print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                     'mode is outside the map horizon.')
-
+        
         # --- Navigation failure --------------------------------------------------
         # Ignored if the autopilot is inactive
         if self.auto_pilot is not None:
-            # Record 
-            nav_fail = False
-            self.nav_warning_array.append(False)
-            push_flag('navigation_failure', nav_fail, self.nav_failure_array)
-            
-            nav_warn = check_condition.is_ship_navigation_warning(
+            # 0) ensure arrays exist if created lazily elsewhere
+            if not hasattr(self, 'nav_warning_array'):
+                self.nav_warning_array = []
+            if not hasattr(self, 'nav_failure_array'):
+                self.nav_failure_array = []
+
+            # 1) Compute current warning for this tick
+            nav_warn_now = check_condition.is_ship_navigation_warning(
                 e_ct=self.auto_pilot.navigate.e_ct,
                 e_tol=self.cross_track_error_tolerance
             )
+            nav_fail_now = False  # will be promoted from warning if timer exceeds threshold
 
-            if nav_warn:
-                # Edge: warning just started
-                if not self._navwarn_active:
+            # 2) Episode/timer bookkeeping
+            if nav_warn_now:
+                # warning just started
+                if not getattr(self, '_navwarn_active', False):
                     if self.print_status:
                         print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                             'is prone to have navigational failure.')
                     self._navwarn_active = True
                     self._navrecover_printed = False
-                    self._nav_warn_time_counter = 0.0  # start counting this warning episode
+                    self._nav_warn_time_counter = 0.0
+                    self._navfail_printed = False  # allow future failure print in this episode
 
-                # Record
-                nav_fail = False
-                self.nav_warning_array.append(True)
-                push_flag('navigation_failure', nav_fail, self.nav_failure_array)
-                
-                # During warning
+                # accumulate time during warning
                 self._nav_warn_time_counter += self.int.dt
 
-                # If the time counter for nav warn exceeds the allowed limit → failure
+                # promote to failure if limit exceeded
                 if self._nav_warn_time_counter > self._nav_fail_time:
-                    # Record
-                    nav_fail = True
-                    self.nav_warning_array.append(False) # -> Switch off because now it is failure, not warning anymore
-                    push_flag('navigation_failure', nav_fail, self.nav_failure_array)
-
-                    # Print failure once per episode
-                    if self.print_status and not self._navfail_printed:
+                    nav_fail_now = True
+                    nav_warn_now = False   # once failed, no longer "warning"
+                    if self.print_status and not getattr(self, '_navfail_printed', False):
                         print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                             'experiences navigational failure.')
                         self._navfail_printed = True
 
             else:
-                # Edge: warning just ended (recovered)
-                if self._navwarn_active:
-                    if self.print_status and not self._navrecover_printed:
+                # warning cleared (recovered)
+                if getattr(self, '_navwarn_active', False):
+                    if self.print_status and not getattr(self, '_navrecover_printed', False):
                         print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
                             'recovers from navigational failure warning.')
                         self._navrecover_printed = True
-
-                    # reset episode-scoped flags so a future warning can print again
-                    self._navfail_printed = False
-
-                # Outside warning
                 self._navwarn_active = False
                 self._nav_warn_time_counter = 0.0
+                # allow future failure print again on next episode
+                self._navfail_printed = False
+
+            # 3) Record exactly once per tick (keep arrays aligned with self.t)
+            self.nav_warning_array.append(bool(nav_warn_now))
+            push_flag('navigation_failure', bool(nav_fail_now), self.nav_failure_array)
+
+        else:
+            # If autopilot is inactive, still append once so arrays stay aligned
+            if not hasattr(self, 'nav_warning_array'):
+                self.nav_warning_array = []
+            if not hasattr(self, 'nav_failure_array'):
+                self.nav_failure_array = []
+            self.nav_warning_array.append(False)
+            push_flag('navigation_failure', False, self.nav_failure_array)
 
         # --- Reaches endpoint ----------------------------------------------------
         # Ignored if the autopilot is inactive

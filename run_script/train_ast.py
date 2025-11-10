@@ -59,8 +59,8 @@ def parse_cli_args():
                         help='ENV: Maximum allowed sea state for environment model to condition the sea state table (default: "SS 6")')
 
     # Add arguments for AST-core
-    parser.add_argument('--total_steps', type=int, default=150_000, metavar='TOTAL_STEPS',
-                        help='AST: total steps of overall AST training [start_steps + train_steps] (default: 150_000)')
+    parser.add_argument('--total_steps', type=int, default=200_000, metavar='TOTAL_STEPS',
+                        help='AST: total steps of overall AST training [start_steps + train_steps] (default: 200_000)')
     parser.add_argument('--learning_rate', type=float, default=3e-4, metavar='LEARNING_RATE',
                         help='AST: learning rate for adam optimizer (default: 3e-4)')
     parser.add_argument('--buffer_size', type=int, default=1_000_000, metavar='REPLAY_BUFFER_SIZE',
