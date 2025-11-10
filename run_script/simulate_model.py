@@ -45,8 +45,8 @@ parser.add_argument('--time_step', type=int, default=5, metavar='TIMESTEP',
                     help='ENV: time step size in second for ship transit simulator (default: 5)')
 parser.add_argument('--engine_step_count', type=int, default=10, metavar='ENGINE_STEP_COUNT',
                     help='ENV: engine integration step count in between simulation timestep (default: 10)')
-parser.add_argument('--radius_of_acceptance', type=int, default=300, metavar='ROA',
-                    help='ENV: radius of acceptance in meter for LOS algorithm (default: 300)')
+parser.add_argument('--radius_of_acceptance', type=int, default=600, metavar='ROA',
+                    help='ENV: radius of acceptance in meter for LOS algorithm (default: 600)')
 parser.add_argument('--lookahead_distance', type=int, default=1000, metavar='LD',
                     help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
 parser.add_argument('--nav_fail_time', type=int, default=300, metavar='NAV_FAIL_TIME',
@@ -55,13 +55,13 @@ parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                     help='ENV: record ship drawing for plotting and animation (default: True)')
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
                     help='ENV: time delay in second between ship drawing record (default: 30)')
-parser.add_argument('--warm_up_time', type=int, default=2500, metavar='WARM_UP_TIME',
-                    help='ENV: time needed in second before policy - action sampling takes place (default: 2500)')
-parser.add_argument('--action_sampling_period', type=int, default=1800, metavar='ACT_SAMPLING_PERIOD',
-                    help='ENV: time period in second between policy - action sampling (default: 1800)')
+parser.add_argument('--warm_up_time', type=int, default=2000, metavar='WARM_UP_TIME',
+                    help='ENV: time needed in second before policy - action sampling takes place (default: 2000)')
+parser.add_argument('--action_sampling_period', type=int, default=1200, metavar='ACT_SAMPLING_PERIOD',
+                    help='ENV: time period in second between policy - action sampling (default: 1200)')
 
 # Add arguments for AST-core
-parser.add_argument('--n_episodes', type=int, default=2, metavar='N_EPISODES',
+parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
 
 args = parser.parse_args()
@@ -303,7 +303,7 @@ while episode <= args.n_episodes:
     
     ## THIS IS WHERE THE SIMULATION HAPPENS
     while True:
-        # # Sample action
+        # Sample action
         action = env.action_space.sample()
         
         # Determenistic action
