@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
     # Path
-    model_name  ="AST-train_2025-11-09_21-19-36_1e65"
+    model_name  ="dummy"
     model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
     
     # Get the args
