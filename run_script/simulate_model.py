@@ -55,14 +55,14 @@ parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                     help='ENV: record ship drawing for plotting and animation (default: True)')
 parser.add_argument('--time_since_last_ship_drawing', default=30, metavar='SHIP_DRAW_TIME',
                     help='ENV: time delay in second between ship drawing record (default: 30)')
+parser.add_argument('--warm_up_time', type=int, default=2500, metavar='WARM_UP_TIME',
+                    help='ENV: time needed in second before policy - action sampling takes place (default: 2500)')
+parser.add_argument('--action_sampling_period', type=int, default=1800, metavar='ACT_SAMPLING_PERIOD',
+                    help='ENV: time period in second between policy - action sampling (default: 1800)')
 
 # Add arguments for AST-core
-parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
+parser.add_argument('--n_episodes', type=int, default=2, metavar='N_EPISODES',
                     help='AST: number of simulation episode counts (default: 1)')
-parser.add_argument('--warm_up_time', default=1800, metavar='WARM_UP_TIME',
-                    help='AST: time needed in second before policy - action sampling takes place (default: 1800)')
-parser.add_argument('--action_sampling_period', default=1800, metavar='ACT_SAMPLING_PERIOD',
-                    help='AST: time period in second between policy - action sampling (default: 1800)')
 
 args = parser.parse_args()
 
@@ -281,7 +281,7 @@ env = SeaEnvASTv2(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args,
-    max_state_name="SS 5",
+    max_state_name="SS 6",
     include_wave=True,
     include_wind=True,
     include_current=True)
@@ -304,10 +304,10 @@ while episode <= args.n_episodes:
     ## THIS IS WHERE THE SIMULATION HAPPENS
     while True:
         # # Sample action
-        # action = env.action_space.sample()
+        action = env.action_space.sample()
         
         # Determenistic action
-        action = env._normalize_action([0.3, 7.5, 1.5, 0.0, 0.25, 0.0])
+        # action = env._normalize_action([0.3, 7.5, env.sea_state_mixture.knot_to_ms(8.5), 0.0, 0.25, 0.0])
         
         # Step the env
         _, reward, terminated, truncated, _ = env.step(action)

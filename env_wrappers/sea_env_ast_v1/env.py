@@ -208,8 +208,8 @@ class SeaEnvAST(gym.Env):
         
         # Range for normalization
         self.Hs_range           = np.array([Hs_min, Hs_max], dtype=np.float32)
-        self.Tp_range           = np.array([Tp_min, Tp_max], dtype=np.float32)
         self.U_w_bar_range      = np.array([U_w_bar_min, U_w_bar_max], dtype=np.float32)
+        self.Tp_range           = np.array([Tp_min, Tp_max], dtype=np.float32)
         self.psi_ww_bar_range   = np.array([psi_ww_bar_min, psi_ww_bar_max], dtype=np.float32)
         self.U_c_bar_range      = np.array([U_c_bar_min, U_c_bar_max], dtype=np.float32)
         self.psi_c_bar_range    = np.array([psi_c_bar_min, psi_c_bar_max], dtype=np.float32)
@@ -217,7 +217,7 @@ class SeaEnvAST(gym.Env):
         self.action_space = Box(
             low  = np.array([-1.0, -1.0, -1.0, -1.0, -1.0, -1.0], dtype=np.float32),
             high = np.array([ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0], dtype=np.float32)
-        ) # In order -> [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar]
+        ) # In order -> [Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar]
         
     def init_observation_space(self):
         self.observation_space = gym.spaces.Dict(
@@ -291,18 +291,18 @@ class SeaEnvAST(gym.Env):
         Directly unpacks and denormalize the action from the RL agent
         """
         ## Unpack the action
-        Hs_norm, Tp_norm, U_w_bar_norm, psi_ww_bar_norm, U_c_bar_norm, psi_c_bar_norm = action_norm # -> The action is nested
+        Hs_norm, U_w_bar_norm, Tp_norm, psi_ww_bar_norm, U_c_bar_norm, psi_c_bar_norm = action_norm # -> The action is nested
         
         ## Denormalize the action
         Hs = self._denormalize(Hs_norm, self.Hs_range[0], self.Hs_range[1])
-        Tp = self._denormalize(Tp_norm, self.Tp_range[0], self.Tp_range[1])
         U_w_bar = self._denormalize(U_w_bar_norm, self.U_w_bar_range[0], self.U_w_bar_range[1])
+        Tp = self._denormalize(Tp_norm, self.Tp_range[0], self.Tp_range[1])
         psi_ww_bar = self._denormalize(psi_ww_bar_norm, self.psi_ww_bar_range[0], self.psi_ww_bar_range[1])
         U_c_bar = self._denormalize(U_c_bar_norm, self.U_c_bar_range[0], self.U_c_bar_range[1])
         psi_c_bar = self._denormalize(psi_c_bar_norm, self.psi_c_bar_range[0], self.psi_c_bar_range[1])
         
         # Return action
-        action = Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar
+        action = Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar
         
         return action
     
@@ -326,15 +326,15 @@ class SeaEnvAST(gym.Env):
             
             * Action unpcaked
             - Hs                : Significant wave height
-            - Tp                : Wave peak period
             - U_w_bar           : Wind mean speed
+            - Tp                : Wave peak period
             - psi_ww_bar        : Wave and Wind mean direction
             - U_c_bar           : Current mean speed
             - psi_c_bar         : Current mean direction
         '''
         if action is not None:
             ## Unpack the action
-            Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
+            Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar = action
             
             ## GLOBAL ARGS FOR ALL SHIP ASSETS
             # Compile wave_args
@@ -403,7 +403,7 @@ class SeaEnvAST(gym.Env):
         action = self._denormalize_action(action_norm)
         
         # Unpack some of the action for environmental load memory
-        Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar = action
+        _, _, _, psi_ww_bar, U_c_bar, psi_c_bar = action
         
         #------------------------------ Step the simulator ------------------------------#
         running_time = 0
@@ -425,11 +425,6 @@ class SeaEnvAST(gym.Env):
                 # Set the environment model truncated flag as True if all the ship assets not stoping within time limit
                 self.truncated  = True
                 break
-        # #--------------------------------------------------------------------------------#
-        # # TO TEST: IF THE ENVIRONMENTAL PARAM DIDN'T COMPLY TO THE SEA STATE TABLE
-        # # IMMEDIATELY TERMINATED
-        # self.terminated = self.sea_state_mixture.action_validity(Hs, Tp, U_w_bar)
-        # #--------------------------------------------------------------------------------#
         
         # Get the RL stepping outputs
         observation = self._get_obs()
@@ -458,7 +453,7 @@ class SeaEnvAST(gym.Env):
         For this reward function, we only take into account the own_ship
         """
         ## Unpack action
-        [Hs, Tp, U_w_bar, psi_ww_bar, U_c_bar, psi_c_bar] = action
+        [Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar] = action
         
         ## Base reward -> Encourage further exploration [Can be a hyper parameter as well]
         reward = len(self.action_list) * 5.0
@@ -620,8 +615,9 @@ class SeaEnvAST(gym.Env):
 
         # ---------- Unpack action (same as your print) ----------
         Hs_list           = []
-        Tp_list           = []
         U_w_bar_list      = []
+        U_w_bar_list_knot = []
+        Tp_list           = []
         psi_ww_bar_list   = []
         U_c_bar_list      = []
         psi_c_bar_list    = []
@@ -629,18 +625,19 @@ class SeaEnvAST(gym.Env):
         sea_state_list    = []
         for action in self.action_list:
             Hs      = action[0].item()
-            Tp      = action[1].item()
             U_w_bar = action[2].item()
-            act_validity = self.sea_state_mixture.action_validity(Hs, Tp, U_w_bar)
+            Tp      = action[1].item()
+            act_validity = self.sea_state_mixture.action_validity(Hs, U_w_bar, Tp)
             if act_validity:
-                idx       = self.sea_state_mixture.matching_states(Hs, Tp, U_w_bar)[0]
+                idx       = self.sea_state_mixture.matching_states(Hs, U_w_bar, Tp)[0]
                 sea_state = self.sea_state_mixture.states[idx]["name"]
             else:
                 sea_state = None
 
             Hs_list.append(Hs)
-            Tp_list.append(Tp)
             U_w_bar_list.append(U_w_bar)
+            U_w_bar_list_knot.append(self.sea_state_mixture.ms_to_knot(U_w_bar))
+            Tp_list.append(Tp)
             psi_ww_bar_list.append(np.rad2deg(action[3]).item())
             U_c_bar_list.append(action[4].item())
             psi_c_bar_list.append(np.rad2deg(action[5]).item())
@@ -648,35 +645,37 @@ class SeaEnvAST(gym.Env):
             sea_state_list.append(sea_state)
 
         # ---------- Build the exact same printed lines ----------
-        lines = []
-        lines.append('#===================================== RL TRANSITION ====================================#')
-        lines.append('#-------------------------------------- Observation -------------------------------------#')
-        lines.append(f'north                [m] : {north_list}')
-        lines.append(f'east                 [m] : {east_list}')
-        lines.append(f'heading            [deg] : {heading_list}')
-        lines.append(f'speed              [m/s] : {speed_list}')
-        lines.append(f'cross track error    [m] : {cross_track_error_list}')
-        lines.append(f'wind speed         [m/s] : {wind_speed_list}')
-        lines.append(f'wind dir           [deg] : {wind_dir_list}')
-        lines.append(f'current speed      [m/s] : {current_speed_list}')
-        lines.append(f'current dir        [deg] : {current_dir_list}')
-        lines.append('#---------------------------------------- Action ----------------------------------------#')
-        lines.append(f'sampling timestamp   [s] : {self.action_time_list}')
-        lines.append(f'Hs                   [m] : {Hs_list}')
-        lines.append(f'Tp                   [s] : {Tp_list}')
-        lines.append(f'U_w_bar            [m/s] : {U_w_bar_list}')
-        lines.append(f'psi_ww_bar         [deg] : {psi_ww_bar_list}')
-        lines.append(f'U_c_bar            [m/s] : {U_c_bar_list}')
-        lines.append(f'psi_c_bar          [deg] : {psi_c_bar_list}')
-        lines.append(f'action validity          : {act_validity_list}')
-        lines.append(f'sea state                : {sea_state_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
-        lines.append(f'Terminated               : {self.terminated_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
-        lines.append(f'Truncated                : {self.truncated_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
-        lines.append(f'Reward                   : {self.reward_list}')
-        lines.append('#----------------------------------------------------------------------------------------#')
+        with np.printoptions(precision=3, suppress=True, floatmode="fixed", sign="-" ):
+            lines = []
+            lines.append('#============================================ RL TRANSITION ===========================================#')
+            lines.append('#--------------------------------------------- Observation --------------------------------------------#')
+            lines.append(f'north                [m] : {np.asarray(north_list)}')
+            lines.append(f'east                 [m] : {np.asarray(east_list)}')
+            lines.append(f'heading            [deg] : {np.asarray(heading_list)}')
+            lines.append(f'speed              [m/s] : {np.asarray(speed_list)}')
+            lines.append(f'cross track error    [m] : {np.asarray(cross_track_error_list)}')
+            lines.append(f'wind speed         [m/s] : {np.asarray(wind_speed_list)}')
+            lines.append(f'wind dir           [deg] : {np.asarray(wind_dir_list)}')
+            lines.append(f'current speed      [m/s] : {np.asarray(current_speed_list)}')
+            lines.append(f'current dir        [deg] : {np.asarray(current_dir_list)}')
+            lines.append('#----------------------------------------------- Action -----------------------------------------------#')
+            lines.append(f'sampling timestamp   [s] : {np.asarray(self.action_time_list)}')
+            lines.append(f'Hs                   [m] : {np.asarray(Hs_list)}')
+            lines.append(f'U_w_bar            [m/s] : {np.asarray(U_w_bar_list)}')
+            lines.append(f'U_w_bar           [knot] : {np.asarray(U_w_bar_list_knot)}')
+            lines.append(f'Tp                   [s] : {np.asarray(Tp_list)}')
+            lines.append(f'psi_ww_bar         [deg] : {np.asarray(psi_ww_bar_list)}')
+            lines.append(f'U_c_bar            [m/s] : {np.asarray(U_c_bar_list)}')
+            lines.append(f'psi_c_bar          [deg] : {np.asarray(psi_c_bar_list)}')
+            lines.append(f'action validity          : {np.asarray(act_validity_list)}')
+            lines.append(f'sea state                : {np.asarray(sea_state_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
+            lines.append(f'Terminated               : {np.asarray(self.terminated_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
+            lines.append(f'Truncated                : {np.asarray(self.truncated_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
+            lines.append(f'Reward                   : {np.asarray(self.reward_list)}')
+            lines.append('#------------------------------------------------------------------------------------------------------#')
 
         if train_time is not None:
             hours, minutes, seconds = train_time
@@ -730,25 +729,26 @@ class SeaEnvAST(gym.Env):
 
         # --------- Unpack actions (same as your function) ----------
         Hs_list, Tp_list = [], []
-        U_w_bar_list, psi_ww_bar_list = [], []
+        U_w_bar_list, U_w_bar_list_knot, psi_ww_bar_list = [], [], []
         U_c_bar_list, psi_c_bar_list = [], []
         act_validity_list, sea_state_list = [], []
 
         for action in self.action_list:
             Hs = action[0].item()
-            Tp = action[1].item()
             U_w_bar = action[2].item()
+            Tp = action[1].item()
 
-            act_validity = self.sea_state_mixture.action_validity(Hs, Tp, U_w_bar)
+            act_validity = self.sea_state_mixture.action_validity(Hs, U_w_bar, Tp)
             if act_validity:
-                idx = self.sea_state_mixture.matching_states(Hs, Tp, U_w_bar)[0]
+                idx = self.sea_state_mixture.matching_states(Hs, U_w_bar, Tp)[0]
                 sea_state = self.sea_state_mixture.states[idx]["name"]
             else:
                 sea_state = None
 
             Hs_list.append(Hs)
-            Tp_list.append(Tp)
             U_w_bar_list.append(U_w_bar)
+            U_w_bar_list_knot.append(self.sea_state_mixture.ms_to_knot(U_w_bar))
+            Tp_list.append(Tp)
             psi_ww_bar_list.append(np.rad2deg(action[3]).item())
             U_c_bar_list.append(action[4].item())
             psi_c_bar_list.append(np.rad2deg(action[5]).item())
@@ -790,8 +790,9 @@ class SeaEnvAST(gym.Env):
                 # Action
                 "act.t_sample_s": sampling_ts_list[i],
                 "act.Hs_m": Hs_list[i],
-                "act.Tp_s": Tp_list[i],
                 "act.U_w_bar_mps": U_w_bar_list[i],
+                "act.U_w_bar_knot": U_w_bar_list_knot[i],
+                "act.Tp_s": Tp_list[i],
                 "act.psi_ww_bar_deg": psi_ww_bar_list[i],
                 "act.U_c_bar_mps": U_c_bar_list[i],
                 "act.psi_c_bar_deg": psi_c_bar_list[i],

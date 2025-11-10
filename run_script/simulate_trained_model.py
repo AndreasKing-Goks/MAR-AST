@@ -50,14 +50,10 @@ def parse_cli_args():
                         help='ENV: time delay in second between ship drawing record (default: 30)')
     parser.add_argument('--map_gpkg_filename', type=str, default="Stangvik.gpkg", metavar='MAP_GPKG_FILENAME',
                         help='ENV: name of the .gpkg filename for the map (default: "Stangvik.gpkg")')
-
-    # Add arguments for AST-core
-    parser.add_argument('--n_episodes', type=int, default=1, metavar='N_EPISODES',
-                        help='AST: number of simulation episode counts (default: 1)')
     parser.add_argument('--warm_up_time', type=int, default=2500, metavar='WARM_UP_TIME',
-                        help='AST: time needed in second before policy - action sampling takes place (default: 1500)')
+                        help='ENV: time needed in second before policy - action sampling takes place (default: 2500)')
     parser.add_argument('--action_sampling_period', type=int, default=1800, metavar='ACT_SAMPLING_PERIOD',
-                        help='AST: time period in second between policy - action sampling (default: 1800)')
+                        help='ENV: time period in second between policy - action sampling (default: 1800)')
 
     # Parse args
     args = parser.parse_args()
@@ -68,7 +64,7 @@ if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
     # Path
-    model_name  ="dummy"
+    model_name  ="AST-train_2025-11-10_01-59-11_6c72"
     model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
     
     # Get the args
