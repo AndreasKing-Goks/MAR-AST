@@ -54,8 +54,8 @@ def parse_cli_args():
                         help='ENV: time needed in second before policy - action sampling takes place (default: 2000)')
     parser.add_argument('--action_sampling_period', type=int, default=1200, metavar='ACT_SAMPLING_PERIOD',
                         help='ENV: time period in second between policy - action sampling (default: 1200)')
-    parser.add_argument('--max_sea_state', type=str, default="SS 6", metavar='MAX_SEA_STATE',
-                        help='ENV: Maximum allowed sea state for environment model to condition the sea state table (default: "SS 6")')
+    parser.add_argument('--max_sea_state', type=str, default="SS 5", metavar='MAX_SEA_STATE',
+                        help='ENV: Maximum allowed sea state for environment model to condition the sea state table (default: "SS 5")')
 
     # Parse args
     args = parser.parse_args()
@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
     # Path
-    model_name  ="AST-train_2025-11-10_01-59-11_6c72"
+    model_name  ="AST-train_2025-11-10_15-22-30_95e3"
     model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
     
     # Get the args

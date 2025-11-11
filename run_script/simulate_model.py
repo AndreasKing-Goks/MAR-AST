@@ -281,7 +281,7 @@ env = SeaEnvASTv2(
     current_model_config=current_model_config,
     wind_model_config=wind_model_config,
     args=args,
-    max_state_name="SS 8",
+    max_state_name="SS 5",
     include_wave=True,
     include_wind=True,
     include_current=True)
@@ -307,7 +307,7 @@ while episode <= args.n_episodes:
         action = env.action_space.sample()
         
         # Determenistic action
-        # action = env._normalize_action([0.3, 7.5, env.sea_state_mixture.knot_to_ms(8.5), 0.0, 0.25, 0.0])
+        # action = env._normalize_action([0.3, env.sea_state_mixture.knot_to_ms(8.5), 7.5, 0.0, 0.25, 0.0])
         
         # Step the env
         _, reward, terminated, truncated, _ = env.step(action)

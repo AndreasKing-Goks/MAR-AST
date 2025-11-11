@@ -198,6 +198,13 @@ class SeaEnvASTv2(gym.Env):
         self.terminated_list    = []
         self.truncated_list     = []
         self.info_list          = []
+        
+        # Reward component tracker
+        self.base_reward_list           = []
+        self.sea_state_ll_list          = []
+        self.current_speed_ll_list      = []
+        self.current_direction_ll_list  = []
+        self.wind_direction_ll_list     = []
 
         return
     
@@ -509,7 +516,7 @@ class SeaEnvASTv2(gym.Env):
         
         return observation, reward, terminated, truncated, info
     
-    def reward_function(self, action, logp_floor=-10.0, eta=0.5, theta=1.0):
+    def reward_function(self, action, logp_floor=-50.0, eta=0.5, theta=2.0):
         """
         For this reward function, we only take into account the own_ship
         Param:
@@ -521,7 +528,8 @@ class SeaEnvASTv2(gym.Env):
         [Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar] = action
         
         ## Base reward -> Encourage further exploration
-        reward = len(self.action_list) * eta * theta
+        base_reward = len(self.action_list) * eta * theta
+        reward = base_reward
         
         ## Get the termination info of the own ship
         collision           = self.assets[0].ship_model.stop_info['collision']
@@ -536,14 +544,14 @@ class SeaEnvASTv2(gym.Env):
         sea_state_ll            = max(self.sea_state_mixture.logpdf_marginal(Hs, U_w_bar, Tp), logp_floor)
         
         # Current speed direction (clip to floor if we encounter log prob of negative infinity)
-        current_speed_ll        = max(logprior_mu_speed(U_c_bar, range=(self.current_range["min"][0], self.current_range["max"][0]), center=self.U_c_bar_prev),
+        current_speed_ll        = max(logprior_mu_speed(U_c_bar, range=(self.current_range["min"][0], self.current_range["max"][0]), center=self.U_c_bar_prev, sigma_frac=0.25),
                                   logp_floor)
         
         # Current speed direction
-        current_direction_ll    = logprior_mu_direction(psi_c_bar, clim_mean_dir=self.psi_c_bar_prev)
+        current_direction_ll    = logprior_mu_direction(psi_c_bar, clim_mean_dir=self.psi_c_bar_prev, kappa0=1.0)
         
         # Wind speed direction
-        wind_direction_ll       = logprior_mu_direction(psi_ww_bar, clim_mean_dir=self.psi_ww_bar_prev)
+        wind_direction_ll       = logprior_mu_direction(psi_ww_bar, clim_mean_dir=self.psi_ww_bar_prev, kappa0=1.0)
         
         # Sum all the log likelihood to get the reward_signal
         reward_env_ll = sea_state_ll + current_speed_ll + current_direction_ll + wind_direction_ll 
@@ -551,9 +559,18 @@ class SeaEnvASTv2(gym.Env):
         # Add to the base reward
         reward += reward_env_ll
         
+        # Update list
+        self.base_reward_list.append(base_reward)
+        self.sea_state_ll_list.append(sea_state_ll)
+        self.current_speed_ll_list.append(current_speed_ll)
+        self.current_direction_ll_list.append(current_direction_ll)
+        self.wind_direction_ll_list.append(wind_direction_ll)
+        
         ## Get reward from termination status
-        if collision or navigation_failure or power_overload or outside_horizon:
-            reward += -5.0       # We only want grounding failure
+        if outside_horizon:
+            reward += -5.0      # We only want grounding failure
+        elif collision or power_overload or navigation_failure:
+            reward += 5.0       # Not the main focus, but are welcomed
         elif grounding_failure:
             reward += 15.0      # We focus on finding grounding failure
         elif reaches_endpoint:
@@ -650,6 +667,13 @@ class SeaEnvASTv2(gym.Env):
         self.terminated_list    = []
         self.truncated_list     = []
         
+        # Reset reward component tracker
+        self.base_reward_list           = []
+        self.sea_state_ll_list          = []
+        self.current_speed_ll_list      = []
+        self.current_direction_ll_list  = []
+        self.wind_direction_ll_list     = []
+        
         return observation, info
     
     def log_RL_transition_text(
@@ -699,8 +723,8 @@ class SeaEnvASTv2(gym.Env):
         sea_state_list    = []
         for action in self.action_list:
             Hs      = action[0].item()
-            U_w_bar = action[2].item()
-            Tp      = action[1].item()
+            U_w_bar = action[1].item()
+            Tp      = action[2].item()
             act_validity = self.sea_state_mixture.action_validity(Hs, U_w_bar, Tp)
             if act_validity:
                 idx       = self.sea_state_mixture.matching_states(Hs, U_w_bar, Tp)[0]
@@ -723,32 +747,37 @@ class SeaEnvASTv2(gym.Env):
             lines = []
             lines.append('#============================================ RL TRANSITION ===========================================#')
             lines.append('#--------------------------------------------- Observation --------------------------------------------#')
-            lines.append(f'north                [m] : {np.asarray(north_list)}')
-            lines.append(f'east                 [m] : {np.asarray(east_list)}')
-            lines.append(f'heading            [deg] : {np.asarray(heading_list)}')
-            lines.append(f'speed              [m/s] : {np.asarray(speed_list)}')
-            lines.append(f'cross track error    [m] : {np.asarray(cross_track_error_list)}')
-            lines.append(f'wind speed         [m/s] : {np.asarray(wind_speed_list)}')
-            lines.append(f'wind dir           [deg] : {np.asarray(wind_dir_list)}')
-            lines.append(f'current speed      [m/s] : {np.asarray(current_speed_list)}')
-            lines.append(f'current dir        [deg] : {np.asarray(current_dir_list)}')
+            lines.append(f'north                  [m] : {np.asarray(north_list)}')
+            lines.append(f'east                   [m] : {np.asarray(east_list)}')
+            lines.append(f'heading              [deg] : {np.asarray(heading_list)}')
+            lines.append(f'speed                [m/s] : {np.asarray(speed_list)}')
+            lines.append(f'cross track error      [m] : {np.asarray(cross_track_error_list)}')
+            lines.append(f'wind speed           [m/s] : {np.asarray(wind_speed_list)}')
+            lines.append(f'wind dir             [deg] : {np.asarray(wind_dir_list)}')
+            lines.append(f'current speed        [m/s] : {np.asarray(current_speed_list)}')
+            lines.append(f'current dir          [deg] : {np.asarray(current_dir_list)}')
             lines.append('#----------------------------------------------- Action -----------------------------------------------#')
-            lines.append(f'sampling timestamp   [s] : {np.asarray(self.action_time_list)}')
-            lines.append(f'Hs                   [m] : {np.asarray(Hs_list)}')
-            lines.append(f'U_w_bar            [m/s] : {np.asarray(U_w_bar_list)}')
-            lines.append(f'U_w_bar           [knot] : {np.asarray(U_w_bar_list_knot)}')
-            lines.append(f'Tp                   [s] : {np.asarray(Tp_list)}')
-            lines.append(f'psi_ww_bar         [deg] : {np.asarray(psi_ww_bar_list)}')
-            lines.append(f'U_c_bar            [m/s] : {np.asarray(U_c_bar_list)}')
-            lines.append(f'psi_c_bar          [deg] : {np.asarray(psi_c_bar_list)}')
-            lines.append(f'action validity          : {np.asarray(act_validity_list)}')
-            lines.append(f'sea state                : {np.asarray(sea_state_list)}')
+            lines.append(f'sampling timestamp     [s] : {np.asarray(self.action_time_list)}')
+            lines.append(f'Hs                     [m] : {np.asarray(Hs_list)}')
+            lines.append(f'U_w_bar              [m/s] : {np.asarray(U_w_bar_list)}')
+            lines.append(f'U_w_bar             [knot] : {np.asarray(U_w_bar_list_knot)}')
+            lines.append(f'Tp                     [s] : {np.asarray(Tp_list)}')
+            lines.append(f'psi_ww_bar           [deg] : {np.asarray(psi_ww_bar_list)}')
+            lines.append(f'U_c_bar              [m/s] : {np.asarray(U_c_bar_list)}')
+            lines.append(f'psi_c_bar            [deg] : {np.asarray(psi_c_bar_list)}')
+            lines.append(f'action validity            : {np.asarray(act_validity_list)}')
+            lines.append(f'sea state                  : {np.asarray(sea_state_list)}')
             lines.append('#------------------------------------------------------------------------------------------------------#')
-            lines.append(f'Terminated               : {np.asarray(self.terminated_list)}')
+            lines.append(f'Terminated                 : {np.asarray(self.terminated_list)}')
             lines.append('#------------------------------------------------------------------------------------------------------#')
-            lines.append(f'Truncated                : {np.asarray(self.truncated_list)}')
+            lines.append(f'Truncated                  : {np.asarray(self.truncated_list)}')
             lines.append('#------------------------------------------------------------------------------------------------------#')
-            lines.append(f'Reward                   : {np.asarray(self.reward_list)}')
+            lines.append(f'Total Reward               : {np.asarray(self.reward_list)}')
+            lines.append(f'Base Reward                : {np.asarray(self.base_reward_list)}')
+            lines.append(f'Sea state log-prob         : {np.asarray(self.sea_state_ll_list)}')
+            lines.append(f'current speed log-prob     : {np.asarray(self.current_speed_ll_list)}')
+            lines.append(f'current direction log-prob : {np.asarray(self.current_direction_ll_list)}')
+            lines.append(f'wind direction log-prob    : {np.asarray(self.wind_direction_ll_list)}')
             lines.append('#------------------------------------------------------------------------------------------------------#')
 
         if train_time is not None:
@@ -809,8 +838,8 @@ class SeaEnvASTv2(gym.Env):
 
         for action in self.action_list:
             Hs = action[0].item()
-            U_w_bar = action[2].item()
-            Tp = action[1].item()
+            U_w_bar = action[1].item()
+            Tp = action[2].item()
 
             act_validity = self.sea_state_mixture.action_validity(Hs, U_w_bar, Tp)
             if act_validity:
@@ -841,7 +870,7 @@ class SeaEnvASTv2(gym.Env):
             len(north_list), len(east_list), len(heading_list), len(speed_list),
             len(cross_track_error_list), len(wind_speed_list), len(wind_dir_list),
             len(current_speed_list), len(current_dir_list),
-            len(Hs_list), len(Tp_list), len(U_w_bar_list), len(psi_ww_bar_list),
+            len(Hs_list), len(Tp_list), len(U_w_bar_list), len(U_w_bar_list_knot), len(psi_ww_bar_list),
             len(U_c_bar_list), len(psi_c_bar_list), len(act_validity_list),
             len(sea_state_list), len(sampling_ts_list),
             len(terminated_list), len(truncated_list), len(reward_list)
