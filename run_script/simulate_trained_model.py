@@ -26,7 +26,7 @@ import os
 import time
 
 ### IMPORT UTILS
-from utils.get_path import get_trained_model_path
+from utils.get_path import get_trained_model_path, get_saved_anim_path
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 def parse_cli_args():
@@ -66,8 +66,9 @@ if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
     # Path
-    model_name  ="AST-train_2025-11-10_15-22-30_95e3"
+    model_name  ="AST-train_2025-11-11_09-10-27_23d4"
     model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
+    save_path = get_saved_anim_path(root=ROOT, model_name=model_name)
     
     # Get the args
     args = parse_cli_args()
@@ -126,3 +127,13 @@ if __name__ == "__main__":
 
     # Plot 2: Status plot
     plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True)
+    
+    # Save animation
+    save_anim = True
+    save_anim = False
+    if save_anim:
+        id = 4
+        map_file_name = f"{id}_map_anim.mp4"
+        polar_file_name = f"{id}_polar_anim.mp4"
+        map_anim.save(base_path=save_path, filename=map_file_name, fps=120)
+        polar_anim.save(base_path=save_path, filename=polar_file_name, fps=120)

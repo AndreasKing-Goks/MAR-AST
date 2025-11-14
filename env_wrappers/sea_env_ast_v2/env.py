@@ -568,7 +568,7 @@ class SeaEnvASTv2(gym.Env):
         
         ## Get reward from termination status
         if outside_horizon:
-            reward += -5.0      # We only want grounding failure
+            reward += -50.0      # We only want grounding failure
         elif collision or power_overload or navigation_failure:
             reward += 5.0       # Not the main focus, but are welcomed
         elif grounding_failure:

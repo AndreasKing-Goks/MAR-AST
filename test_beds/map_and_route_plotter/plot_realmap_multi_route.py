@@ -66,15 +66,16 @@ ax.set_aspect("equal"); ax.set_axis_off(); ax.margins(0)
 plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
 # Obstacle ships
-for north, east in routes:
+for i, (north, east) in enumerate(routes):
     plt.scatter(east, north, marker='x')
-    plt.plot(east, north, linestyle='--')
+    plt.plot(east, north, linestyle='--', label='Route ' + str(i+1))
 
 plt.title('Map and Route Plot')
 plt.xlabel('East position (m)')
 plt.ylabel('North position (m)')
 plt.gca().set_aspect('equal')
 plt.grid(color='0.8', linestyle='-', linewidth=0.5)
+plt.legend()
 
 # Adjust layout for better spacing
 plt.tight_layout()

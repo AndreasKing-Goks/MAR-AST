@@ -4,7 +4,7 @@ from matplotlib.animation import FuncAnimation, FFMpegWriter
 from matplotlib.patches import Polygon, Rectangle
 from matplotlib import gridspec as mpl_gs
 from matplotlib.patches import FancyArrowPatch
-
+from pathlib import Path
 # =========================
 # Shared helpers
 # =========================
@@ -316,11 +316,17 @@ class MapAnimator:
                                        interval=self.interval, repeat=repeat)
         if show:
             plt.show()
-
-    def save(self, path, fps=2):
-        self.animation = FuncAnimation(self.fig, self.animate, frames=len(self.t),
-                                       init_func=self.init_animation, blit=True,
-                                       interval=self.interval, repeat=False)
+    
+    def save(self, base_path, filename, fps=25):
+        self.animation = FuncAnimation(self.fig, self.animate,
+                                       frames=len(self.t),
+                                       init_func=self.init_animation,
+                                       blit=True, interval=self.interval,
+                                       repeat=False, cache_frame_data=False)
+        base_path = Path(base_path)
+        path = base_path / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        FFMpegWriter(fps=fps).setup(self.fig, path, dpi=140)
         writer = FFMpegWriter(fps=fps)
         self.animation.save(path, writer=writer)
 
@@ -472,12 +478,15 @@ class PolarAnimator:
                                        repeat=repeat, cache_frame_data=False)
         if show: plt.show()
 
-    def save(self, path, fps=25):
+    def save(self, base_path, filename, fps=25):
         self.animation = FuncAnimation(self.fig, self.animate,
                                        frames=len(self.t),
                                        init_func=self.init_animation,
                                        blit=True, interval=self.interval,
                                        repeat=False, cache_frame_data=False)
+        base_path = Path(base_path)
+        path = base_path / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
         FFMpegWriter(fps=fps).setup(self.fig, path, dpi=140)
         writer = FFMpegWriter(fps=fps)
         self.animation.save(path, writer=writer)

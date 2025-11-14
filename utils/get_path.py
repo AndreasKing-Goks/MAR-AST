@@ -41,6 +41,12 @@ def get_trained_model_path(root,
     
     return model_path, log_path
 
+def get_saved_anim_path(root, 
+                        model_name :str):
+    save_path = str(root / "trained_model" / model_name / "saved_anim")
+    
+    return save_path
+
 def get_trained_model_and_log_path(root: Path, model_name: str, unique: bool = True):
     """
     Generate model and log paths with unique timestamp (and short UUID) suffix.
