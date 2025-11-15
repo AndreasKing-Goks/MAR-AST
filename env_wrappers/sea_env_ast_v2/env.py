@@ -572,7 +572,7 @@ class SeaEnvASTv2(gym.Env):
         elif collision or power_overload or navigation_failure:
             reward += 5.0       # Not the main focus, but are welcomed
         elif grounding_failure:
-            reward += 15.0      # We focus on finding grounding failure
+            reward += 25.0      # We focus on finding grounding failure
         elif reaches_endpoint:
             reward += -50.0     # We highly discourage the agent to let the ship finishes its mission.
         
