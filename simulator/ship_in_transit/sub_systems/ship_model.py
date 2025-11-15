@@ -956,6 +956,9 @@ class ShipModel(BaseShipModel):
         return speed_factor, desired_heading_offset
     
     def track_travel_distance(self):
+        '''
+        Track travel distance counter useful for Navigational Failure conditional 2.
+        '''
         # Check if the ship reaches the next RoA
         is_reach_roa = check_condition.is_reach_radius_of_acceptance(self.auto_pilot, 
                                                                      (self.north, self.east),
@@ -963,7 +966,7 @@ class ShipModel(BaseShipModel):
         if not is_reach_roa:
             # If not reaching roa, increment the travel distance
             self._travel_distance += np.sqrt((self.d_north * self.int.dt)**2 + (self.d_east * self.int.dt)**2)
-        elif is_reach_roa and (self.next_wpt < len(self.auto_pilot.navigate.north)-1):
+        elif is_reach_roa and (self.next_wpt < (len(self.auto_pilot.navigate.north)-1)):
             # Reset the travel distance if the ship reaches roa
             self._travel_distance = 0
             # Compute the new trajectory threshold when switching waypoints

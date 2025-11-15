@@ -578,7 +578,7 @@ class SeaEnvASTv2(gym.Env):
         
         return reward
 
-    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
+    def reset(self, seed: Optional[int] = None, options: Optional[dict] = None, route_idx: int|None = None):
         ''' 
             Reset all of the ship environment inside the assets container.
         '''
@@ -604,6 +604,15 @@ class SeaEnvASTv2(gym.Env):
             self._route_idx = idx  # (optional) keep for debugging
         else:
             route = None
+        
+        # If using specific route index
+        if route_idx is not None:
+            route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
+            route_files = sorted(route_files)  # make order deterministic across runs/OS
+            # draw index from the env's master RNG
+            idx = route_idx
+            route = str(route_files[idx])
+            self._route_idx = idx  # (optional) keep for debugging
         
         # Reset ships; pass seeds if supported
         for asset in self.assets:
