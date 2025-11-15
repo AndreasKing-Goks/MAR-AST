@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
     # Path
-    model_name  ="AST-train_2025-11-11_09-10-27_23d4"
+    model_name  ="AST-train_2025-11-14_08-27-42_0928"
     model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
     save_path = get_saved_anim_path(root=ROOT, model_name=model_name)
     

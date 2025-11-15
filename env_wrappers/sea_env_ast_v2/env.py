@@ -568,13 +568,13 @@ class SeaEnvASTv2(gym.Env):
         
         ## Get reward from termination status
         if outside_horizon:
-            reward += -50.0      # We only want grounding failure
+            reward += -50.0      # We highly discourage the agent to left the ship leaves the map.
         elif collision or power_overload or navigation_failure:
             reward += 5.0       # Not the main focus, but are welcomed
         elif grounding_failure:
             reward += 15.0      # We focus on finding grounding failure
         elif reaches_endpoint:
-            reward += -10.0     # We highly discourage the agent to let the ship finishes its mission.
+            reward += -50.0     # We highly discourage the agent to let the ship finishes its mission.
         
         return reward
 

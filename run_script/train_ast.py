@@ -53,7 +53,7 @@ def parse_cli_args():
                         help='ENV: name of the .gpkg filename for the map (default: "Stangvik.gpkg")')
     parser.add_argument('--warm_up_time', type=int, default=2000, metavar='WARM_UP_TIME',
                         help='ENV: time needed in second before policy - action sampling takes place (default: 2000)')
-    parser.add_argument('--action_sampling_period', type=int, default=900, metavar='ACT_SAMPLING_PERIOD',
+    parser.add_argument('--action_sampling_period', type=int, default=1200, metavar='ACT_SAMPLING_PERIOD',
                         help='ENV: time period in second between policy - action sampling (default: 1200)')
     parser.add_argument('--max_sea_state', type=str, default="SS 5", metavar='MAX_SEA_STATE',
                         help='ENV: Maximum allowed sea state for environment model to condition the sea state table (default: "SS 5")')
