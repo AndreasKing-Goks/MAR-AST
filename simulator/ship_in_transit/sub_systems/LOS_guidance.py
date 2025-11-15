@@ -90,8 +90,7 @@ class NavigationSystem:
         '''
         # print(f"Length of waypoints: {len(self.north)}")
         # print(k)
-        if (self.north[k] - N) ** 2 + (
-                self.east[k] - E) ** 2 <= self.ra ** 2:  # Check that we are within circle of acceptance
+        if (self.north[k] - N) ** 2 + (self.east[k] - E) ** 2 <= self.ra ** 2:  # Check that we are within circle of acceptance
             if len(self.north) > k + 1:  # If number of waypoints are greater than current waypoint index
                 return k + 1, k  # Then move on to next waypoint and let current become previous
             else:

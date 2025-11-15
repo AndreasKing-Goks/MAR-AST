@@ -483,6 +483,7 @@ class ShipModel(BaseShipModel):
                  desired_speed=8.0,
                  cross_track_error_tolerance=500,
                  nav_fail_time=600,
+                 traj_threshold_coeff=2.0,
                  map_obj=None,
                  colav_mode=None,
                  print_status=True):
@@ -525,13 +526,11 @@ class ShipModel(BaseShipModel):
         # Cross track error tolerance
         self.cross_track_error_tolerance = cross_track_error_tolerance
         
-        # Navigational warning time counter
-        self._nav_warn_time_counter = 0
-        self._nav_fail_time = nav_fail_time if self.auto_pilot is not None else np.inf
-            
-        self._navwarn_active = False       # are we currently in a warning episode?
-        self._navfail_printed = False      # have we printed the failure message for this episode?
-        self._navrecover_printed = False   # have we printed the recovery message for the just-ended episode?
+        self.nav_fail_time = nav_fail_time
+        
+        # Init navigational failure parameter
+        self._traj_threshold_coeff = traj_threshold_coeff
+        self.init_navigational_failure_param()
         
         # Get stop_info
         self.stop_info = {
@@ -566,6 +565,23 @@ class ShipModel(BaseShipModel):
 
         # Default dictionary for simulation results
         self.simulation_results = defaultdict(list)
+    
+    def init_navigational_failure_param(self):
+        # Navigational warning time counter
+        self._nav_warn_time_counter = 0
+        self._nav_fail_time = self.nav_fail_time if self.auto_pilot is not None else np.inf
+            
+        self._navwarn_active = False       # are we currently in a warning episode?
+        self._navfail_printed = False      # have we printed the failure message for this episode?
+        self._navrecover_printed = False   # have we printed the recovery message for the just-ended episode?
+        
+        self._travel_distance = 0.0        # travel distance counter
+        self.next_wpt = 1
+        self.prev_wpt = 0
+        segment_length_north = self.auto_pilot.navigate.north[self.next_wpt] - self.auto_pilot.navigate.north[self.prev_wpt]
+        segment_length_east  = self.auto_pilot.navigate.east[self.next_wpt] - self.auto_pilot.navigate.east[self.prev_wpt]
+        segment_length = np.sqrt(segment_length_north**2 + segment_length_east**2)
+        self._traj_threshold = segment_length * self._traj_threshold_coeff
 
     def three_dof_kinetics(self, 
                            thrust_force=None, 
@@ -787,9 +803,12 @@ class ShipModel(BaseShipModel):
 
                 # accumulate time during warning
                 self._nav_warn_time_counter += self.int.dt
+                
+                # Condition 1: Ships being in the warning zone longer than the time limit
+                condition_1 = self._nav_warn_time_counter > self._nav_fail_time
 
                 # promote to failure if limit exceeded
-                if self._nav_warn_time_counter > self._nav_fail_time:
+                if condition_1:
                     nav_fail_now = True
                     nav_warn_now = False   # once failed, no longer "warning"
                     if self.print_status and not getattr(self, '_navfail_printed', False):
@@ -808,6 +827,18 @@ class ShipModel(BaseShipModel):
                 self._nav_warn_time_counter = 0.0
                 # allow future failure print again on next episode
                 self._navfail_printed = False
+            
+            # Condition 2: Too much travel distance before next waypoint
+            condition_2 = self._travel_distance > self._traj_threshold
+
+            if condition_2:
+                # promote to failure regardless of current warning state
+                nav_fail_now = True
+                nav_warn_now = False  # once we declare failure, we treat it as no longer "just warning"
+                if self.print_status and not getattr(self, '_navfail_printed', False):
+                    print(self.name_tag, 'in', self.ship_machinery_model.operating_mode,
+                        'experiences navigational failure.')
+                    self._navfail_printed = True
 
             # 3) Record exactly once per tick (keep arrays aligned with self.t)
             self.nav_warning_array.append(bool(nav_warn_now))
@@ -924,6 +955,25 @@ class ShipModel(BaseShipModel):
         # Note: self.sbmpc.is_stephen_useful() -> bool can be used to know whether or not the SBMPC colav algorithm is currently active
         return speed_factor, desired_heading_offset
     
+    def track_travel_distance(self):
+        # Check if the ship reaches the next RoA
+        is_reach_roa = check_condition.is_reach_radius_of_acceptance(self.auto_pilot, 
+                                                                     (self.north, self.east),
+                                                                     r_o_a=self.auto_pilot.navigate.ra)
+        if not is_reach_roa:
+            # If not reaching roa, increment the travel distance
+            self._travel_distance += np.sqrt((self.d_north * self.int.dt)**2 + (self.d_east * self.int.dt)**2)
+        elif is_reach_roa and (self.next_wpt < len(self.auto_pilot.navigate.north)-1):
+            # Reset the travel distance if the ship reaches roa
+            self._travel_distance = 0
+            # Compute the new trajectory threshold when switching waypoints
+            self.next_wpt += 1
+            self.prev_wpt += 1
+            segment_length_north = self.auto_pilot.navigate.north[self.next_wpt] - self.auto_pilot.navigate.north[self.prev_wpt]
+            segment_length_east  = self.auto_pilot.navigate.east[self.next_wpt] - self.auto_pilot.navigate.east[self.prev_wpt]
+            segment_length = np.sqrt(segment_length_north**2 + segment_length_east**2)
+            self._traj_threshold = segment_length * self._traj_threshold_coeff
+    
     def step(self, env_args=None, asset_infos=None):
         ''' 
             The method is used for stepping up the simulator for the ship asset
@@ -1031,6 +1081,9 @@ class ShipModel(BaseShipModel):
                                   env_loads=env_loads)
         self.integrate_differentials()
         
+        # Track the travel distance between route points
+        self.track_travel_distance()
+        
         # Evaluate the ship condition. If the ship stopped, immediately return
         self.evaluate_ship_condition(asset_infos)
         if self.stop is True:
@@ -1062,11 +1115,8 @@ class ShipModel(BaseShipModel):
             self.east       = E_0
             self.yaw_angle  = psi_0
         
-        # Reset the navigational warning time
-        self._nav_warn_time_counter = 0.0
-        self._navwarn_active = False       # are we currently in a warning episode?
-        self._navfail_printed = False      # have we printed the failure message for this episode?
-        self._navrecover_printed = False   # have we printed the recovery message for the just-ended episode?
+        # Reset the navigational failure parameter
+        self.init_navigational_failure_param()
         
         # Reset stop_info
         self.stop_info = {

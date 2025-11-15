@@ -178,11 +178,11 @@ def is_sample_travel_time_too_long(travel_time, time_limit=np.inf):
     is_too_long = travel_time > time_limit
     return is_too_long
 
-def is_reach_radius_of_acceptance(obs_obj, 
+def is_reach_radius_of_acceptance(auto_pilot, 
                                   pos, 
                                   r_o_a=200):
     '''
-        Check if the obstacle ship reach the radius of acceptance region
+        Check if the ship reach the radius of acceptance region
     '''
     # Unpack the argument
     n_pos, e_pos = pos
@@ -192,7 +192,7 @@ def is_reach_radius_of_acceptance(obs_obj,
     # use obs.autopilot.navigate
     # - obs.autopilot.navigate.next_wpt for the latest waypoint index
     # - obs.autopilot.navigate.north / obs.autopilot.navigate.east for the waypoint lists
-    obs_nav = obs_obj.auto_pilot
+    obs_nav = auto_pilot
     
     # Get the latest waypoint update
     next_wpt = obs_nav.next_wpt

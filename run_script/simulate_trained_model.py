@@ -44,6 +44,8 @@ def parse_cli_args():
                         help='ENV: lookahead distance in meter for LOS algorithm (default: 1000)')
     parser.add_argument('--nav_fail_time', type=int, default=600, metavar='NAV_FAIL_TIME',
                     help='ENV: Allowed recovery time in second from navigational failure warning condition (default: 600)')
+    parser.add_argument('--traj_threshold_coeff', type=float, default=1.5, metavar='TRAJ_THRESHOLD_COEFF',
+                    help='ENV: Coefficient to scale the maximum distance travelled based on the route segment length (default: 1.5)')
     parser.add_argument('--ship_draw', type=bool, default=True, metavar='SHIP_DRAW',
                         help='ENV: record ship drawing for plotting and animation (default: True)')
     parser.add_argument('--time_since_last_ship_drawing', type=int, default=30, metavar='SHIP_DRAW_TIME',
@@ -66,7 +68,7 @@ if __name__ == "__main__":
 
 ###################################### TRAIN THE MODEL #####################################
     # Path
-    model_name  ="AST-train_2025-11-14_08-27-42_0928"
+    model_name  ="AST-train_2025-11-12_10-18-22_9fca"
     model_path, log_path = get_trained_model_path(root=ROOT, model_name=model_name)
     save_path = get_saved_anim_path(root=ROOT, model_name=model_name)
     

@@ -211,6 +211,7 @@ def get_env_assets(args, print_ship_status=False):
         desired_speed=own_ship_desired_speed,
         cross_track_error_tolerance=own_ship_cross_track_error_tolerance,
         nav_fail_time=args.nav_fail_time,
+        traj_threshold_coeff=args.traj_threshold_coeff,
         map_obj=map[0],
         colav_mode='sbmpc',
         print_status=print_ship_status
