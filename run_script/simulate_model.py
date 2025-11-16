@@ -298,8 +298,11 @@ while episode <= args.n_episodes:
     # Increment the episode count
     episode += 1
     
-    # Set random route to false
+    # Set random route
     env.set_random_route_flag(flag=True)
+    
+    # Set for training flag
+    env.set_for_training_flag(flag=True)
     
     # Reset the environment at the beginning of episode
     env.reset(route_idx=0)

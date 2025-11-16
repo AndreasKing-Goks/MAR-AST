@@ -78,8 +78,11 @@ if __name__ == "__main__":
     # Get the assets and AST Environment Wrapper
     env, assets, map_gdfs = get_env_assets(args=args, print_ship_status=True)
     
-    # Set random route to false
+    # Set random route
     env.set_random_route_flag(flag=True)
+    
+    # Set for training flag
+    env.set_for_training_flag(flag=False)
     
     # Load the trained model
     ast_model = SAC.load(model_path)

@@ -26,7 +26,7 @@ from simulator.ship_in_transit.sub_systems.env_load_prob_model import SeaStateMi
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Literal
 from utils.logger import setup_rl_logger
-from utils.get_path import get_ship_route_path_for_training
+from utils.get_path import get_ship_route_path_for_training, get_ship_route_path_for_validation
 import json
 
 import copy
@@ -81,6 +81,7 @@ class SeaEnvASTv2(gym.Env):
                  include_current=True,
                  include_wind=True,
                  random_route=True,
+                 for_training=True,
                  seed=None):
         '''
         Arguments:
@@ -114,6 +115,9 @@ class SeaEnvASTv2(gym.Env):
         
         # Flags for random route sampling
         self.random_route = random_route
+        
+        # Flags fos using training route for random route. If flase use validation route
+        self.for_training = for_training
         
         # Set configuration as an attribute
         self.wave_model_config = wave_model_config
@@ -210,6 +214,9 @@ class SeaEnvASTv2(gym.Env):
     
     def set_random_route_flag(self, flag=True):
         self.random_route = flag
+        
+    def set_for_training_flag(self, flag=True):
+        self.for_training = flag
     
     def _normalize(self, x, min_val, max_val):
         """Normalize x from [min_val, max_val] to [-1, 1]."""
@@ -596,7 +603,10 @@ class SeaEnvASTv2(gym.Env):
             
         # Sample a random route for training during random training
         if self.random_route:
-            route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
+            if self.for_training:
+                route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
+            else:
+                route_files = get_ship_route_path_for_validation(ROOT, "*", pattern="*.txt")
             route_files = sorted(route_files)  # make order deterministic across runs/OS
             # draw index from the env's master RNG
             idx = int(self.np_random.integers(0, len(route_files)))
@@ -607,7 +617,10 @@ class SeaEnvASTv2(gym.Env):
         
         # If using specific route index
         if route_idx is not None:
-            route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
+            if self.for_training:
+                route_files = get_ship_route_path_for_training(ROOT, "*", pattern="*.txt")
+            else:
+                route_files = get_ship_route_path_for_validation(ROOT, "*", pattern="*.txt")
             route_files = sorted(route_files)  # make order deterministic across runs/OS
             # draw index from the env's master RNG
             idx = route_idx
