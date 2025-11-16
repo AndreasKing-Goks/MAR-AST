@@ -302,15 +302,15 @@ while episode <= args.n_episodes:
     env.set_random_route_flag(flag=True)
     
     # Reset the environment at the beginning of episode
-    env.reset()
+    env.reset(route_idx=0)
     
     ## THIS IS WHERE THE SIMULATION HAPPENS
     while True:
         # Sample action
-        action = env.action_space.sample()
+        # action = env.action_space.sample()
         
         # Determenistic action
-        # action = env._normalize_action([0.3, env.sea_state_mixture.knot_to_ms(8.5), 7.5, 0.0, 0.25, 0.0])
+        action = env._normalize_action([0.3, env.sea_state_mixture.knot_to_ms(8.5), 7.5, 0.0, 0.25, 0.0])
         
         # Step the env
         _, reward, terminated, truncated, _ = env.step(action)

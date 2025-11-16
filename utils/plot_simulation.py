@@ -203,7 +203,7 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
         plt.show()
         
 def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
-    fig, ax = plt.subplots(figsize=(16, 9))  # temp; we’ll resize to aspect
+    fig, ax = plt.subplots(figsize=(12, 6))  # temp; we’ll resize to aspect
     
     if map_gdfs is not None:
         frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = map_gdfs
@@ -223,8 +223,8 @@ def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
         ax.set_ylim(miny, maxy)
 
         # Resize figure to match map aspect (no letterbox)
-        fig_w = 16.0
-        fig_h = fig_w * (dy / dx) if dx > 0 else 9.0
+        fig_w = 12.0
+        fig_h = fig_w * (dy / dx) if dx > 0 else 6.0
         fig.set_size_inches(fig_w, fig_h, forward=True)
 
     # Full-bleed canvas

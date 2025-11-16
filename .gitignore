@@ -26,8 +26,7 @@ share/python-wheels/
 *.egg
 MANIFEST
 trained_model/
-0_artifact/
-0_reference/
+0_*/
 
 
 # PyInstaller
