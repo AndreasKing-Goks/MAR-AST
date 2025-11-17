@@ -1,0 +1,115 @@
+#============================================ AST TRAINING CONFIG ===========================================#
+timestamp                     : 2025-11-10T15:22:33
+action_sampling_period        : 1200
+batch_size                    : 256
+buffer_size                   : 1000000
+device                        : cuda
+engine_step_count             : 10
+ent_coef                      : auto
+gamma                         : 0.99
+gradient_steps                : 1
+learning_rate                 : 0.0003
+learning_starts               : 50000
+lookahead_distance            : 1000
+map_gpkg_filename             : Stangvik.gpkg
+max_sea_state                 : SS 6
+nav_fail_time                 : 600
+radius_of_acceptance          : 300
+seed                          : None
+ship_draw                     : True
+stats_window_size             : 25
+target_entropy                : auto
+target_update_interval        : 1
+tau                           : 0.005
+tensorboard_log               : True
+time_since_last_ship_drawing  : 30
+time_step                     : 5
+total_steps                   : 200000
+train_freq                    : 1
+verbose                       : 1
+warm_up_time                  : 2000
+#----------------------------------- Used AST Environment Wrapper -------------------------------------#
+env id/name                   : SeaEnvASTv2
+#============================================ RL TRANSITION ===========================================#
+#--------------------------------------------- Observation --------------------------------------------#
+north                [m] : [9077141.000 9080855.000]
+east                 [m] : [940152.438 941542.312]
+heading            [deg] : [-48.347  48.129]
+speed              [m/s] : [4.544 4.486]
+cross track error    [m] : [104.815 990.000]
+wind speed         [m/s] : [ 3.350 24.213]
+wind dir           [deg] : [ 180.000 -180.000]
+current speed      [m/s] : [0.253 0.889]
+current dir        [deg] : [-71.421 180.000]
+#----------------------------------------------- Action -----------------------------------------------#
+sampling timestamp   [s] : [2000.000]
+Hs                   [m] : [0.297]
+U_w_bar            [m/s] : [0.707]
+U_w_bar           [knot] : [1.375]
+Tp                   [s] : [23.999]
+psi_ww_bar         [deg] : [-25.242]
+U_c_bar            [m/s] : [0.903]
+psi_c_bar          [deg] : [44.070]
+action validity          : [False]
+sea state                : [None]
+#------------------------------------------------------------------------------------------------------#
+Terminated               : [ True]
+#------------------------------------------------------------------------------------------------------#
+Truncated                : [False]
+#------------------------------------------------------------------------------------------------------#
+Reward                   : [-17.710]
+#------------------------------------------------------------------------------------------------------#
+Training is done in 12 hours, 1 minutes, and 44 seconds.
+
+Reward Function.
+    def reward_function(self, action, logp_floor=-10.0, eta=0.5, theta=1.0):
+        """
+        For this reward function, we only take into account the own_ship
+        Param:
+        logp_floor  : clip value when encountering log prob value of -inf
+        eta         : coefficient to aim for immediate or late failure discovery. Range: [0(immediate), 1(late)]
+        theta       : gain value to encourage immediate failure discovery
+        """
+        ## Unpack action
+        [Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar] = action
+        
+        ## Base reward -> Encourage further exploration
+        reward = len(self.action_list) * eta * theta
+        
+        ## Get the termination info of the own ship
+        collision           = self.assets[0].ship_model.stop_info['collision']
+        grounding_failure   = self.assets[0].ship_model.stop_info['grounding_failure']
+        navigation_failure  = self.assets[0].ship_model.stop_info['navigation_failure']
+        reaches_endpoint    = self.assets[0].ship_model.stop_info['reaches_endpoint']
+        outside_horizon     = self.assets[0].ship_model.stop_info['outside_horizon']
+        power_overload      = self.assets[0].ship_model.stop_info['power_overload']
+        
+        ## Get reward from the environmental load log probability
+        # Sea state marginal log likelihood (clip to floor if we encounter log prob of negative infinity)
+        sea_state_ll            = max(self.sea_state_mixture.logpdf_marginal(Hs, U_w_bar, Tp), logp_floor)
+        
+        # Current speed direction (clip to floor if we encounter log prob of negative infinity)
+        current_speed_ll        = max(logprior_mu_speed(U_c_bar, range=(self.current_range["min"][0], self.current_range["max"][0]), center=self.U_c_bar_prev),
+                                  logp_floor)
+        
+        # Current speed direction
+        current_direction_ll    = logprior_mu_direction(psi_c_bar, clim_mean_dir=self.psi_c_bar_prev)
+        
+        # Wind speed direction
+        wind_direction_ll       = logprior_mu_direction(psi_ww_bar, clim_mean_dir=self.psi_ww_bar_prev)
+        
+        # Sum all the log likelihood to get the reward_signal
+        reward_env_ll = sea_state_ll + current_speed_ll + current_direction_ll + wind_direction_ll 
+        
+        # Add to the base reward
+        reward += reward_env_ll
+        
+        ## Get reward from termination status
+        if collision or navigation_failure or power_overload or outside_horizon:
+            reward += -5.0       # We only want grounding failure
+        elif grounding_failure:
+            reward += 15.0      # We focus on finding grounding failure
+        elif reaches_endpoint:
+            reward += -10.0     # We highly discourage the agent to let the ship finishes its mission.
+        
+        return reward
