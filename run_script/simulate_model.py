@@ -357,4 +357,4 @@ animate_side_by_side(map_anim.fig, polar_anim.fig,
 plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, show=False)
 
 # Plot 2: Status plot
-plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True)
+plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)

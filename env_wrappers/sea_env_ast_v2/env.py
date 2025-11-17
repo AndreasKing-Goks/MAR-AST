@@ -763,6 +763,8 @@ class SeaEnvASTv2(gym.Env):
             psi_c_bar_list.append(np.rad2deg(action[5]).item())
             act_validity_list.append(act_validity)
             sea_state_list.append(sea_state)
+            
+        self.act_validity_list = act_validity_list
 
         # ---------- Build the exact same printed lines ----------
         with np.printoptions(precision=3, suppress=True, floatmode="fixed", sign="-" ):

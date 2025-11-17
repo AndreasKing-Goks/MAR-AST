@@ -21,6 +21,7 @@ from gymnasium.utils.env_checker import check_env
 
 ### IMPORT TOOLS
 import argparse
+import numpy as np
 import pandas as pd
 import os
 import time
@@ -76,7 +77,7 @@ if __name__ == "__main__":
     args = parse_cli_args()
     
     # Get the assets and AST Environment Wrapper
-    env, assets, map_gdfs = get_env_assets(args=args, print_ship_status=True)
+    env, assets, map_gdfs = get_env_assets(args=args, print_ship_status=False)
     
     # Set random route
     env.set_random_route_flag(flag=True)
@@ -87,58 +88,71 @@ if __name__ == "__main__":
     # Load the trained model
     ast_model = SAC.load(model_path)
     
-    ## Run the trained model
-    obs, info = env.reset(route_idx=0)
-    while True:
-        action, _states = ast_model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, info = env.step(action)
-        
-        if terminated or truncated:
-            break
-        
+    ## Run the trained model iteratively
+    runs = 1000
+    
+    grounding_count                     = 0
+    nav_failure_or_power_overload_count = 0
+    exit_map_count                      = 0
+    mission_finished_count              = 0
+    action_invalid                      = 0
+    
+    for run in range(runs):
+        print(f"Run : {run + 1}")
+        obs, info = env.reset()
+        while True:
+            action, _states = ast_model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, info = env.step(action)
+            
+            stop_info = env.assets[0].ship_model.stop_info
+            
+            # Enable self.act_validity_list
+            env.log_RL_transition_text()
+
+            if terminated or truncated:
+                if not np.all(env.act_validity_list):
+                    action_invalid += 1
+                    break
+
+                else:
+                    if stop_info['reaches_endpoint']:
+                        mission_finished_count += 1
+                    elif stop_info['grounding_failure']:
+                        grounding_count += 1
+                    elif stop_info['outside_horizon']:
+                        exit_map_count += 1
+                    elif stop_info['navigation_failure'] or stop_info['power_overload']:
+                        nav_failure_or_power_overload_count += 1
+                    else:
+                        # optional: unknown / other category
+                        pass
+                break
+
+    total_count = grounding_count + nav_failure_or_power_overload_count + exit_map_count + mission_finished_count
 ####################################### GET RESULTS ########################################
 
-    # Print RL transition
-    env.log_RL_transition_text(train_time=None,
-                               txt_path=None,
-                               also_print=True)
+# env.assets[0].ship_model.simulation_results[ go to the ship_model/store_simulation/data, retrieve the dictionary name ]
 
-    ## Get the simulation results for all assets, and plot the asset simulation results
-    own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
-    result_dfs = [own_ship_results_df]
+def print_outcome_summary(total_count,
+                          action_invalid,
+                          grounding_count,
+                          nav_failure_or_power_overload_count,
+                          exit_map_count,
+                          mission_finished_count):
 
-    # Build both animations (don’t show yet)
-    repeat=False
-    map_anim = MapAnimator(
-        assets=assets,
-        map_gdfs=map_gdfs,
-        interval_ms=500,
-        status_asset_index=0  # flags for own ship
-    )
-    map_anim.run(fps=120, show=False, repeat=False)
+    def pct(count):
+        return (count / total_count * 100) if total_count > 0 else 0.0
 
-    polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
-    polar_anim.run(fps=120, show=False, repeat=False)
-
-    # Place windows next to each other, same height, centered
-    animate_side_by_side(map_anim.fig, polar_anim.fig,
-                        left_frac=0.68,  # how wide the map window is
-                        height_frac=0.92,
-                        gap_px=16,
-                        show=True)
-
-    # Plot 1: Trajectory
-    plot_ship_status(env.assets[0], own_ship_results_df, plot_env_load=True, show=False)
-
-    # Plot 2: Status plot
-    plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
+    print("=" * 70)
+    print(f"{'Outcome':35} {'Count':>10} {'Percent':>10}")
+    print("-" * 70)
+    print(f"{'Invalid Action Sampling':35} {action_invalid:10d} {pct(action_invalid):10.2f} %")
+    print(f"{'Grounding':35} {grounding_count:10d} {pct(grounding_count):10.2f} %")
+    print(f"{'Nav Failure or Power Overload':35} {nav_failure_or_power_overload_count:10d} {pct(nav_failure_or_power_overload_count):10.2f} %")
+    print(f"{'Outside Horizon':35} {exit_map_count:10d} {pct(exit_map_count):10.2f} %")
+    print(f"{'Mission Successful':35} {mission_finished_count:10d} {pct(mission_finished_count):10.2f} %")
+    print("-" * 70)
+    print(f"{'Total Count':35} {total_count:10d}")
+    print("=" * 70)
     
-    # Save animation
-    save_anim = True
-    save_anim = False
-    if save_anim:
-        id = 4
-        map_file_name = f"{id}_map_anim.mp4"
-        polar_file_name = f"{id}_polar_anim.mp4"
-        map_anim.save(base_path=save_path, filename=map_file_name, fps=120)
-        polar_anim.save(base_path=save_path, filename=polar_file_name, fps=120)
+print_outcome_summary(total_count, action_invalid, grounding_count, nav_failure_or_power_overload_count, exit_map_count, mission_finished_count)

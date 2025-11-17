@@ -202,8 +202,8 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
     if show:
         plt.show()
         
-def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
-    fig, ax = plt.subplots(figsize=(12, 6))  # temp; we’ll resize to aspect
+def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False, no_title=False):
+    fig, ax = plt.subplots(figsize=(19, 12))  # temp; we’ll resize to aspect
     
     if map_gdfs is not None:
         frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = map_gdfs
@@ -223,8 +223,8 @@ def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
         ax.set_ylim(miny, maxy)
 
         # Resize figure to match map aspect (no letterbox)
-        fig_w = 12.0
-        fig_h = fig_w * (dy / dx) if dx > 0 else 6.0
+        fig_w = 19.0
+        fig_h = fig_w * (dy / dx) if dx > 0 else 12.0
         fig.set_size_inches(fig_w, fig_h, forward=True)
 
     # Full-bleed canvas
@@ -255,15 +255,22 @@ def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False):
         for x, y in zip(asset.ship_model.ship_drawings[1], asset.ship_model.ship_drawings[0]):
             ax.plot(x, y, color=c, lw=1.0, zorder=7)
 
-    lg = ax.legend(loc='upper right', frameon=True)
+    lg = ax.legend(loc='upper right', frameon=True, fontsize=24)
     lg.get_frame().set_alpha(0.95)
     
     ax.set_axis_on()
     fig.subplots_adjust(left=0.06, right=0.99, top=0.96, bottom=0.07)
-    ax.set_title('Ship Trajectory')
+    if not no_title:
+        ax.set_title('Ship Trajectory') 
+        ax.title.set_size(24)                                     # title font size
     ax.set_xlabel('East position (m)')
     ax.set_ylabel('North position (m)')
     # ax.grid(True, linewidth=0.5, alpha=0.4)
+    
+        # >>> add these lines <<<
+    ax.tick_params(axis='both', which='major', labelsize=24)  # tick label size
+    ax.xaxis.label.set_size(24)                               # x-label font size
+    ax.yaxis.label.set_size(24)                               # y-label font size
 
     if show:
         plt.show()
