@@ -88,7 +88,7 @@ if __name__ == "__main__":
     ast_model = SAC.load(model_path)
     
     ## Run the trained model
-    obs, info = env.reset()
+    obs, info = env.reset(route_idx=0)
     while True:
         action, _states = ast_model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = env.step(action)
