@@ -88,7 +88,7 @@ if __name__ == "__main__":
     ast_model = SAC.load(model_path)
     
     ## Run the trained model
-    obs, info = env.reset(route_idx=0)
+    obs, info = env.reset()
     while True:
         action, _states = ast_model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = env.step(action)
@@ -106,6 +106,18 @@ if __name__ == "__main__":
     ## Get the simulation results for all assets, and plot the asset simulation results
     own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
     result_dfs = [own_ship_results_df]
+
+
+    ############
+
+    # DO CBD HERE
+    from contracts.contracts import evaluate_contracts_over_dataframe, ViolationLogger
+    from contracts.logs.violation_summary_by_contract_table import summarize_violations_by_contract
+    logger = ViolationLogger("contracts/logs/contract_violations.csv", append=False)
+    evaluate_contracts_over_dataframe(own_ship_results_df, env, logger, run_id="baseline_run")
+    pivot_table = summarize_violations_by_contract("contracts/logs/contract_violations.csv")
+    print(pivot_table)
+    ###########
 
     # Build both animations (don’t show yet)
     repeat=False

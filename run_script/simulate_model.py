@@ -317,6 +317,12 @@ while episode <= args.n_episodes:
         
         # Step the env
         _, reward, terminated, truncated, _ = env.step(action)
+
+        ######
+        # print("STEP CALL, t =", env.assets[0].ship_model.simulation_results["time [s]"][-1])
+        # evaluate_contracts_per_timestep(env, logger, run_id="baseline_run")
+
+        #######
         
         if terminated or truncated:
             break
@@ -332,6 +338,20 @@ env.log_RL_transition_text(train_time=None,
 ## Get the simulation results for all assets, and plot the asset simulation results
 own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
 result_dfs = [own_ship_results_df]
+# print(own_ship_results_df.head)
+# print("len(sim_results) =", len(env.assets[0].ship_model.simulation_results["time [s]"]))
+
+############
+
+# DO CBD HERE
+from contracts.contracts import evaluate_contracts_over_dataframe, ViolationLogger
+from contracts.logs.violation_summary_by_contract_table import summarize_violations_by_contract
+logger = ViolationLogger("contracts/logs/contract_violations.csv", append=False)
+evaluate_contracts_over_dataframe(own_ship_results_df, env, logger, run_id="baseline_run")
+pivot_table = summarize_violations_by_contract("contracts/logs/contract_violations.csv")
+print(pivot_table)
+
+###########
 
 # Build both animations (don’t show yet)
 repeat=False
@@ -346,15 +366,15 @@ map_anim.run(fps=120, show=False, repeat=False)
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
 polar_anim.run(fps=120, show=False, repeat=False)
 
-# Place windows next to each other, same height, centered
-animate_side_by_side(map_anim.fig, polar_anim.fig,
-                     left_frac=0.68,  # how wide the map window is
-                     height_frac=0.92,
-                     gap_px=16,
-                     show=True)
+# # Place windows next to each other, same height, centered
+# animate_side_by_side(map_anim.fig, polar_anim.fig,
+#                      left_frac=0.68,  # how wide the map window is
+#                      height_frac=0.92,
+#                      gap_px=16,
+#                      show=True)
 
-# Plot 1: Trajectory
+# # Plot 1: Trajectory
 plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, show=False)
 
-# Plot 2: Status plot
+# # Plot 2: Status plot
 plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
