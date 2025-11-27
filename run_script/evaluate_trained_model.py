@@ -87,6 +87,8 @@ if __name__ == "__main__":
     
     # Load the trained model
     ast_model = SAC.load(model_path)
+
+    from contracts.violation_collector import MultiRunContractLogger
     
     ## Run the trained model iteratively
     runs = 1000
@@ -96,6 +98,8 @@ if __name__ == "__main__":
     exit_map_count                      = 0
     mission_finished_count              = 0
     action_invalid                      = 0
+
+    multi_logger = MultiRunContractLogger()
     
     for run in range(runs):
         print(f"Run : {run + 1}")
@@ -128,6 +132,17 @@ if __name__ == "__main__":
                         pass
                 break
 
+        # After each run finishes:
+        own_ship_results_df = pd.DataFrame.from_dict(env.assets[0].ship_model.simulation_results)
+
+        # This calls your existing evaluate_contracts_over_dataframe(...)
+        # and aggregates violations across runs in memory:
+        multi_logger.run_once(
+            df=own_ship_results_df,
+            env=env,
+            run_id=run + 1,   # or f"run_{run+1}"
+        )
+
     total_count = grounding_count + nav_failure_or_power_overload_count + exit_map_count + mission_finished_count
 ####################################### GET RESULTS ########################################
 
@@ -152,5 +167,27 @@ def print_outcome_summary(total_count,
     print("-" * 70)
     print(f"{'Total Count':35} {total_count:10d}")
     print("=" * 70)
+
+
+
+    # -------------------------
+    # After all runs: analysis
+    # -------------------------
+    all_violations_df = multi_logger.to_dataframe()
+    print("All violations (head):")
+    print(all_violations_df.head())
+
+    print("\nTotal timesteps across all runs:", multi_logger.total_timesteps)
+
+    print("\nPivot table (subsystem x contract_id):")
+    pivot_table = multi_logger.summarize_by_contract()
+    print(pivot_table)
+
+    print("\nViolation rate by contract_id (% of timesteps):")
+    print(multi_logger.violation_rate_by_contract())
+
+    print("\nViolation rate by subsystem (% of timesteps):")
+    print(multi_logger.violation_rate_by_subsystem())
     
 print_outcome_summary(total_count, action_invalid, grounding_count, nav_failure_or_power_overload_count, exit_map_count, mission_finished_count)
+
