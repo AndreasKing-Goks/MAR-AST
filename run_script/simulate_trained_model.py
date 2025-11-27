@@ -106,6 +106,7 @@ if __name__ == "__main__":
     ## Get the simulation results for all assets, and plot the asset simulation results
     own_ship_results_df = pd.DataFrame().from_dict(env.assets[0].ship_model.simulation_results)
     result_dfs = [own_ship_results_df]
+    print("len(sim_results) =", len(env.assets[0].ship_model.simulation_results["time [s]"]))
 
 
     ############

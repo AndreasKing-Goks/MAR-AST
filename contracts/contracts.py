@@ -186,7 +186,7 @@ def build_contracts_from_row(i, row, env: SeaEnvASTv2):
     rudder_ct = RudderContract(
         desired_angle=np.array([rudder_angle_rad]),
         actual_angle=np.array([rudder_angle_rad]),
-        angle_limit=np.deg2rad(30.0),#35
+        angle_limit=np.deg2rad(35.0),#35
         max_rate=np.deg2rad(2.0), #2.3
     )
 
@@ -230,7 +230,7 @@ def build_contracts_from_row(i, row, env: SeaEnvASTv2):
         left_scenario_horizon=env.assets[0].ship_model.outside_horizon_array[i],
         navigation_success= not env.assets[0].ship_model.nav_failure_array[i],
         propulsion_overload_events=env.assets[0].ship_model.power_overload_array[i],
-        travel_distance=0.0,  # you can hook in a proper value later
+        travel_distance=0.0,  
         travel_time=row["time [s]"],
         distance_min=0.0,
         distance_max=1e9,
@@ -316,21 +316,3 @@ def evaluate_contracts_over_dataframe(df,
 #         wind dir [deg], 
 #         current speed [m/s], 
 #         current dir [deg]]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
