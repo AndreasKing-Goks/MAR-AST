@@ -297,7 +297,7 @@ class SeaEnvASTv2(gym.Env):
         wind_norm               = self._normalize(wind, self.wind_range["min"], self.wind_range["max"])
         current_norm            = self._normalize(current, self.current_range["min"], self.current_range["max"])
 
-        if normalized:
+        if normalized: 
             # CLip the normalized observation within bound
             observation         = {
                 "position"          : self._safe_clip(position_norm),
@@ -394,8 +394,8 @@ class SeaEnvASTv2(gym.Env):
         }
         
         return observation_norm       
-    
-    def _step(self, action=None):
+
+    def _step(self, action=None, env_args=None):
         '''
             The method is used for stepping up the simulator for the ship assets
             
@@ -407,36 +407,37 @@ class SeaEnvASTv2(gym.Env):
             - U_c_bar           : Current mean speed
             - psi_c_bar         : Current mean direction
         '''
-        if action is not None:
-            ## Unpack the action
-            Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar = action
+        if env_args is None:
+            if action is not None:
+                ## Unpack the action
+                Hs, U_w_bar, Tp, psi_ww_bar, U_c_bar, psi_c_bar = action
+                
+                ## GLOBAL ARGS FOR ALL SHIP ASSETS
+                # Compile wave_args
+                wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww_bar) if self.wave_model else None
+                
+                # Compile current_args
+                current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c_bar) if self.current_model else None
+                
+                # Compile wind_args
+                wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww_bar) if self.wind_model else None
+                
+                # Compile env_args
+                env_args = (wave_args, current_args, wind_args)
             
-            ## GLOBAL ARGS FOR ALL SHIP ASSETS
-            # Compile wave_args
-            wave_args = self.wave_model.get_wave_force_params(Hs, Tp, psi_ww_bar) if self.wave_model else None
-            
-            # Compile current_args
-            current_args = self.current_model.get_current_vel_and_dir(U_c_bar, psi_c_bar) if self.current_model else None
-            
-            # Compile wind_args
-            wind_args = self.wind_model.get_wind_vel_and_dir(U_w_bar, psi_ww_bar) if self.wind_model else None
-            
-            # Compile env_args
-            env_args = (wave_args, current_args, wind_args)
-        
-        # No action means being in warm up phase       
-        else:
-            # Compile wave_args
-            wave_args = self.wave_model.get_wave_force_params(self.Hs_wu, self.Tp_wu, self.psi_ww_bar_wu) if self.wave_model else None
-            
-            # Compile current_args
-            current_args = self.current_model.get_current_vel_and_dir(self.U_c_bar_wu, self.psi_c_bar_wu) if self.current_model else None
-            
-            # Compile wind_args
-            wind_args = self.wind_model.get_wind_vel_and_dir(self.U_w_bar_wu, self.psi_ww_bar_wu) if self.wind_model else None
-            
-            # Compile env_args
-            env_args = (wave_args, current_args, wind_args)
+            # No action means being in warm up phase       
+            else:
+                # Compile wave_args
+                wave_args = self.wave_model.get_wave_force_params(self.Hs_wu, self.Tp_wu, self.psi_ww_bar_wu) if self.wave_model else None
+                
+                # Compile current_args
+                current_args = self.current_model.get_current_vel_and_dir(self.U_c_bar_wu, self.psi_c_bar_wu) if self.current_model else None
+                
+                # Compile wind_args
+                wind_args = self.wind_model.get_wind_vel_and_dir(self.U_w_bar_wu, self.psi_ww_bar_wu) if self.wind_model else None
+                
+                # Compile env_args
+                env_args = (wave_args, current_args, wind_args)
             
         # Collect assets_info
         asset_infos = [asset.info for asset in self.assets]
@@ -594,12 +595,15 @@ class SeaEnvASTv2(gym.Env):
         self.np_random, _ = gym.utils.seeding.np_random(seed)
         
         # Deterministically seed sub-models (use their own rng if they have one)
-        if self.wave_model is not None:
-            self.wave_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
-        if self.current_model is not None:
-            self.current_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
-        if self.wind_model is not None:
-            self.wind_model.reset(seed=int(self.np_random.integers(0, 2**31 - 1)))
+        # Define the seeds first to prevent inconsistent seed if the include load model changes in between run
+        wave_seed   = int(self.np_random.integers(0, 2**31 - 1))
+        current_seed= int(self.np_random.integers(0, 2**31 - 1))
+        wind_seed   = int(self.np_random.integers(0, 2**31 - 1))
+
+        if self.wave_model:   self.wave_model.reset(seed=wave_seed)
+        if self.current_model:self.current_model.reset(seed=current_seed)
+        if self.wind_model:   self.wind_model.reset(seed=wind_seed)
+        self._child_seeds = dict(wave=wave_seed, current=current_seed, wind=wind_seed)
             
         # Sample a random route for training during random training
         if self.random_route:
@@ -649,10 +653,16 @@ class SeaEnvASTv2(gym.Env):
         # BEWARE: 
         # MAKE SURE THAT DURING THE WARM UP PHASE, 
         # SIMULATOR SHOULD NOT BE TERMINATED/TRUNCATED
-        running_time = 0
+        # # ---- freeze warm-up loads (one draw per submodel), then reuse ----
+        # wave_fixed    = self.wave_model.get_wave_force_params(self.Hs_wu, self.Tp_wu, self.psi_ww_bar_wu) if self.wave_model else None
+        # current_fixed = self.current_model.get_current_vel_and_dir(self.U_c_bar_wu, self.psi_c_bar_wu)     if self.current_model else None
+        # wind_fixed    = self.wind_model.get_wind_vel_and_dir(self.U_w_bar_wu, self.psi_ww_bar_wu)         if self.wind_model else None
+        # env_args_fixed = (wave_fixed, current_fixed, wind_fixed)
+        
+        running_time = 0.0
         while running_time < self.args.warm_up_time:
             # Simulator integration using a very gentle environment load
-            self._step()
+            self._step()  # <- no new randomness consumed
             
             # Update running time using simulator time step
             running_time += self.assets[0].ship_model.int.dt 

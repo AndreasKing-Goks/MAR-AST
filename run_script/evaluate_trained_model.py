@@ -131,8 +131,6 @@ if __name__ == "__main__":
     total_count = grounding_count + nav_failure_or_power_overload_count + exit_map_count + mission_finished_count
 ####################################### GET RESULTS ########################################
 
-# env.assets[0].ship_model.simulation_results[ go to the ship_model/store_simulation/data, retrieve the dictionary name ]
-
 def print_outcome_summary(total_count,
                           action_invalid,
                           grounding_count,

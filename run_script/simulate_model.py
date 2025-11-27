@@ -366,15 +366,15 @@ map_anim.run(fps=120, show=False, repeat=False)
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
 polar_anim.run(fps=120, show=False, repeat=False)
 
-# # Place windows next to each other, same height, centered
-# animate_side_by_side(map_anim.fig, polar_anim.fig,
-#                      left_frac=0.68,  # how wide the map window is
-#                      height_frac=0.92,
-#                      gap_px=16,
-#                      show=True)
+# Place windows next to each other, same height, centered
+animate_side_by_side(map_anim.fig, polar_anim.fig,
+                     left_frac=0.68,  # how wide the map window is
+                     height_frac=0.92,
+                     gap_px=16,
+                     show=True)
 
-# # Plot 1: Trajectory
+# Plot 1: Status plot
 plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, show=False)
 
-# # Plot 2: Status plot
+# Plot 2: Trajectory
 plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
