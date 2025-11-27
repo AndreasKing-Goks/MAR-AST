@@ -302,7 +302,7 @@ while episode <= args.n_episodes:
     env.set_random_route_flag(flag=True)
     
     # Set for training flag
-    env.set_for_training_flag(flag=False)
+    env.set_for_training_flag(flag=True)
     
     # Reset the environment at the beginning of episode
     env.reset(route_idx=0)
@@ -377,4 +377,5 @@ animate_side_by_side(map_anim.fig, polar_anim.fig,
 plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, show=False)
 
 # Plot 2: Trajectory
-plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
+fig, ax = plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
+fig.savefig("ship_trajectory.pdf", bbox_inches="tight")

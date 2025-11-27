@@ -202,75 +202,225 @@ def plot_ship_status(asset, result_df, plot_env_load=True, show=False):
     if show:
         plt.show()
         
-def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False, no_title=False):
-    fig, ax = plt.subplots(figsize=(19, 12))  # temp; we’ll resize to aspect
+# def plot_ship_and_real_map(assets, result_dfs, map_gdfs=None, show=False, no_title=False):
+#     fig, ax = plt.subplots(figsize=(19, 12))  # temp; we’ll resize to aspect
     
+#     if map_gdfs is not None:
+#         frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = map_gdfs
+#         if not land_gdf.empty:
+#             land_gdf.plot(ax=ax, facecolor="#e6e6e6", edgecolor="#bbbbbb", linewidth=0.3, zorder=0)
+#         if not ocean_gdf.empty:
+#             ocean_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="none", zorder=1)
+#         if not water_gdf.empty:
+#             water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
+#         if not coast_gdf.empty:
+#             coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.2, zorder=3)
+
+#         # --- fit to frame & keep aspect ---
+#         minx, miny, maxx, maxy = frame_gdf.total_bounds
+#         dx, dy = (maxx - minx), (maxy - miny)
+#         ax.set_xlim(minx, maxx)
+#         ax.set_ylim(miny, maxy)
+
+#         # Resize figure to match map aspect (no letterbox)
+#         fig_w = 19.0
+#         fig_h = fig_w * (dy / dx) if dx > 0 else 12.0
+#         fig.set_size_inches(fig_w, fig_h, forward=True)
+
+#     # Full-bleed canvas
+#     ax.set_axis_off()
+#     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+#     ax.set_position([0, 0, 1, 1])
+    
+#     # -------- enforce 1:1 scale from DATA --------
+#     # If no map was set, autoscale to the plotted data first
+#     ax.relim(); ax.autoscale_view()
+#     # Now lock aspect so 1 unit in x == 1 unit in y
+#     ax.set_aspect('equal', adjustable='box')   # robust when limits come from data
+
+#     # --- ships & routes ---
+#     palette = ['#1f77b4', '#d62728', '#2ca02c', '#bcbd22', '#e377c2', '#8c564b', '#000000', '#7f7f7f', '#17becf']
+#     for i, asset in enumerate(assets):
+#         c = palette[i % len(palette)]
+#         ax.plot(result_dfs[i]['east position [m]'].to_numpy(),
+#                 result_dfs[i]['north position [m]'].to_numpy(),
+#                 lw=2, alpha=0.95, label=asset.info.name_tag, zorder=5)
+#         if asset.ship_model.auto_pilot is not None:
+#             ax.plot(asset.ship_model.auto_pilot.navigate.east,
+#                     asset.ship_model.auto_pilot.navigate.north,
+#                     linestyle='--', lw=1.2, alpha=0.85, color=c, zorder=5)
+#             ax.scatter(asset.ship_model.auto_pilot.navigate.east,
+#                     asset.ship_model.auto_pilot.navigate.north,
+#                     marker='x', s=28, linewidths=1.2, color=c, zorder=6)
+#         for x, y in zip(asset.ship_model.ship_drawings[1], asset.ship_model.ship_drawings[0]):
+#             ax.plot(x, y, color=c, lw=1.0, zorder=7)
+
+#     lg = ax.legend(loc='upper right', frameon=True, fontsize=24)
+#     lg.get_frame().set_alpha(0.95)
+    
+#     ax.set_axis_on()
+#     fig.subplots_adjust(left=0.06, right=0.99, top=0.96, bottom=0.07)
+#     if not no_title:
+#         ax.set_title('Ship Trajectory') 
+#         ax.title.set_size(24)                                     # title font size
+#     ax.set_xlabel('East position (m)')
+#     ax.set_ylabel('North position (m)')
+#     # ax.grid(True, linewidth=0.5, alpha=0.4)
+    
+#         # >>> add these lines <<<
+#     ax.tick_params(axis='both', which='major', labelsize=24)  # tick label size
+#     ax.xaxis.label.set_size(24)                               # x-label font size
+#     ax.yaxis.label.set_size(24)                               # y-label font size
+
+#     if show:
+#         plt.show()
+
+def plot_ship_and_real_map(
+        assets,
+        result_dfs,
+        map_gdfs=None,
+        show=False,
+        no_title=False,
+        fig_width=2.5,      # in inches – good for single-column
+        dpi=500,            # higher DPI for LaTeX
+    ):
+    # --- base figure ---------------------------------------------------------
+    fig, ax = plt.subplots(figsize=(fig_width, fig_width))  # temp square; we’ll fix aspect
+    fig.set_dpi(dpi)
+
+    # --- map layers ----------------------------------------------------------
     if map_gdfs is not None:
         frame_gdf, ocean_gdf, land_gdf, coast_gdf, water_gdf = map_gdfs
-        if not land_gdf.empty:
-            land_gdf.plot(ax=ax, facecolor="#e6e6e6", edgecolor="#bbbbbb", linewidth=0.3, zorder=0)
-        if not ocean_gdf.empty:
-            ocean_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="none", zorder=1)
-        if not water_gdf.empty:
-            water_gdf.plot(ax=ax, facecolor="#a0c8f0", edgecolor="#74a8d8", linewidth=0.4, alpha=0.95, zorder=2)
-        if not coast_gdf.empty:
-            coast_gdf.plot(ax=ax, color="#2f7f3f", linewidth=1.2, zorder=3)
 
-        # --- fit to frame & keep aspect ---
+        if not land_gdf.empty:
+            land_gdf.plot(ax=ax, facecolor="#e6e6e6",
+                          edgecolor="#b0b0b0", linewidth=0.4, zorder=0)
+        if not ocean_gdf.empty:
+            ocean_gdf.plot(ax=ax, facecolor="#a0c8f0",
+                           edgecolor="none", zorder=1)
+        if not water_gdf.empty:
+            water_gdf.plot(ax=ax, facecolor="#a0c8f0",
+                           edgecolor="#5c8fc4", linewidth=0.5,
+                           alpha=0.98, zorder=2)
+        if not coast_gdf.empty:
+            coast_gdf.plot(ax=ax, color="#2f7f3f",
+                           linewidth=1.4, zorder=3)
+
+        # fit to frame & keep aspect
         minx, miny, maxx, maxy = frame_gdf.total_bounds
         dx, dy = (maxx - minx), (maxy - miny)
         ax.set_xlim(minx, maxx)
         ax.set_ylim(miny, maxy)
 
-        # Resize figure to match map aspect (no letterbox)
-        fig_w = 19.0
-        fig_h = fig_w * (dy / dx) if dx > 0 else 12.0
-        fig.set_size_inches(fig_w, fig_h, forward=True)
+        # resize figure to preserve map aspect at the chosen width
+        if dx > 0:
+            fig_h = fig_width * (dy / dx)
+            fig.set_size_inches(fig_width, fig_h, forward=True)
 
-    # Full-bleed canvas
+    # full-bleed canvas during drawing
     ax.set_axis_off()
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_position([0, 0, 1, 1])
-    
-    # -------- enforce 1:1 scale from DATA --------
-    # If no map was set, autoscale to the plotted data first
-    ax.relim(); ax.autoscale_view()
-    # Now lock aspect so 1 unit in x == 1 unit in y
-    ax.set_aspect('equal', adjustable='box')   # robust when limits come from data
 
-    # --- ships & routes ---
-    palette = ['#1f77b4', '#d62728', '#2ca02c', '#bcbd22', '#e377c2', '#8c564b', '#000000', '#7f7f7f', '#17becf']
+    # autoscale to data, then enforce 1:1 scale
+    ax.relim()
+    ax.autoscale_view()
+    ax.set_aspect("equal", adjustable="box")
+
+    # --- ship trajectories ---------------------------------------------------
+    own_color   = "#0c3c78"   # dark blue for actual ship path
+    route_color = "#d90808"   # orange for mission trajectory / waypoints
+
+    own_handle = None
+    route_handle = None
+
     for i, asset in enumerate(assets):
-        c = palette[i % len(palette)]
-        ax.plot(result_dfs[i]['east position [m]'].to_numpy(),
-                result_dfs[i]['north position [m]'].to_numpy(),
-                lw=2, alpha=0.95, label=asset.info.name_tag, zorder=5)
-        if asset.ship_model.auto_pilot is not None:
-            ax.plot(asset.ship_model.auto_pilot.navigate.east,
-                    asset.ship_model.auto_pilot.navigate.north,
-                    linestyle='--', lw=1.2, alpha=0.85, color=c, zorder=5)
-            ax.scatter(asset.ship_model.auto_pilot.navigate.east,
-                    asset.ship_model.auto_pilot.navigate.north,
-                    marker='x', s=28, linewidths=1.2, color=c, zorder=6)
-        for x, y in zip(asset.ship_model.ship_drawings[1], asset.ship_model.ship_drawings[0]):
-            ax.plot(x, y, color=c, lw=1.0, zorder=7)
+        # actual sailed track
+        line, = ax.plot(
+            result_dfs[i]["east position [m]"].to_numpy(),
+            result_dfs[i]["north position [m]"].to_numpy(),
+            color=own_color,
+            lw=2.4,
+            alpha=0.98,
+            zorder=5,
+            label="Own ship" if own_handle is None else "_nolegend_",
+        )
+        if own_handle is None:
+            own_handle = line
 
-    lg = ax.legend(loc='upper right', frameon=True, fontsize=24)
-    lg.get_frame().set_alpha(0.95)
-    
+        # planned/mission trajectory from autopilot
+        if asset.ship_model.auto_pilot is not None:
+            route_line, = ax.plot(
+                asset.ship_model.auto_pilot.navigate.east,
+                asset.ship_model.auto_pilot.navigate.north,
+                linestyle="--",
+                lw=1.8,
+                alpha=0.95,
+                color=route_color,
+                zorder=5,
+                label="Mission trajectory" if route_handle is None else "_nolegend_",
+            )
+            ax.scatter(
+                asset.ship_model.auto_pilot.navigate.east,
+                asset.ship_model.auto_pilot.navigate.north,
+                marker="x",
+                s=30,
+                linewidths=1.6,
+                color=route_color,
+                zorder=6,
+            )
+            if route_handle is None:
+                route_handle = route_line
+
+        # ship outlines along the path
+        for x, y in zip(asset.ship_model.ship_drawings[1],
+                        asset.ship_model.ship_drawings[0]):
+            ax.plot(x, y, color=own_color, lw=1.0, zorder=7)
+
+    # --- axes, labels, legend -----------------------------------------------
     ax.set_axis_on()
-    fig.subplots_adjust(left=0.06, right=0.99, top=0.96, bottom=0.07)
+    # fig.subplots_adjust(left=0.075, right=0.45, top=0.45, bottom=0.075)
+    fig.subplots_adjust(left=0.08, right=0.98, top=0.96, bottom=0.12)
+
+    title_fs = 12
+    label_fs = 11
+    tick_fs  = 10
+    legend_fs = 9
+
     if not no_title:
-        ax.set_title('Ship Trajectory') 
-        ax.title.set_size(24)                                     # title font size
-    ax.set_xlabel('East position (m)')
-    ax.set_ylabel('North position (m)')
-    # ax.grid(True, linewidth=0.5, alpha=0.4)
-    
-        # >>> add these lines <<<
-    ax.tick_params(axis='both', which='major', labelsize=24)  # tick label size
-    ax.xaxis.label.set_size(24)                               # x-label font size
-    ax.yaxis.label.set_size(24)                               # y-label font size
+        ax.set_title("Ship trajectory", fontsize=title_fs)
+
+    ax.set_xlabel("East position (m)", fontsize=label_fs)
+    ax.set_ylabel("North position (m)", fontsize=label_fs)
+    # --- scientific notation for coordinates ---
+    ax.ticklabel_format(style='sci', axis='both', scilimits=(0,0))
+    ax.xaxis.get_offset_text().set_fontsize(9)
+    ax.yaxis.get_offset_text().set_fontsize(9)
+
+    ax.tick_params(axis="both", which="major", labelsize=tick_fs, length=3)
+
+
+    # legend (only if we have handles)
+    handles = [h for h in (own_handle, route_handle) if h is not None]
+    labels = [h.get_label() for h in handles]
+    if handles:
+        lg = ax.legend(handles, labels,
+                       loc="upper right",
+                       frameon=True,
+                       fontsize=legend_fs)
+        lg.get_frame().set_alpha(0.95)
 
     if show:
         plt.show()
+        
+    # === resize figure for paper ===
+    target_width = 5.0  # inches, change as you like (e.g. 2.5, 3.5, ...)
+    # preserve the current data aspect ratio
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    aspect = (y1 - y0) / (x1 - x0)
+
+    fig.set_size_inches(target_width, target_width * aspect, forward=True)
+    fig.tight_layout(pad=0.05)
+
+    return fig, ax
