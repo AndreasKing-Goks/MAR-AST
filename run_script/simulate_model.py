@@ -302,7 +302,7 @@ while episode <= args.n_episodes:
     env.set_random_route_flag(flag=True)
     
     # Set for training flag
-    env.set_for_training_flag(flag=False)
+    env.set_for_training_flag(flag=True)
     
     # Reset the environment at the beginning of episode
     env.reset(route_idx=0)
@@ -366,15 +366,16 @@ map_anim.run(fps=120, show=False, repeat=False)
 polar_anim = PolarAnimator(focus_asset=assets[0], interval_ms=500)
 polar_anim.run(fps=120, show=False, repeat=False)
 
-# # Place windows next to each other, same height, centered
-# animate_side_by_side(map_anim.fig, polar_anim.fig,
-#                      left_frac=0.68,  # how wide the map window is
-#                      height_frac=0.92,
-#                      gap_px=16,
-#                      show=True)
+# Place windows next to each other, same height, centered
+animate_side_by_side(map_anim.fig, polar_anim.fig,
+                     left_frac=0.68,  # how wide the map window is
+                     height_frac=0.92,
+                     gap_px=16,
+                     show=True)
 
-# # Plot 1: Trajectory
+# Plot 1: Status plot
 plot_ship_status(own_ship_asset, own_ship_results_df, plot_env_load=True, show=False)
 
-# # Plot 2: Status plot
-plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
+# Plot 2: Trajectory
+fig, ax = plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
+fig.savefig("ship_trajectory.pdf", bbox_inches="tight")

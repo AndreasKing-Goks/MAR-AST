@@ -88,7 +88,7 @@ if __name__ == "__main__":
     ast_model = SAC.load(model_path)
     
     ## Run the trained model
-    obs, info = env.reset()
+    obs, info = env.reset(seed=1, route_idx=0)
     while True:
         action, _states = ast_model.predict(obs, deterministic=True)
         obs, reward, terminated, truncated, info = env.step(action)
@@ -140,11 +140,13 @@ if __name__ == "__main__":
                         gap_px=16,
                         show=True)
 
-    # Plot 1: Trajectory
+    # Plot 1: Status plot    
     plot_ship_status(env.assets[0], own_ship_results_df, plot_env_load=True, show=False)
 
-    # Plot 2: Status plot
-    plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
+    # Plot 2: Trajectory
+    fig, ax = plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
+    fig.savefig("ship_trajectory.pdf", bbox_inches="tight")
+    # fig.savefig("ast_simulation_fail_validation_1.pdf", bbox_inches="tight")
     
     # Save animation
     save_anim = True
