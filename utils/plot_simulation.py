@@ -1,3 +1,7 @@
+import matplotlib as mpl
+mpl.rcParams['pdf.fonttype'] = 42    # Use TrueType instead of Type 3
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'Arial' #'DejaVu Sans'  # Or: 'Arial', 'Helvetica'
 import matplotlib.pyplot as plt
 import numpy as np
 

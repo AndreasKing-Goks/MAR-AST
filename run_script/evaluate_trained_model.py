@@ -170,7 +170,7 @@ def print_outcome_summary(total_count,
 
 
 
-    # -------------------------
+    # ------------------------- 
     # After all runs: analysis
     # -------------------------
     all_violations_df = multi_logger.to_dataframe()

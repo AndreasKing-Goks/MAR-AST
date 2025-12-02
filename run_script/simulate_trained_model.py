@@ -145,8 +145,9 @@ if __name__ == "__main__":
 
     # Plot 2: Trajectory
     fig, ax = plot_ship_and_real_map(assets, result_dfs, map_gdfs, show=True, no_title=True)
-    fig.savefig("ship_trajectory.pdf", bbox_inches="tight")
-    # fig.savefig("ast_simulation_fail_validation_1.pdf", bbox_inches="tight")
+    # fig.savefig("ship_trajectory.pdf", bbox_inches="tight")
+    fig.savefig("ast_simulation_fail_validation_1.pdf", bbox_inches="tight")
+    # fig.savefig("ast_simulation_fail_2.pdf", bbox_inches="tight")
     
     # Save animation
     save_anim = True

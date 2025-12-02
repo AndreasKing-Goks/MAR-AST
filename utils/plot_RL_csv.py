@@ -7,6 +7,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import pandas as pd
+import matplotlib as mpl
+mpl.rcParams['pdf.fonttype'] = 42    # Use TrueType instead of Type 3
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'Arial' #'DejaVu Sans'  # Or: 'Arial', 'Helvetica'
 import matplotlib.pyplot as plt
 
 from utils.get_path import get_rl_csv_path
