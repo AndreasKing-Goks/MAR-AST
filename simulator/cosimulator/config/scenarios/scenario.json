@@ -1,0 +1,26 @@
+{
+	"defaults": {
+	"action": "override"
+	},
+	"events": [
+		{
+		  "time": 49,
+		  "model": "vessel_model",
+		  "variable": "reset_position",
+		  "value": true
+		},
+		{
+		  "time": 49.05,
+		  "model": "vessel_model",
+		  "variable": "reset_position",
+		  "value": false
+		},
+		{
+		  "time": 50,
+		  "model": "track_controller",
+		  "variable": "enable",
+		  "value": true
+		}
+	],
+	"end": 1000
+}
