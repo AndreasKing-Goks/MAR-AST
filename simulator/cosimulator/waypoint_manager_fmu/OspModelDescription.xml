@@ -1,0 +1,14 @@
+<OspModelDescription xmlns="https://open-simulation-platform.com/OspModelDescription/1.0.1" version="1.0">
+  <VariableGroups>
+    <Generic name="next_wp">
+      <Variable ref="next_wp_north"/>
+      <Variable ref="next_wp_east"/>
+      <Variable ref="next_wp_sog"/>
+    </Generic>
+    <Generic name="previous_wp">
+      <Variable ref="prev_wp_north"/>
+      <Variable ref="prev_wp_east"/>
+      <Variable ref="prev_wp_sog"/>
+    </Generic>
+  </VariableGroups>
+</OspModelDescription>

@@ -13,6 +13,12 @@ conda env create -f mar-ast.yml
 
 Recommended to do these steps in order.
 
+### Libcosimpy
+When using cosiumulation as a simulator base, we require the use of `libcosimpy` in order to orchestrate the FMUs when doing simulation. Install the Python library by running:
+```bash
+pip install libcosimpy
+```
+
 ### Gymnasium
 First, we need to install `gymnasium` to define the RL observation and action space, and wraps our custom RL-environment wrapper to comply with `stable-baselines3` package. Install this package by running:
 ```bash
